@@ -33,6 +33,7 @@ from .auth_router import create_auth_router
 from .custom_domain_middleware import CustomDomainMiddleware
 from .customer_auth import CustomerAuthorizer, IdentityVerifier, identity_verifier_from_env
 from .db import connect, migrate, using_postgres
+from .demo_router import demo_router
 from .intake_router import intake_router
 from .landing_router import landing_router
 from .site_render_router import site_render_router
@@ -229,8 +230,14 @@ def create_app(
     # exact same queue instance the Site Magic API itself enqueues through.
     resolved_site_magic_queue = site_magic_queue or NullSiteMagicQueue()
     app.state.site_magic_queue = resolved_site_magic_queue
+    # Read by demo_router.py, same reasoning as site_magic_queue above:
+    # demo_job_manager.py auto-publishes a demo once its build is ready
+    # and needs the exact same ArtifactStorage instance create_site_magic_router()
+    # is wired with below, not a second default that could silently diverge.
+    app.state.site_magic_artifact_storage = site_magic_artifact_storage
     app.include_router(landing_router)
     app.include_router(agency_router)
+    app.include_router(demo_router)
     app.include_router(intake_router)
     app.include_router(site_router)
     app.include_router(site_render_router)

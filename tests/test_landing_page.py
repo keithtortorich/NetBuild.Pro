@@ -10,7 +10,6 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from webstaffr.app import create_app
-from webstaffr.db import get_connection
 
 
 class LandingPageTestCase(unittest.TestCase):
@@ -68,6 +67,10 @@ class LandingPageTestCase(unittest.TestCase):
             self.assertNotIn(industry, resp.text)
 
     def test_landing_links_only_repository_hosted_demos(self):
+        # /demo-sites/{file}.html now 301s into demo_router.py's Site
+        # Magic-backed /demos/{slug} (ADR-030) instead of serving a static
+        # file directly -- the old landing-page links keep working via
+        # that redirect rather than needing to be rewritten in place.
         resp = self.client.get("/")
         expected = (
             "hvac.html",
@@ -82,10 +85,9 @@ class LandingPageTestCase(unittest.TestCase):
         )
         for filename in expected:
             self.assertIn(f'file: "/demo-sites/{filename}"', resp.text)
-            demo = self.client.get(f"/demo-sites/{filename}")
-            self.assertEqual(demo.status_code, 200)
+            demo = self.client.get(f"/demo-sites/{filename}", follow_redirects=False)
+            self.assertEqual(demo.status_code, 301)
         self.assertNotIn("ctonew.app", resp.text)
-        self.assertNotIn('href="/demos/', resp.text)
 
     def test_angel_embed_is_functional_and_origin_scoped(self):
         resp = self.client.get("/")
@@ -142,25 +144,9 @@ class LandingPageTestCase(unittest.TestCase):
         self.assertNotIn("answers every call", payload["solution"].lower())
         self.assertEqual(payload["pricing"], {"office_staff_monthly": 497})
 
-    def test_demo_redirect_unknown_trade(self):
-        resp = self.client.get("/demos/not-a-real-trade")
-        self.assertEqual(resp.status_code, 404)
-        self.assertEqual(resp.json()["detail"], "Demo not found")
-
-    def test_demo_redirect_requires_an_existing_demo_tenant(self):
-        missing = self.client.get("/demos/plumbing", follow_redirects=False)
-        self.assertEqual(missing.status_code, 404)
-
-        conn = get_connection(self.db_path)
-        try:
-            conn.execute("INSERT INTO tenants (tenant_id) VALUES (?)", ("demo-plumbing",))
-            conn.commit()
-        finally:
-            conn.close()
-
-        provisioned = self.client.get("/demos/plumbing", follow_redirects=False)
-        self.assertEqual(provisioned.status_code, 302)
-        self.assertEqual(provisioned.headers["location"], "/sites/demo-plumbing/web")
+    # /demos/{slug} is now demo_router.py's Site Magic-backed route
+    # (ADR-030) -- unknown-trade and provisioned-demo behavior is covered
+    # in tests/test_demo_router.py, not here.
 
 
 if __name__ == "__main__":

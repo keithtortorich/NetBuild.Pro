@@ -64,10 +64,21 @@ def generate_tenant_id(biz_name: str) -> str:
     """Business-name slug plus a short random suffix, so two businesses
     with the same or similar name don't collide on tenant_id. The suffix
     is not meant to be secret or unguessable -- just collision-avoidance,
-    matching Tenant's ^[a-zA-Z0-9_-]{1,64}$ constraint."""
+    matching Tenant's ^[a-zA-Z0-9_-]{1,64}$ constraint.
+
+    sanitize_slug()'s trailing .strip("_") already makes a leading
+    underscore structurally unreachable from this function (a real
+    generated id can never collide with demo_sites.RESERVED_TENANT_PREFIX,
+    "_demo_"), but that's an implicit side effect of string stripping,
+    not a stated guarantee -- assert it here so the invariant is explicit
+    and a future change to sanitize_slug() can't silently break it."""
     slug = sanitize_slug(biz_name)[:40]
     suffix = uuid.uuid4().hex[:8]
-    return f"{slug}_{suffix}"
+    tenant_id = f"{slug}_{suffix}"
+    assert not tenant_id.startswith("_"), (
+        f"generate_tenant_id produced a reserved-looking id: {tenant_id!r}"
+    )
+    return tenant_id
 
 
 def validate_intake_payload(data: dict) -> None:
