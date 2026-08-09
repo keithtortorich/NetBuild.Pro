@@ -24,6 +24,8 @@ from .intake import (
     generate_tenant_id,
     validate_intake_payload,
 )
+from .site_data import build_public_site_data
+from .site_magic import SiteMagicNotConfiguredError, SiteMagicRepository
 from .site_magic_engine import generate_site_for_submission, resolve_site_workdir
 from .trade_presets import SUPPORTED_INDUSTRIES, get_preset
 from .rate_limit import (
@@ -181,6 +183,7 @@ def submit_intake(req: IntakeRequest, request: Request) -> IntakeResponse:
         conn.close()
 
     _generate_site_if_enabled(submission, request.app.state.db_path)
+    _enqueue_site_magic_job_if_configured(submission, request)
 
     return IntakeResponse(
         submission_id=submission.submission_id,
@@ -207,6 +210,49 @@ def _generate_site_if_enabled(submission: IntakeSubmission, db_path: str) -> Non
             submission.tenant_id,
             type(exc).__name__,
         )
+
+
+def _enqueue_site_magic_job_if_configured(submission: IntakeSubmission, request: Request) -> None:
+    """Best-effort Site Magic job creation after a successful intake commit.
+
+    Runs in its own connection/transaction, strictly after the intake
+    transaction above has already committed -- a Site Magic failure must
+    never roll back or fail the intake response, same posture as
+    _generate_site_if_enabled.
+
+    source_payload carries verified_facts alongside intake_id: the same
+    build_public_site_data() projection GET /sites/{tenant_id} uses, so
+    the worker's SiteSource.verifiedFacts is the already-vetted
+    internal-fields-stripped view (see site_data.py's module docstring for
+    the never-leak list -- lead_routing, approver, competitors,
+    license_number, etc.), not a raw dump of intake_submissions. The
+    worker needs the facts inline: nothing resolves an intake_id back to
+    a submission from the Node side, and duplicating that lookup there
+    would be a second, drifting source of truth for what's public-safe.
+    """
+    conn = _get_connection(request)
+    try:
+        job = SiteMagicRepository(conn).create_job(
+            tenant_id=submission.tenant_id,
+            source_type="intake",
+            source_payload={
+                "intake_id": str(submission.submission_id),
+                "verified_facts": build_public_site_data(submission),
+            },
+        )
+        request.app.state.site_magic_queue.enqueue(job_id=job.job_id, tenant_id=submission.tenant_id)
+        conn.commit()
+    except SiteMagicNotConfiguredError:
+        conn.rollback()
+        logger.info("site_magic_enqueue_skipped tenant_id=%s reason=not_configured", submission.tenant_id)
+    except DB_ERRORS as exc:
+        conn.rollback()
+        logger.error(
+            "site_magic_enqueue_failed tenant_id=%s error_type=%s",
+            submission.tenant_id, type(exc).__name__,
+        )
+    finally:
+        conn.close()
 
 
 @intake_router.get("/intake/presets")

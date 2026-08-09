@@ -1,0 +1,17 @@
+{
+  "name": "netbuild-pro-site-magic",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.18.0" },
+  "scripts": {
+    "check:site-magic": "node --check webstaffr/site_maker_engine.ts && node --check webstaffr/site_magic_adapters.ts",
+    "test:site-magic": "node --test tests_node/*.test.ts"
+  },
+  "dependencies": {
+    "@openai/codex-sdk": "^0.98.0",
+    "openai": "^5.19.1"
+  },
+  "devDependencies": {
+    "impeccable": "3.5.0"
+  }
+}

@@ -37,6 +37,8 @@ from .intake_router import intake_router
 from .landing_router import landing_router
 from .site_render_router import site_render_router
 from .site_router import site_router
+from .site_magic import ArtifactStorage, NullSiteMagicQueue, SiteMagicQueue
+from .site_magic_router import create_site_magic_router
 from .website_lead_router import create_website_lead_router
 from .security_middleware import RequestBodyLimitMiddleware, SecurityHeadersMiddleware
 from .workers.angel.api_auth import SharedSecretVerifier, internal_api_verifier_from_env
@@ -98,7 +100,7 @@ _PRIVATE_CORS_PATHS = {"/auth/session", "/auth/logout"}
 # (/intake/presets/{industry}, /sites/{tenant_id}) -- exact-match
 # membership in _CORS_SCOPED_PATHS can't match a dynamic segment.
 _PUBLIC_CORS_PREFIXES = ("/intake/presets", "/sites/")
-_PRIVATE_CORS_PREFIXES = ("/tenants/",)
+_PRIVATE_CORS_PREFIXES = ("/tenants/", "/site-magic/")
 _SERVICETITAN_POLL_PATH = "/integrations/servicetitan/poll"
 
 
@@ -183,6 +185,8 @@ def create_app(
     internal_api_verifier: Optional[SharedSecretVerifier] = None,
     customer_identity_verifier: Optional[IdentityVerifier] = None,
     customer_allowed_origins: Optional[AbstractSet[str]] = None,
+    site_magic_queue: Optional[SiteMagicQueue] = None,
+    site_magic_artifact_storage: Optional[ArtifactStorage] = None,
     max_request_body_bytes: int = 1_048_576,
 ) -> FastAPI:
     """Factory rather than a module-level app instance, so tests (and any
@@ -220,6 +224,11 @@ def create_app(
         customer_identity_verifier or identity_verifier_from_env()
     )
     app.state.internal_api_verifier = active_internal_api_verifier
+    # Resolved once here (not left to create_site_magic_router()'s own
+    # defaulting) so intake_router's post-commit auto-enqueue hook uses the
+    # exact same queue instance the Site Magic API itself enqueues through.
+    resolved_site_magic_queue = site_magic_queue or NullSiteMagicQueue()
+    app.state.site_magic_queue = resolved_site_magic_queue
     app.include_router(landing_router)
     app.include_router(agency_router)
     app.include_router(intake_router)
@@ -228,6 +237,14 @@ def create_app(
     app.include_router(create_website_lead_router(ghl_client=ghl_client))
     app.include_router(create_auth_router(customer_authorizer))
     app.include_router(create_attribution_router(customer_authorizer))
+    app.include_router(
+        create_site_magic_router(
+            customer_authorizer,
+            queue=resolved_site_magic_queue,
+            artifact_storage=site_magic_artifact_storage,
+            internal_api_verifier=active_internal_api_verifier,
+        )
+    )
     app.include_router(social_media_router)
     app.include_router(create_workflow_graph_router(verifier=workflow_graph_verifier))
     # /retell/* is server-to-server only (Retell calling this app, not a

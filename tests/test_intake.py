@@ -46,6 +46,14 @@ class IntakeTestCase(unittest.TestCase):
         os.remove(self.db_path)
 
 
+class FakeSiteMagicQueue:
+    def __init__(self):
+        self.enqueued = []
+
+    def enqueue(self, *, job_id, tenant_id):
+        self.enqueued.append((job_id, tenant_id))
+
+
 class TestIntakeSubmission(IntakeTestCase):
     def test_valid_submission_returns_generated_tenant_id(self):
         resp = self.client.post("/intake", json=_valid_payload())
@@ -138,6 +146,71 @@ class TestIntakeSubmission(IntakeTestCase):
 
         sites_after = set(workdir.iterdir()) if workdir.exists() else set()
         self.assertEqual(sites_after, sites_before)
+
+
+class TestIntakeAutoEnqueuesSiteMagic(unittest.TestCase):
+    def setUp(self):
+        fd, self.db_path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        self.queue = FakeSiteMagicQueue()
+        app = create_app(db_path=self.db_path, site_magic_queue=self.queue)
+        self._client_ctx = TestClient(app)
+        self.client = self._client_ctx.__enter__()
+
+    def tearDown(self):
+        self._client_ctx.__exit__(None, None, None)
+        os.remove(self.db_path)
+
+    def test_successful_intake_enqueues_a_site_magic_job(self):
+        resp = self.client.post("/intake", json=_valid_payload())
+        self.assertEqual(resp.status_code, 200)
+        tenant_id = resp.json()["tenant_id"]
+
+        self.assertEqual(len(self.queue.enqueued), 1)
+        job_id, enqueued_tenant_id = self.queue.enqueued[0]
+        self.assertEqual(enqueued_tenant_id, tenant_id)
+
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        try:
+            row = conn.execute(
+                "SELECT tenant_id, source_type, status FROM site_magic_jobs WHERE job_id = ?",
+                (job_id,),
+            ).fetchone()
+        finally:
+            conn.close()
+        self.assertIsNotNone(row)
+        self.assertEqual(row["tenant_id"], tenant_id)
+        self.assertEqual(row["source_type"], "intake")
+        self.assertEqual(row["status"], "queued")
+
+    def test_rate_limited_submission_does_not_enqueue(self):
+        with patch(
+            "webstaffr.intake_router.check_dimensions",
+            side_effect=RateLimitExceeded("testclient", "intake", 31, 30, 60),
+        ):
+            resp = self.client.post("/intake", json=_valid_payload())
+        self.assertEqual(resp.status_code, 429)
+        self.assertEqual(self.queue.enqueued, [])
+
+
+class TestIntakeWithoutSiteMagicQueueConfigured(IntakeTestCase):
+    """IntakeTestCase's create_app() call doesn't pass site_magic_queue, so
+    the resolved queue is NullSiteMagicQueue -- intake must still succeed."""
+
+    def test_intake_succeeds_even_though_site_magic_is_not_configured(self):
+        resp = self.client.post("/intake", json=_valid_payload())
+        self.assertEqual(resp.status_code, 200)
+
+        tenant_id = resp.json()["tenant_id"]
+        conn = sqlite3.connect(self.db_path)
+        try:
+            count = conn.execute(
+                "SELECT COUNT(*) FROM site_magic_jobs WHERE tenant_id = ?", (tenant_id,)
+            ).fetchone()[0]
+        finally:
+            conn.close()
+        self.assertEqual(count, 0)
 
 
 class TestIntakeValidation(IntakeTestCase):
