@@ -367,29 +367,32 @@ migration apply, publish, push, deploy remain behind their approval gates.
 
 ---
 
-## PRIORITY #3: ARCHITECTURE DECISIONS (D3, Awaiting Approval)
+## PRIORITY #3: PHASE 3 ARCHITECTURE DECISIONS (Complete, 2026-08-09)
 
-Three architecture decisions drafted (2026-08-09, ADR-027/028/029 in `docs/DECISIONS.md`):
+Three architecture decisions drafted, approved, and implemented:
 
-1. **ADR-027: Site Magic Worker Callback Protocol** — SMMM listener webhook contract
-   - Defines HTTP request/response shape for state transition callbacks
-   - Idempotent design (eventId for retry deduplication)
-   - Environment: `SITE_MAGIC_CALLBACK_WEBHOOK_URL` + `SITE_MAGIC_CALLBACK_SECRET`
-   - **Status:** Ready for founder review
+1. **ADR-027: Site Magic Worker Callback Protocol** ✓ Implemented
+   - HTTPJobStateSink fires webhooks to SITE_MAGIC_CALLBACK_WEBHOOK_URL
+   - Idempotent (eventId), constant-time signature verification
+   - Non-blocking, best-effort callback firing (failures logged, not thrown)
+   - Env vars: SITE_MAGIC_CALLBACK_WEBHOOK_URL + SITE_MAGIC_CALLBACK_SECRET (optional)
+   - Tests: verified webhook firing + payload structure
 
-2. **ADR-028: Crawler SSRF Protection Strategy** — DNS rebind defense
-   - Recommendation: Option B (pre-request DNS re-validation) for MVP
-   - Known limitation: millisecond TOCTOU window (documented in code)
-   - Phase 3 escalation: connection-level IP pinning if threat model changes
-   - **Status:** Ready for founder review
+2. **ADR-028: Crawler SSRF Protection** ✓ Documented
+   - Pre-request DNS re-validation (Option B) for MVP
+   - HttpxSiteCrawler docstring updated with known limitation + escalation path
+   - No code change needed (already implemented)
 
-3. **ADR-029: Build Publishing Route** — Public site delivery
-   - Phase 1: Supabase Storage public URLs (no signed tokens)
-   - Phase 3+: Cloudflare Workers + R2 (custom domain, global caching)
-   - No migration needed; just URL format change
-   - **Status:** Ready for founder review
+3. **ADR-029: Build Publishing Route** ✓ Implemented
+   - SupabaseArtifactStorage.publish() returns public bucket URL
+   - Phase 1: assumes bucket publicly readable via Supabase policies
+   - Test updated: verify public URL format
+   - Phase 3+: Cloudflare Workers + R2 (new implementation, no migration needed)
 
-**Next step:** Founder approves ADRs → implementation in Phase 3 work. SMMM team implements listener at `SITE_MAGIC_CALLBACK_WEBHOOK_URL` (external, not this repo).
+**Status:** Implementation complete. Ready for integration testing once:
+- SMMM team implements listener at SITE_MAGIC_CALLBACK_WEBHOOK_URL (external)
+- OPENAI_API_KEY + GPT Image org access available
+- Postgres migration (`0019_site_magic.sql`) applied to Supabase
 
 ---
 
