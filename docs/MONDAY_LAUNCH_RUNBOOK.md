@@ -217,13 +217,49 @@ strongest pitch (weakest digital presence first).
 | Gentry's Heating & Cooling | (901) 601-9701 | Memphis (svc: Collierville/Cordova/Germantown) |
 | Comfortable LLC | (901) 262-5931 | Collierville |
 
+**Extension list (pulled 2026-08-10 to round the callable list out to 50):**
+
+| Business | Phone | City |
+|---|---|---|
+| HVAC Firm of Memphis | (901) 509-3535 | Memphis |
+| M&N HVAC Service | (901) 351-8419 | Memphis |
+| A J Refrigeration, Inc. | (901) 881-2317 | Memphis |
+| Absolute Comfort | (901) 375-0998 | Memphis |
+| Infinity Heating and Air Conditioning | (901) 622-4822 | Memphis |
+| Memphis Heat and Air | (901) 299-9566 | Memphis |
+| Chillax Heating and Air Conditioning | (901) 598-1471 | Millington |
+| Premier Heating and Air | (901) 323-3222 | Memphis |
+| Yates Services of Memphis | (901) 277-7877 | Memphis |
+| Prime HVAC and Electrical | (901) 676-7756 | Memphis |
+| Smith Heat and Air | (901) 827-9192 | Memphis |
+| Smith's Plumbing, Heating & Air | (901) 413-9509 | Memphis |
+| Memphis HVAC Plus | (901) 310-8309 | Memphis |
+| Blackwell's Heat & Air | (901) 653-8752 | Memphis |
+| Memphis Air Care | (901) 365-2848 | Southaven, MS |
+| Renfrow Heating, Air & Plumbing | (901) 356-2242 | Olive Branch, MS |
+| C&K Air and Heating Inc | (901) 744-4000 | Olive Branch, MS |
+| Mitch Wright Plumbing, Heating & Air | (901) 795-9044 | Southaven, MS |
+| Air Doctors of Memphis | (901) 598-4822 | Millington |
+| AirTek LLC | (901) 896-6279 | Southaven, MS |
+| Five Star Cooling | (901) 244-4557 | Memphis |
+| Muse Heating & Air Conditioning | (662) 280-0710 | Horn Lake, MS |
+| MaxAir Heating and Cooling LLC | (901) 334-1921 | Memphis |
+| Southern Comfort Air, Heating & Plumbing | (901) 381-2665 | Arlington |
+
 **Skip for a cold call** (big regional/national brands, longer sale): Aire Serv
 of Memphis, Service Experts, One Hour Heating & Air Conditioning, Hiller
 Plumbing Heating Cooling & Electrical.
 
 **Data freshness:** top-4 numbers re-verified 2026-08-09 against each business's
-own site. Before dialing the rest, a 10-second Google of "[business name]
-Memphis phone" catches anything changed.
+own site. The extension list was pulled 2026-08-10 from public directories
+(name/phone/city only, no per-business angle verified) -- unlike the top 4,
+none of these 24 have a confirmed specific hook (review count, site quality,
+after-hours gap). The shared reason to call all 50 is structural, not
+business-specific: HVAC techs are in trucks all day, so most small/independent
+shops have no one answering the phone when it rings after-hours or mid-job,
+and every missed call is a missed job. Before dialing anyone on the extension
+list, a 10-second Google of "[business name] Memphis phone" catches anything
+changed and may surface a sharper angle to open with.
 
 ---
 
