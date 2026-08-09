@@ -114,7 +114,14 @@ def _render(
     )
     context["current_year"] = datetime.now(timezone.utc).year
     context["api_base"] = str(request.base_url).rstrip("/")
-    return templates.TemplateResponse(request, f"site/{template_name}", context)
+    
+    # Performance: Add Cache-Control headers for HTML pages
+    # Short cache (5 min) to allow quick updates while reducing origin hits
+    headers = {"Cache-Control": "public, max-age=300, stale-while-revalidate=60"}
+    
+    response = templates.TemplateResponse(request, f"site/{template_name}", context)
+    response.headers.update(headers)
+    return response
 
 
 @site_render_router.get("/sites/{tenant_id}/web")
@@ -191,11 +198,17 @@ def render_robots(tenant_id: str, request: Request) -> Response:
 # aiofiles requirement, no extra directory-traversal surface to reason
 # about, and both files are small enough that reading them fresh per
 # request costs nothing measurable on Vercel's serverless model.
+# 
+# Performance: Add Cache-Control headers for static assets (1 year for immutable assets)
+_CSS_CACHE_HEADERS = {"Cache-Control": "public, max-age=31536000, immutable"}
+_JS_CACHE_HEADERS = {"Cache-Control": "public, max-age=31536000, immutable"}
+
+
 @site_render_router.get("/static/site.css")
 def static_site_css() -> Response:
-    return Response(content=_STATIC_SITE_CSS.read_text(), media_type="text/css")
+    return Response(content=_STATIC_SITE_CSS.read_text(), media_type="text/css", headers=_CSS_CACHE_HEADERS)
 
 
 @site_render_router.get("/static/angel-widget.js")
 def static_angel_widget_js() -> Response:
-    return Response(content=_STATIC_WIDGET_JS.read_text(), media_type="application/javascript")
+    return Response(content=_STATIC_WIDGET_JS.read_text(), media_type="application/javascript", headers=_JS_CACHE_HEADERS)

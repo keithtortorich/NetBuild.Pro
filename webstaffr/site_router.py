@@ -61,4 +61,9 @@ def get_site_data(tenant_id: str, request: Request) -> dict:
     if submission is None:
         raise HTTPException(status_code=404, detail="No site found for this tenant")
 
-    return build_public_site_data(submission)
+    # Performance: Add Cache-Control headers for JSON responses
+    # Longer cache (1 hour) since site data changes infrequently
+    from fastapi.responses import JSONResponse
+    response = JSONResponse(content=build_public_site_data(submission))
+    response.headers["Cache-Control"] = "public, max-age=3600, stale-while-revalidate=300"
+    return response

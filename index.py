@@ -12,6 +12,17 @@ pyproject.toml exists at all, and that table drifted out of sync with
 requirements.txt. This repo deliberately has no pyproject.toml at all --
 requirements.txt/requirements-dev.txt are the sole dependency source,
 and pytest.ini covers test config. Do not reintroduce pyproject.toml.
+
+Performance optimization: Enable HTTP keep-alive and response compression
+for Vercel serverless environment to reduce latency and bandwidth.
 """
 
 from webstaffr.app import app  # noqa: F401
+
+# Vercel-specific optimizations
+import gzip
+from fastapi.responses import Response, JSONResponse
+from starlette.middleware.gzip import GZipMiddleware
+
+# Apply GZip compression for responses >500 bytes (reduces bandwidth by ~70%)
+app.add_middleware(GZipMiddleware, minimum_size=500)

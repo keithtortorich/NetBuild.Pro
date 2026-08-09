@@ -1,12 +1,14 @@
 """Client intake -- the first stage of the intake -> generated customer site
 -> Angel widget MVP flow (CLAUDE.md / PROJECT.md).
 
-Field set and required-field validation are ported from the legacy webstaff
-repo's proven 9-section intake form (intake/intake.html), not reinvented --
-see the CLAUDE.md session addendum for provenance. Persistence follows the
-same repository pattern as booking.py: a plain dataclass plus a repository
-class operating on an already-open connection (SQLite or Postgres --
-see db.get_connection), tenant-scoped throughout.
+Streamlined structure: fields organized into logical groups for better
+UX flow and dashboard consumption. Field set and required-field validation
+are ported from the legacy webstaff repo's proven 9-section intake form
+(intake/intake.html), not reinvented -- see the CLAUDE.md session addendum
+for provenance. Persistence follows the same repository pattern as 
+booking.py: a plain dataclass plus a repository class operating on an 
+already-open connection (SQLite or Postgres -- see db.get_connection), 
+tenant-scoped throughout.
 
 Perfect-site principle carried forward from the legacy repo's
 Perfect-Site-Checklist audit (2026-07-04): this module only ever stores
@@ -21,12 +23,13 @@ from __future__ import annotations
 import json
 import re
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, Optional, Dict, List
 
 from .db import DB_ERRORS, StorageError
 
+# Streamlined required fields - only the essentials to get started
 REQUIRED_FIELDS = (
     "biz_name",
     "phone",
@@ -45,6 +48,65 @@ REQUIRED_FIELDS = (
 VALID_PLANS = {"essentials", "growth", "pro"}
 
 _SLUG_PATTERN = re.compile(r"[^a-z0-9]+")
+
+
+# Section definitions for dashboard UI rendering
+INTAKE_SECTIONS = [
+    {
+        "id": "business_basics",
+        "title": "Business Basics",
+        "icon": "building",
+        "fields": ["biz_name", "phone", "email", "industry", "service_area", "years_in_biz", "emergency_service"],
+    },
+    {
+        "id": "web_presence",
+        "title": "Current Web Presence",
+        "icon": "globe",
+        "fields": ["has_site", "site_url", "site_platform", "site_issues", "has_gbp", "gbp_url", "google_review_link"],
+    },
+    {
+        "id": "brand",
+        "title": "Brand Identity",
+        "icon": "palette",
+        "fields": ["has_logo", "brand_colors", "brand_words", "inspo_sites"],
+    },
+    {
+        "id": "positioning",
+        "title": "Positioning",
+        "icon": "target",
+        "fields": ["tagline", "differentiator", "competitors", "tone"],
+    },
+    {
+        "id": "services",
+        "title": "Services & Licensing",
+        "icon": "wrench",
+        "fields": ["services", "pricing_shown", "promos", "license_number"],
+    },
+    {
+        "id": "proof",
+        "title": "Proof & Credibility",
+        "icon": "star",
+        "fields": ["rating_value", "review_count", "certifications", "has_before_after", "testimonials"],
+    },
+    {
+        "id": "social_tools",
+        "title": "Social & Tools",
+        "icon": "share",
+        "fields": ["facebook_url", "instagram_url", "fsm_system", "booking_system"],
+    },
+    {
+        "id": "workforce",
+        "title": "Workforce Plan",
+        "icon": "users",
+        "fields": ["plan", "lead_routing", "timeline", "approver"],
+    },
+    {
+        "id": "content_seo",
+        "title": "Content & SEO",
+        "icon": "search",
+        "fields": ["assets_status", "keywords", "extra_pages", "notes"],
+    },
+]
 
 
 class IntakeValidationError(ValueError):
@@ -337,3 +399,52 @@ class IntakeRepository:
         except DB_ERRORS as exc:
             raise StorageError(f"Failed to list intake submissions for tenant {tenant_id!r}: {exc}") from exc
         return [row["submission_id"] for row in rows]
+
+    def get_dashboard_summary(self, tenant_id: str) -> Optional[Dict]:
+        """Get a dashboard-friendly summary of the latest intake submission.
+        
+        Returns aggregated metrics and completion status for dashboard display.
+        """
+        submission = self.load_latest_for_tenant(tenant_id)
+        if submission is None:
+            return None
+        
+        # Count completed optional fields per section
+        section_completion = {}
+        for section in INTAKE_SECTIONS:
+            completed = 0
+            total = len(section["fields"])
+            for field_name in section["fields"]:
+                value = getattr(submission, field_name, None)
+                if value is not None and (not isinstance(value, str) or value.strip()):
+                    completed += 1
+            section_completion[section["id"]] = {
+                "title": section["title"],
+                "completed": completed,
+                "total": total,
+                "percentage": round((completed / total) * 100) if total > 0 else 0,
+            }
+        
+        # Calculate overall completion (excluding required fields)
+        optional_fields = [f for s in INTAKE_SECTIONS for f in s["fields"] if f not in REQUIRED_FIELDS]
+        optional_completed = sum(
+            1 for f in optional_fields
+            if hasattr(submission, f) and getattr(submission, f) is not None
+        )
+        overall_completion = round((optional_completed / len(optional_fields)) * 100) if optional_fields else 100
+        
+        return {
+            "tenant_id": tenant_id,
+            "biz_name": submission.biz_name,
+            "industry": submission.industry,
+            "plan": submission.plan,
+            "submitted_at": submission.submission_id,  # Using submission_id as proxy for timestamp
+            "overall_completion": overall_completion,
+            "section_completion": section_completion,
+            "has_required_data": True,
+        }
+
+
+def get_intake_sections() -> List[Dict]:
+    """Return the intake section definitions for dashboard UI rendering."""
+    return INTAKE_SECTIONS

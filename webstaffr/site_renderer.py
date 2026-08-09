@@ -25,6 +25,7 @@ import colorsys
 import logging
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Optional
 
 from .trade_presets import normalize_industry
@@ -91,10 +92,16 @@ def _hex_to_hsl(hex_color: str) -> tuple[float, float, float]:
     return h, l, s
 
 
-def _hsl_to_hex(h: float, l: float, s: float) -> str:
-    """Convert (hue, saturation, lightness) in [0,1] to #rrggbb hex."""
+@lru_cache(maxsize=128)
+def _hsl_to_hex_cached(h: float, l: float, s: float) -> str:
+    """Cached HSL to hex conversion for repeated palette operations."""
     r, g, b = colorsys.hls_to_rgb(h, l, s)
     return "#{:02x}{:02x}{:02x}".format(int(r * 255), int(g * 255), int(b * 255))
+
+
+def _hsl_to_hex(h: float, l: float, s: float) -> str:
+    """Convert (hue, saturation, lightness) in [0,1] to #rrggbb hex."""
+    return _hsl_to_hex_cached(h, l, s)
 
 
 def generate_palette(brand_primary: Optional[str]) -> dict[str, str]:
@@ -132,12 +139,18 @@ def generate_palette(brand_primary: Optional[str]) -> dict[str, str]:
     }
 
 
-def _hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
-    """Convert #rrggbb or #rgb to RGB tuple."""
+@lru_cache(maxsize=64)
+def _hex_to_rgb_cached(hex_color: str) -> tuple[int, int, int]:
+    """Cached hex to RGB conversion for repeated contrast checks."""
     h = hex_color.lstrip("#")
     if len(h) == 3:
         h = "".join(c * 2 for c in h)
     return tuple(int(h[i : i + 2], 16) for i in (0, 2, 4))  # type: ignore[return-value]
+
+
+def _hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
+    """Convert #rrggbb or #rgb to RGB tuple."""
+    return _hex_to_rgb_cached(hex_color)
 
 
 def _relative_luminance(rgb: tuple[int, int, int]) -> float:
