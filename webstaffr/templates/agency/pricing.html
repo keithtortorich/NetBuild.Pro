@@ -1,74 +1,22 @@
-{% extends "agency/base.html" %}
-
-{% block page_title %}WebStaffr Pricing | Simple, Flat Rates{% endblock %}
-
+{% extends "base.html" %}
+{% block page_title %}Pricing | NetBuild.Pro{% endblock %}
 {% block content %}
-
 <section class="ws-section-inner">
-    <h1 class="ws-section-heading">Simple Pricing. One Job Pays For The Month.</h1>
-    <p style="text-align: center; max-width: 600px; margin: 20px auto; font-size: 1.1rem; color: #666;">Reframes price as an investment that pays for itself immediately.</p>
-
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; margin-top: 40px;">
-
-        <!-- Tier 1: Test Drive -->
-        <div style="background: white; border: 2px solid #1a4d5e; border-radius: 8px; padding: 30px; box-shadow: 0 4px 12px rgba(26, 77, 94, 0.1);">
-            <h3 style="margin: 0 0 8px 0; font-size: 1.3rem; font-weight: 700; color: #2a3a42;">Test Drive</h3>
-            <p style="margin: 0 0 20px 0; font-size: 2rem; font-weight: 700; color: #1a4d5e;">Free for 14 days</p>
-            <h4 style="margin: 0 0 12px 0; font-size: 1rem; font-weight: 600; color: #2a3a42;">Everything Starts Here</h4>
-            <p style="margin: 0 0 20px 0; font-size: 0.95rem; color: #666; line-height: 1.6;">Your professional website, live within hours of signup. No card now. No contract ever. Yours to use, share, and show customers right away. If we don't capture a real, paying job in 14 days, we cancel. No bill. No obligation.</p>
-            <ul style="margin: 0 0 24px 0; padding: 0; list-style: none; font-size: 0.9rem; color: #666;">
-                <li style="margin-bottom: 8px;"><strong>Professional website</strong> for your business</li>
-                <li style="margin-bottom: 8px;"><strong>Live appointment booking</strong></li>
-                <li style="margin-bottom: 8px;"><strong>Lead capture</strong> and follow-up</li>
-                <li><strong>24/7 answering</strong> (14-day trial)</li>
-            </ul>
-            <button class="ws-btn ws-btn-primary" style="width: 100%;">Get Started Free</button>
+    <h1 class="ws-section-heading">Simple pricing. No surprises.</h1>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 24px; margin-top: 40px;">
+        <div style="padding: 24px; border: 2px solid var(--ws-copper); border-radius: 8px; background: var(--ws-cream);">
+            <h3 style="font-size: 1.125rem; font-weight: 700; margin-bottom: 8px;">Essentials</h3>
+            <p style="font-size: 2rem; font-weight: 700; color: var(--ws-copper); margin-bottom: 16px;">$497<span style="font-size: 0.875rem;">/month</span></p>
         </div>
-
-        <!-- Tier 2: Office Staff (Featured) -->
-        <div style="background: linear-gradient(135deg, #1a4d5e 0%, #0f3a4a 100%); color: white; border-radius: 8px; padding: 30px; box-shadow: 0 8px 24px rgba(200, 90, 58, 0.15); position: relative; transform: scale(1.05);">
-            <div style="position: absolute; top: -12px; right: 20px; background: #c85a3a; color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">MOST POPULAR</div>
-            <h3 style="margin: 0 0 8px 0; font-size: 1.3rem; font-weight: 700;">Office Staff</h3>
-            <p style="margin: 0 0 20px 0; font-size: 2rem; font-weight: 700;">$497<span style="font-size: 1rem; font-weight: 500;">/month</span></p>
-            <h4 style="margin: 0 0 12px 0; font-size: 1rem; font-weight: 600;">The Core Team Every Contractor Needs</h4>
-            <p style="margin: 0 0 20px 0; font-size: 0.95rem; opacity: 0.95; line-height: 1.6;">Everything in Test Drive, plus the recurring team that answers, books, and follows up around the clock. Your office never sleeps. You're covered while you sleep, work, or are booked solid. One job pays for the month. Most contractors capture 3-5.</p>
-            <ul style="margin: 0 0 24px 0; padding: 0; list-style: none; font-size: 0.9rem; opacity: 0.95;">
-                <li style="margin-bottom: 8px;">Everything in Test Drive</li>
-                <li style="margin-bottom: 8px;">24/7 Receptionist (answers every call)</li>
-                <li style="margin-bottom: 8px;">Service Advisor (qualifies leads, books appointments)</li>
-                <li style="margin-bottom: 8px;">Lead Coordinator (follow-up by text and email)</li>
-                <li style="margin-bottom: 8px;">Reputation Manager (review requests and responses)</li>
-                <li>Website Operations Manager (keeps your site sharp)</li>
-            </ul>
-            <p style="margin: 0 0 24px 0; font-size: 0.85rem; opacity: 0.8;">Month-to-month. Cancel anytime.</p>
-            <button class="ws-btn ws-btn-primary" style="width: 100%; background: #d4a574; color: #1a4d5e; font-weight: 600;">Get Your Office Staff Today</button>
+        <div style="padding: 24px; border: 2px solid var(--ws-border); border-radius: 8px;">
+            <h3 style="font-size: 1.125rem; font-weight: 700; margin-bottom: 8px;">Pro</h3>
+            <p style="font-size: 2rem; font-weight: 700; color: var(--ws-primary-teal); margin-bottom: 16px;">$2,497<span style="font-size: 0.875rem;">/month</span></p>
         </div>
-
-        <!-- Tier 3: Business Manager -->
-        <div style="background: white; border: 2px solid #1a4d5e; border-radius: 8px; padding: 30px; box-shadow: 0 4px 12px rgba(26, 77, 94, 0.1);">
-            <h3 style="margin: 0 0 8px 0; font-size: 1.3rem; font-weight: 700; color: #2a3a42;">Business Manager</h3>
-            <p style="margin: 0 0 20px 0; font-size: 2rem; font-weight: 700; color: #1a4d5e;">$2,497<span style="font-size: 1rem; font-weight: 500;">/month</span></p>
-            <h4 style="margin: 0 0 12px 0; font-size: 1rem; font-weight: 600; color: #2a3a42;">Everything in Office Staff, Plus Growth</h4>
-            <p style="margin: 0 0 20px 0; font-size: 0.95rem; color: #666; line-height: 1.6;">When you're ready to scale. We add the team that finds upsell opportunities in your existing customers, runs seasonal campaigns, and tells you exactly where to grow next. This is the tier that typically doubles revenue within 12 months.</p>
-            <ul style="margin: 0 0 24px 0; padding: 0; list-style: none; font-size: 0.9rem; color: #666;">
-                <li style="margin-bottom: 8px;">Everything in Office Staff</li>
-                <li style="margin-bottom: 8px;">Sales Consultant (finds upsell and cross-sell opportunities)</li>
-                <li style="margin-bottom: 8px;">Marketing Coordinator (runs seasonal campaigns)</li>
-                <li>Growth Manager (tracks what's working, where to grow)</li>
-            </ul>
-            <button class="ws-btn ws-btn-secondary" style="width: 100%;">Talk To Us About Business Manager</button>
+        <div style="padding: 24px; border: 2px solid var(--ws-border); border-radius: 8px;">
+            <h3 style="font-size: 1.125rem; font-weight: 700; margin-bottom: 8px;">Growth</h3>
+            <p style="font-size: 2rem; font-weight: 700; color: var(--ws-primary-teal); margin-bottom: 16px;">Custom</p>
+            <p style="font-size: 0.9rem; color: #666;">$5,000+ per month</p>
         </div>
-
     </div>
-
-    <!-- White-Glove Tier -->
-    <div style="background: var(--ws-light-bg); border-radius: 8px; padding: 40px 30px; margin-top: 40px; text-align: center;">
-        <h3 style="margin: 0 0 12px 0; font-size: 1.3rem; font-weight: 700; color: #2a3a42;">White-Glove (Custom)</h3>
-        <p style="margin: 0 0 12px 0; font-size: 1.1rem; color: #666;">Starting at $5,000/month for multi-location operations</p>
-        <p style="margin: 0 0 24px 0; font-size: 0.95rem; color: #666; max-width: 600px; margin-left: auto; margin-right: auto; line-height: 1.6;">Custom-fitted setup and integrations. We build around what you already have. Dedicated, hands-on support. Not a helpdesk. A business partner.</p>
-        <button class="ws-btn ws-btn-secondary">Talk To Us About White-Glove</button>
-    </div>
-
 </section>
-
 {% endblock %}

@@ -407,44 +407,6 @@ def build_page_context(
     single free-text field with no author/date, so it renders as visible
     page copy only, never as invented structured Review entries."""
     
-    # Run the Impeccable Skills Pipeline first to enrich site_data with strategic context
-    from .skills import ImpeccablePipeline
-    
-    pipeline = ImpeccablePipeline()
-    enhanced_context = pipeline.run(site_data)
-    
-    # Extract enriched data back into site_data structure for backward compatibility
-    strategy = enhanced_context.get('strategy', {})
-    copy_data = enhanced_context.get('copy', {})
-    design = enhanced_context.get('design', {})
-    trust = enhanced_context.get('trust', {})
-    conversion = enhanced_context.get('conversion', {})
-    
-    # Override site_data with strategically refined values
-    if copy_data:
-        site_data['hero_headline'] = copy_data.get('hero_headline', site_data.get('biz_name'))
-        site_data['hero_subhead'] = copy_data.get('hero_subhead', '')
-        site_data['tagline'] = copy_data.get('hero_subhead', site_data.get('tagline', ''))
-    
-    if design:
-        # Use psychologically-optimized palette config
-        palette_config = design.get('palette_config', {})
-        if palette_config:
-            # Generate palette from optimized HSL values
-            h = palette_config.get('hue', 210) / 360.0
-            s = palette_config.get('sat', 75) / 100.0
-            l = palette_config.get('light', 45) / 100.0
-            optimized_primary = _hsl_to_hex(h, l, s)
-            site_data['brand_colors'] = optimized_primary
-    
-    if trust:
-        site_data['trust_signals'] = trust.get('signals', [])
-        site_data['show_badge_grid'] = trust.get('show_badge_grid', False)
-    
-    if conversion:
-        site_data['form_position'] = conversion.get('form_position', 'above-fold')
-        site_data['sticky_cta'] = conversion.get('sticky_cta', True)
-    
     palette = generate_palette(site_data.get("brand_colors"))
     validate_palette_contrast(palette)
 
@@ -459,10 +421,6 @@ def build_page_context(
     if site_data.get('pricing_shown') == 'true':
         trust_signal_count += 1
     
-    # Add Impeccable-generated trust signals to count
-    if trust:
-        trust_signal_count = max(trust_signal_count, len(trust.get('signals', [])))
-
     return {
         "site": site_data,
         "title": page_title(site_data, service_name),
@@ -481,10 +439,5 @@ def build_page_context(
         "service_schema": (
             service_schema(site_data, service_name, page_url) if service_name else None
         ),
-        "palette": palette,  # color palette for CSS injection
-        "strategy": strategy,  # Strategic positioning context
-        "copy": copy_data,  # Persuasive copy elements
-        "design": design,  # Design psychology config
-        "trust": trust,  # Trust signal configuration
-        "conversion": conversion,  # Conversion optimization settings
+        "palette": palette,
     }

@@ -1,5 +1,15 @@
 # Impeccable Magic Upgrade: Implementation Runbook
 
+> **SUPERSEDED (2026-08-09).** This runbook's `execSync('npx impeccable
+> critique --json', ...)` calls and `npx impeccable critique` examples are
+> not real CLI commands -- the CLI only supports `detect`, `ignores`,
+> `install`, `link`, `update`, `check`. `critique` is an agent workflow
+> run through the skill, not a shell subprocess. The real implementation
+> is `webstaffr/site_magic.py` / `site_magic_router.py` /
+> `site_magic_security.py` / `webstaffr/site_maker_engine.ts`; see
+> `docs/STANDUP_2026-08-09_IMPECCABLE_PHASE_1.md` for current status.
+> Read this file for design-intent history only.
+
 **Phase 1: Foundation (This Week)**
 
 ## 1. Install Impeccable & Set Context

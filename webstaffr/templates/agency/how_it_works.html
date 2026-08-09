@@ -1,35 +1,24 @@
-{% extends "agency/base.html" %}
-
-{% block page_title %}How It Works | WebStaffr{% endblock %}
-
+{% extends "base.html" %}
+{% block page_title %}How It Works | NetBuild.Pro{% endblock %}
 {% block content %}
-
 <section class="ws-section-inner">
-    <h1 class="ws-section-heading">Three Steps. Zero Risk.</h1>
-
-    <div style="max-width: 900px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 40px; margin-top: 40px;">
-
-        <div style="text-align: center;">
-            <div style="width: 60px; height: 60px; background: #c85a3a; color: white; font-size: 2rem; font-weight: 700; display: flex; align-items: center; justify-content: center; border-radius: 50%; margin: 0 auto 20px;">1</div>
-            <h3 style="margin: 0 0 12px 0; font-size: 1.2rem; font-weight: 700; color: #2a3a42;">Tell Us About Your Business</h3>
-            <p style="margin: 0; color: #666; line-height: 1.6;">No card now. No long application. Just a few questions: your business name, industry, what you want customers to know.</p>
-            <a href="/agency/contact" style="display: inline-block; margin-top: 16px; color: #1a4d5e; font-weight: 600;">Start Now</a>
+    <h1 class="ws-section-heading">Three Steps</h1>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 40px; margin-top: 40px;">
+        <div>
+            <div style="width: 48px; height: 48px; background: var(--ws-copper); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.5rem; margin-bottom: 16px;">1</div>
+            <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">Complete intake</h3>
+            <p style="color: #666;">Tell us about your business, services, and customer-facing details.</p>
         </div>
-
-        <div style="text-align: center;">
-            <div style="width: 60px; height: 60px; background: #c85a3a; color: white; font-size: 2rem; font-weight: 700; display: flex; align-items: center; justify-content: center; border-radius: 50%; margin: 0 auto 20px;">2</div>
-            <h3 style="margin: 0 0 12px 0; font-size: 1.2rem; font-weight: 700; color: #2a3a42;">We Handle Your Calls</h3>
-            <p style="margin: 0; color: #666; line-height: 1.6;">Within hours, your phone is answered 24/7. Nights, weekends, lunch breaks, while you're on a job. Every customer call gets answered. Every lead gets booked or forwarded to you.</p>
+        <div>
+            <div style="width: 48px; height: 48px; background: var(--ws-copper); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.5rem; margin-bottom: 16px;">2</div>
+            <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">Review your site</h3>
+            <p style="color: #666;">NetBuild.Pro generates the site and embeds the Angel customer-contact widget.</p>
         </div>
-
-        <div style="text-align: center;">
-            <div style="width: 60px; height: 60px; background: #c85a3a; color: white; font-size: 2rem; font-weight: 700; display: flex; align-items: center; justify-content: center; border-radius: 50%; margin: 0 auto 20px;">3</div>
-            <h3 style="margin: 0 0 12px 0; font-size: 1.2rem; font-weight: 700; color: #2a3a42;">You Verify. You Decide.</h3>
-            <p style="margin: 0; color: #666; line-height: 1.6;">In 14 days, we show you every job we captured. Real customers. Real appointments. You verify they're legitimate. If we didn't capture a job, we cancel. No bill. If we did? You decide month-to-month. Cancel anytime.</p>
+        <div>
+            <div style="width: 48px; height: 48px; background: var(--ws-copper); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.5rem; margin-bottom: 16px;">3</div>
+            <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">Activate integrations</h3>
+            <p style="color: #666;">Call handling, CRM routing, and booking go live after each configured integration passes verification.</p>
         </div>
-
     </div>
-
 </section>
-
 {% endblock %}

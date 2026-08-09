@@ -22,6 +22,17 @@ pytest-cache-files-*/
 # Logs
 *.log
 
+# Node and private Site Magic runtime artifacts
+node_modules/
+.site-magic-workspaces/
+.site-magic-artifacts/
+.impeccable/live/
+.impeccable/screenshots/
+.impeccable/sketches/
+.impeccable/sessions/
+.impeccable/cache/
+.impeccable/config.local.json
+
 # macOS
 .DS_Store
 

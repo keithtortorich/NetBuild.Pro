@@ -1,5 +1,12 @@
 # Impeccable Cheat Sheet
 
+> **INCORRECT -- do not use.** Every command below except `npx impeccable
+> install` is fabricated; the real CLI only supports `detect`, `ignores`,
+> `install`, `link`, `update`, `check`. The 23 design commands (`polish`,
+> `critique`, `audit`, etc.) are agent workflows invoked through the skill
+> (`/impeccable <command>`), not `npx impeccable <command>` shell calls.
+> Kept for historical reference only.
+
 ## Quick Reference
 
 ### 23 Commands

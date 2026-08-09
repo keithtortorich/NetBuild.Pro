@@ -1,5 +1,19 @@
 # The Impeccable Magic Upgrade: Autonomous Design Direction Loop
 
+> **SUPERSEDED (2026-08-09).** This document assumes CLI subcommands
+> (`npx impeccable critique --json`, `npx impeccable audit`, etc.) and a
+> 0-100 overall score. Neither is real: Impeccable's CLI only supports
+> `detect`, `ignores`, `install`, `link`, `update`, `check` -- `critique`
+> and the other 22 design commands are agent workflows invoked through the
+> skill (`/impeccable critique`), not shell commands, and `critique`
+> reports Nielsen heuristics 0-4 per category (typically /40, or a lower
+> applicable max) rather than a single 0-100 number. The actual, current
+> Site Magic implementation is `webstaffr/site_magic.py`,
+> `site_magic_router.py`, `site_magic_security.py`, and
+> `webstaffr/site_maker_engine.ts` -- see `docs/STANDUP_2026-08-09_IMPECCABLE_PHASE_1.md`
+> for status. Read this file for design-intent history only; do not follow
+> its command examples or score math.
+
 **Status:** D3 Architecture Decision (Approved for Planning)  
 **Date:** 2026-08-03  
 **Context:** Site-renderer enhancement to apply Impeccable's design-direction workflow to auto-generated customer websites  

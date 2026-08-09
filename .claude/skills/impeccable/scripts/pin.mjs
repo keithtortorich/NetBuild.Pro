@@ -6,7 +6,7 @@
  *   node <scripts_path>/pin.mjs pin <command>
  *   node <scripts_path>/pin.mjs unpin <command>
  *
- * `pin audit` creates a lightweight audit skill that redirects to Impeccable's audit workflow.
+ * `pin audit` creates a lightweight /audit skill that redirects to /impeccable audit.
  * `unpin audit` removes that shortcut.
  *
  * The script discovers harness directories (.claude/skills, .cursor/skills, etc.)
@@ -14,18 +14,16 @@
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync } from 'node:fs';
-import { basename, join, resolve, dirname } from 'node:path';
+import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // All known harness directories
 const HARNESS_DIRS = [
-  '.claude', '.cursor', '.gemini', '.codex', '.agents', '.github', '.grok',
-  '.trae', '.trae-cn', '.pi', '.opencode', '.kiro', '.rovodev', '.vibe', '.qoder',
+  '.claude', '.cursor', '.gemini', '.codex', '.agents',
+  '.trae', '.trae-cn', '.pi', '.opencode', '.kiro', '.rovodev',
 ];
-
-const CODEX_HARNESSES = new Set(['.codex', '.agents']);
 
 // Valid sub-command names
 const VALID_COMMANDS = [
@@ -89,12 +87,8 @@ function loadCommandMetadata() {
 /**
  * Generate a pinned skill's SKILL.md content.
  */
-function commandPrefixForSkillsDir(skillsDir) {
-  return CODEX_HARNESSES.has(basename(dirname(skillsDir))) ? '$' : '/';
-}
-
-function generatePinnedSkill(command, metadata, commandPrefix) {
-  const desc = metadata[command]?.description || `Shortcut for ${commandPrefix}impeccable ${command}.`;
+function generatePinnedSkill(command, metadata) {
+  const desc = metadata[command]?.description || `Shortcut for /impeccable ${command}.`;
   const hint = metadata[command]?.argumentHint || '[target]';
 
   return `---
@@ -106,9 +100,9 @@ user-invocable: true
 
 ${PIN_MARKER}
 
-This is a pinned shortcut for \`${commandPrefix}impeccable ${command}\`.
+This is a pinned shortcut for \`{{command_prefix}}impeccable ${command}\`.
 
-Invoke ${commandPrefix}impeccable ${command}, passing along any arguments provided here, and follow its instructions.
+Invoke {{command_prefix}}impeccable ${command}, passing along any arguments provided here, and follow its instructions.
 `;
 }
 
@@ -124,11 +118,10 @@ function pin(command, projectRoot) {
     return false;
   }
 
+  const content = generatePinnedSkill(command, metadata);
   let created = 0;
 
   for (const skillsDir of harnessDirs) {
-    const commandPrefix = commandPrefixForSkillsDir(skillsDir);
-    const content = generatePinnedSkill(command, metadata, commandPrefix);
     // Check if skill already exists (and isn't a pin)
     const skillDir = join(skillsDir, command);
     if (existsSync(skillDir)) {
@@ -150,7 +143,7 @@ function pin(command, projectRoot) {
 
   if (created > 0) {
     console.log(`\nPinned '${command}' as a standalone shortcut in ${created} location(s).`);
-    console.log('Use the pinned command directly in each harness.');
+    console.log(`You can now use /${command} directly.`);
   }
 
   return created > 0;
@@ -184,7 +177,7 @@ function unpin(command, projectRoot) {
 
   if (removed > 0) {
     console.log(`\nUnpinned '${command}' from ${removed} location(s).`);
-    console.log(`Use Impeccable's '${command}' workflow directly to access it.`);
+    console.log(`Use /impeccable ${command} to access it.`);
   } else {
     console.log(`No pinned '${command}' shortcut found.`);
   }

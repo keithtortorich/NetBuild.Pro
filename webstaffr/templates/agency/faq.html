@@ -1,61 +1,21 @@
-{% extends "agency/base.html" %}
-
-{% block page_title %}WebStaffr FAQ | Answered{% endblock %}
-
+{% extends "base.html" %}
+{% block page_title %}Common Questions | NetBuild.Pro{% endblock %}
 {% block content %}
-
 <section class="ws-section-inner">
-    <h1 class="ws-section-heading">Common Questions. Real Answers.</h1>
-
-    <div style="max-width: 700px; margin: 0 auto; display: grid; grid-template-columns: 1fr; gap: 24px;">
-
-        <details style="border-left: 3px solid #d4a574; padding-left: 20px;">
-            <summary style="font-weight: 600; font-size: 1rem; cursor: pointer; color: #2a3a42;">Why is the website free?</summary>
-            <p style="margin: 12px 0 0 0; color: #666; line-height: 1.6;">Because we'd rather show you what WebStaffr can do than tell you. Once you see it working, the rest is an easy decision.</p>
+    <h1 class="ws-section-heading">Common Questions</h1>
+    <div style="max-width: 700px; margin: 40px auto;">
+        <details style="margin-bottom: 16px; padding: 16px; border: 1px solid var(--ws-border); border-radius: 4px;">
+            <summary style="cursor: pointer; font-weight: 600;">How does Angel know my service?</summary>
+            <p style="margin-top: 12px; color: #666;">Your approved intake supplies Angel with the business and service details used during customer conversations.</p>
         </details>
-
-        <details style="border-left: 3px solid #d4a574; padding-left: 20px;">
-            <summary style="font-weight: 600; font-size: 1rem; cursor: pointer; color: #2a3a42;">What happens after 14 days?</summary>
-            <p style="margin: 12px 0 0 0; color: #666; line-height: 1.6;">You choose. We send you the details of every job we captured. Real customers, real appointments. You verify they're real. If we didn't get any, no bill. If we did, you decide whether to keep going (month-to-month, cancel anytime).</p>
+        <details style="margin-bottom: 16px; padding: 16px; border: 1px solid var(--ws-border); border-radius: 4px;">
+            <summary style="cursor: pointer; font-weight: 600;">Can I cancel anytime?</summary>
+            <p style="margin-top: 12px; color: #666;">Current terms are reviewed with you before activation. Contact support for account changes.</p>
         </details>
-
-        <details style="border-left: 3px solid #d4a574; padding-left: 20px;">
-            <summary style="font-weight: 600; font-size: 1rem; cursor: pointer; color: #2a3a42;">Can I switch plans later?</summary>
-            <p style="margin: 12px 0 0 0; color: #666; line-height: 1.6;">Yes. Most contractors start with Office Staff and move to Business Manager once they've seen the results. Some scale back if they get slower. It's your business. You're in control.</p>
+        <details style="margin-bottom: 16px; padding: 16px; border: 1px solid var(--ws-border); border-radius: 4px;">
+            <summary style="cursor: pointer; font-weight: 600;">Does Angel use real voice?</summary>
+            <p style="margin-top: 12px; color: #666;">Angel uses the configured voice provider. The live voice path is activated only after provider verification.</p>
         </details>
-
-        <details style="border-left: 3px solid #d4a574; padding-left: 20px;">
-            <summary style="font-weight: 600; font-size: 1rem; cursor: pointer; color: #2a3a42;">Is there a setup fee?</summary>
-            <p style="margin: 12px 0 0 0; color: #666; line-height: 1.6;">No. What you see is what you pay. No surprises.</p>
-        </details>
-
-        <details style="border-left: 3px solid #d4a574; padding-left: 20px;">
-            <summary style="font-weight: 600; font-size: 1rem; cursor: pointer; color: #2a3a42;">I already have someone answering the phone.</summary>
-            <p style="margin: 12px 0 0 0; color: #666; line-height: 1.6;">Good. WebStaffr covers the hours they can't: nights, weekends, lunch breaks, when you're on a job site. It backs up your team instead of replacing them. And it never calls in sick.</p>
-        </details>
-
-        <details style="border-left: 3px solid #d4a574; padding-left: 20px;">
-            <summary style="font-weight: 600; font-size: 1rem; cursor: pointer; color: #2a3a42;">I've been burned before.</summary>
-            <p style="margin: 12px 0 0 0; color: #666; line-height: 1.6;">We're putting our money where our mouth is. No risk to you. 14 days, free. We get you a job or we cancel.</p>
-        </details>
-
-        <details style="border-left: 3px solid #d4a574; padding-left: 20px;">
-            <summary style="font-weight: 600; font-size: 1rem; cursor: pointer; color: #2a3a42;">What if I don't trust AI?</summary>
-            <p style="margin: 12px 0 0 0; color: #666; line-height: 1.6;">You shouldn't. That's why we don't ask you to trust us. We prove it works or we don't get paid. Fair?</p>
-        </details>
-
-        <details style="border-left: 3px solid #d4a574; padding-left: 20px;">
-            <summary style="font-weight: 600; font-size: 1rem; cursor: pointer; color: #2a3a42;">I can't afford $497.</summary>
-            <p style="margin: 12px 0 0 0; color: #666; line-height: 1.6;">Can you afford to lose $16,000 a month? Because that's what's happening right now. What's the real concern here?</p>
-        </details>
-
-        <details style="border-left: 3px solid #d4a574; padding-left: 20px;">
-            <summary style="font-weight: 600; font-size: 1rem; cursor: pointer; color: #2a3a42;">Send me an email.</summary>
-            <p style="margin: 12px 0 0 0; color: #666; line-height: 1.6;">Happy to. But real quick, what's the hesitation? Because if it works, you pay nothing. If it doesn't, you pay nothing. So what's the real objection?</p>
-        </details>
-
     </div>
-
 </section>
-
 {% endblock %}

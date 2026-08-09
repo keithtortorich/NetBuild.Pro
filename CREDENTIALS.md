@@ -169,6 +169,50 @@
     without a code change if OpenRouter's pricing or lineup shifts.
 - **Security**: never commit. Same as above.
 
+### 12. Site Magic worker credentials (NOT YET CONFIGURED, D4 approval gate)
+- **Purpose**: the Site Magic autonomous rebuild pipeline
+  (`webstaffr/site_magic.py` / `site_magic_router.py`) needs, on the
+  worker side only -- never in the NetBuild.Pro Vercel app environment:
+  - An `OPENAI_API_KEY` scoped to a dedicated project, for the Codex SDK
+    runtime and `gpt-image-*` direction comps. As of this writing no key
+    has been created; Platform rejected the request and GPT Image
+    organization access is still unapproved.
+  - `SUPABASE_URL` + `SITE_MAGIC_STORAGE_SERVICE_KEY` (service-role, NOT
+    the publishable key #7 uses) + optional `SITE_MAGIC_STORAGE_BUCKET`
+    (defaults `site-magic-builds`) -- Supabase Storage private bucket for
+    immutable build artifacts. Real adapter:
+    `webstaffr.site_magic_adapters.SupabaseArtifactStorage`.
+  - `SITE_MAGIC_WORKER_WEBHOOK_URL` + `SITE_MAGIC_WORKER_WEBHOOK_SECRET`
+    -- hand-off to the existing SMMM/Celery worker infrastructure the Site
+    Magic engine actually runs on (never inside Vercel). This repo has no
+    visibility into that service's real API, so the adapter defines only
+    OUR side of a generic authenticated-webhook contract (POST
+    `{job_id, tenant_id}`, `X-Site-Magic-Secret` header) rather than
+    guessing SMMM's internals -- whoever owns that service registers a
+    listener at the URL. Real adapter:
+    `webstaffr.site_magic_adapters.HTTPWebhookSiteMagicQueue`.
+  - `SITE_MAGIC_API_BASE_URL` + `SITE_MAGIC_INTERNAL_API_KEY` (worker-side
+    env vars) -- the worker's own callback credentials, pointed the other
+    direction: the Node engine (`SiteMakerEngine` in
+    `site_maker_engine.ts`) reports every state-machine transition back to
+    this app's internal API via `HTTPJobStateSink`
+    (`webstaffr/site_magic_adapters.ts`), authenticated the same
+    `X-API-Key` way as Rita/Leo/Sam's internal routers
+    (`webstaffr/workers/angel/api_auth.py`'s `SharedSecretVerifier`).
+    `SITE_MAGIC_INTERNAL_API_KEY` is a separate env var name from the
+    server's `INTERNAL_API_KEY` (#6 above) because they live in different
+    processes/environments (worker vs app) -- but its VALUE must be set to
+    the same secret as the app's `INTERNAL_API_KEY`, since that's what
+    `internal_api_verifier_from_env()` checks incoming `X-API-Key` headers
+    against. Two env var names, one shared secret.
+- **Behavior**: `create_app()`'s `site_magic_queue` / `site_magic_artifact_storage`
+  params default to `NullSiteMagicQueue` / `NullArtifactStorage`, which
+  fail closed with `SiteMagicNotConfiguredError` (503 at the API, silently
+  skipped at intake auto-enqueue) -- safe default until these are wired.
+- **Security**: never commit. Worker gets only these scoped credentials,
+  not full production secrets -- see `docs/STANDUP_2026-08-09_IMPECCABLE_PHASE_1.md`
+  for current status.
+
 ## Local Development Setup
 
 ```bash
