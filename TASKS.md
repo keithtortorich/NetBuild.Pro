@@ -51,11 +51,9 @@ Found `webstaffr/workers/angel/stripe_webhook.py` + `/webhooks/stripe` route alr
 **Next:** Founder selects vendor → unblock webhook work.
 
 ### Trust Bar Dead Divs (Service Pages)
-**Status:** Ready to fix (trivial).  
-**Issue:** `ws-trust-grid` renders empty `<div>`s on low-signal tenants (e.g., only `emergency_service` set).  
-**Fix:** Add minimum-signal-count gate instead of per-item conditionals.  
-**Scope:** Product judgment on threshold (engineering question only).  
-**Files:** `demo-templates/services.html`, `templates/service.html`
+**Status:** ✓ Resolved (2026-08-09).
+**Implementation:** `site_schema.py` computes `about_trust_signal_count` and `trust_signal_count`. Templates gate on `>= 2` items (`show_about_trust_bar`, `show_trust_bar`). No empty grid cells rendered.
+**Files:** `webstaffr/site_schema.py`, `webstaffr/templates/site/{about,home}.html`
 
 ### Site Template Restyle Backlog
 **Status:** Logged, deferred.  
