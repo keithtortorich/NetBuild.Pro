@@ -1244,8 +1244,84 @@ $('resetBtn').addEventListener('click', function () {
   }
 });
 
+/* ══════════════════════════════════════
+   MONDAY CALL LIST (Memphis HVAC, 2026-08-10)
+   Seeds the Leads tab with the 50-business cold-call list from
+   docs/MONDAY_LAUNCH_RUNBOOK.md, in call order. Top 4 have a verified
+   angle from that doc; the rest share the campaign's structural reason
+   (techs are in trucks all day, so most shops have no one answering
+   after-hours or mid-job). Only runs if the Leads tab is empty, so it
+   never overwrites real work already logged.
+══════════════════════════════════════ */
+const MONDAY_HVAC_CALL_LIST = [
+  { name: 'Waller Heat & Air', phone: '(901) 331-6589' },
+  { name: 'Tiger Paws HVAC', phone: '(901) 330-1473' },
+  { name: 'Al Britt Air & Heat', phone: '(901) 324-6213' },
+  { name: 'Comfortable LLC', phone: '(901) 262-5931' },
+  { name: 'Comfort Dynamics Cooling, Heating, Plumbing & Electrical', phone: '(901) 688-2665' },
+  { name: 'Gold Standard Heating and Air', phone: '(901) 552-5590' },
+  { name: 'Automatic Air Conditioning, Heating & Plumbing', phone: '(901) 810-8964' },
+  { name: "Choate's Air Conditioning, Heating And Plumbing", phone: '(901) 347-8078' },
+  { name: 'OPACHS AC & Heating Services', phone: '(901) 443-5153' },
+  { name: 'Memphis Air Conditioning & Heating', phone: '(901) 621-7027' },
+  { name: 'AirMasters Air Conditioning & Heating', phone: '(901) 295-4434' },
+  { name: 'Best Care Plumbing, Heating And Air', phone: '(901) 624-1401' },
+  { name: 'Conway Services', phone: '(901) 677-0797' },
+  { name: 'Solace Plumbing, Heating & Air', phone: '(901) 613-5178' },
+  { name: 'Arctic Heating Cooling & Plumbing Inc', phone: '(901) 380-9800' },
+  { name: 'Crowe Services / Heating & Air', phone: '(901) 413-5361' },
+  { name: 'At Home Heating and Air', phone: '(901) 848-6618' },
+  { name: 'Hensley Heating & Air Conditioning Co', phone: '(901) 794-3074' },
+  { name: 'Precision Air Conditioning & Heating', phone: '(901) 372-0036' },
+  { name: 'Cannon Bros AC & Heat', phone: '(901) 794-2250' },
+  { name: 'HR Ferrell & Company', phone: '(901) 382-3100' },
+  { name: 'Nance Services', phone: '(901) 867-1527' },
+  { name: 'Professional Plumbing, Heating, & Cooling', phone: '(901) 221-2626' },
+  { name: 'Mister Greenway AC Repair, Heating, Plumbing & Electrical', phone: '(901) 692-9380' },
+  { name: "Larry's AC & Heating", phone: '(901) 649-8744' },
+  { name: "Gentry's Heating & Cooling", phone: '(901) 601-9701' },
+  { name: 'HVAC Firm of Memphis', phone: '(901) 509-3535' },
+  { name: 'M&N HVAC Service', phone: '(901) 351-8419' },
+  { name: 'A J Refrigeration, Inc.', phone: '(901) 881-2317' },
+  { name: 'Absolute Comfort', phone: '(901) 375-0998' },
+  { name: 'Infinity Heating and Air Conditioning', phone: '(901) 622-4822' },
+  { name: 'Memphis Heat and Air', phone: '(901) 299-9566' },
+  { name: 'Chillax Heating and Air Conditioning', phone: '(901) 598-1471' },
+  { name: 'Premier Heating and Air', phone: '(901) 323-3222' },
+  { name: 'Yates Services of Memphis', phone: '(901) 277-7877' },
+  { name: 'Prime HVAC and Electrical', phone: '(901) 676-7756' },
+  { name: 'Smith Heat and Air', phone: '(901) 827-9192' },
+  { name: "Smith's Plumbing, Heating & Air", phone: '(901) 413-9509' },
+  { name: 'Memphis HVAC Plus', phone: '(901) 310-8309' },
+  { name: "Blackwell's Heat & Air", phone: '(901) 653-8752' },
+  { name: 'Memphis Air Care', phone: '(901) 365-2848' },
+  { name: 'Renfrow Heating, Air & Plumbing', phone: '(901) 356-2242' },
+  { name: 'C&K Air and Heating Inc', phone: '(901) 744-4000' },
+  { name: 'Mitch Wright Plumbing, Heating & Air', phone: '(901) 795-9044' },
+  { name: 'Air Doctors of Memphis', phone: '(901) 598-4822' },
+  { name: 'AirTek LLC', phone: '(901) 896-6279' },
+  { name: 'Five Star Cooling', phone: '(901) 244-4557' },
+  { name: 'Muse Heating & Air Conditioning', phone: '(662) 280-0710' },
+  { name: 'MaxAir Heating and Cooling LLC', phone: '(901) 334-1921' },
+  { name: 'Southern Comfort Air, Heating & Plumbing', phone: '(901) 381-2665' }
+];
+function seedMondayCallListIfEmpty() {
+  if (leads.length > 0) return;
+  MONDAY_HVAC_CALL_LIST.forEach(biz => {
+    leads.push({
+      id: nextId++, name: biz.name, phone: biz.phone, trade: 'HVAC',
+      status: 'New', contacted: false, converted: false,
+      escalated: false, reviewed: false,
+      createdAt: new Date().toISOString(), lastContact: null,
+      scoreOpen: false, scoring: {}
+    });
+  });
+  saveData();
+}
+
 /* ── INIT ── */
 loadData();
+seedMondayCallListIfEmpty();
 renderAll();
 tallyCalls();
 renderCallLog();
