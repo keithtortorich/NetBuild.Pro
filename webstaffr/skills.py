@@ -1,7 +1,9 @@
 """
-Impeccable Skills Pipeline
+Impeccable Skills Pipeline (7-Stage)
 Applies strategic refinement steps in succession to transform raw tenant data 
 into a high-converting, psychologically optimized website context.
+
+Pipeline: Strategy → Copy → Design → Trust → Conversion → Authority → Retention
 """
 from typing import Dict, Any, List
 import logging
@@ -28,9 +30,8 @@ class StrategySkill(ImpeccableSkill):
         self.name = "Strategy"
     
     def apply(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        business = context.get('business', {}) or context  # Support both nested and flat structures
+        business = context.get('business', {}) or context
         industry_raw = business.get('industry', 'General')
-        # Normalize industry for matching (handle "HVAC", "hvac", "Heating & Cooling", etc.)
         industry_lower = industry_raw.lower()
         
         # Define strategic positioning based on industry
@@ -63,7 +64,6 @@ class StrategySkill(ImpeccableSkill):
                 'cta_focus': 'Contact Us Today'
             }
         
-        # Inject strategy into context
         context['strategy'] = {
             'core_angle': strategy['angle'],
             'unique_value_prop': strategy['differentiator'],
@@ -91,7 +91,6 @@ class CopySkill(ImpeccableSkill):
         angle = strategy.get('core_angle', 'Quality')
         uvp = strategy.get('unique_value_prop', '')
         
-        # Generate compelling headlines
         context['copy'] = {
             'hero_headline': f"{angle}-Driven {business.get('industry', 'Services')} in {business.get('city', 'Your Area')}",
             'hero_subhead': f"Experience the {name} difference. {uvp}.",
@@ -119,13 +118,12 @@ class DesignSkill(ImpeccableSkill):
         tone = strategy.get('brand_tone', 'Professional')
         industry = context.get('business', {}).get('industry', '').lower()
         
-        # Map tone/industry to color psychology
         palette_map = {
-            'hvac': {'base_hue': 210, 'sat': 85, 'light': 55}, # Trustworthy Blue
-            'plumbing': {'base_hue': 200, 'sat': 70, 'light': 45}, # Clean Water Blue
-            'legal': {'base_hue': 220, 'sat': 60, 'light': 35}, # Authoritative Navy
-            'medical': {'base_hue': 160, 'sat': 60, 'light': 45}, # Calming Teal
-            'default': {'base_hue': 215, 'sat': 75, 'light': 50} # Balanced Blue
+            'hvac': {'base_hue': 210, 'sat': 85, 'light': 55},
+            'plumbing': {'base_hue': 200, 'sat': 70, 'light': 45},
+            'legal': {'base_hue': 220, 'sat': 60, 'light': 35},
+            'medical': {'base_hue': 160, 'sat': 60, 'light': 45},
+            'default': {'base_hue': 215, 'sat': 75, 'light': 50}
         }
         
         colors = palette_map.get(industry, palette_map['default'])
@@ -157,7 +155,6 @@ class TrustSkill(ImpeccableSkill):
         
         trust_signals = []
         
-        # Add review signal if available
         if reviews and len(reviews) > 0:
             avg_rating = sum(r.get('rating', 5) for r in reviews) / len(reviews)
             trust_signals.append({
@@ -167,7 +164,6 @@ class TrustSkill(ImpeccableSkill):
                 'priority': 1
             })
         
-        # Add credential signal
         if licenses:
             trust_signals.append({
                 'type': 'credential',
@@ -183,7 +179,6 @@ class TrustSkill(ImpeccableSkill):
                 'priority': 2
             })
         
-        # Add guarantee signal (hardcoded for demo richness)
         trust_signals.append({
             'type': 'guarantee',
             'icon': '✅',
@@ -191,7 +186,6 @@ class TrustSkill(ImpeccableSkill):
             'priority': 3
         })
         
-        # Sort by priority
         trust_signals.sort(key=lambda x: x['priority'])
         
         context['trust'] = {
@@ -216,10 +210,10 @@ class ConversionSkill(ImpeccableSkill):
         strategy = context.get('strategy', {})
         
         context['conversion'] = {
-            'form_position': 'above-fold', # Always visible
-            'form_fields': ['name', 'phone', 'service_needed'], # Minimal friction
-            'cta_color': 'high-contrast', # Ensures visibility
-            'sticky_cta': True, # Mobile optimization
+            'form_position': 'above-fold',
+            'form_fields': ['name', 'phone', 'service_needed'],
+            'cta_color': 'high-contrast',
+            'sticky_cta': True,
             'urgency_trigger': 'Limited Availability Today' if 'Urgent' in strategy.get('brand_tone', '') else None,
             'guarantee_near_cta': True
         }
@@ -228,10 +222,113 @@ class ConversionSkill(ImpeccableSkill):
         return context
 
 
+class AuthoritySkill(ImpeccableSkill):
+    """
+    Skill 6: Authority & Thought Leadership
+    Establishes credibility through published content, certifications, and industry standing.
+    """
+    def __init__(self):
+        self.name = "Authority"
+    
+    def apply(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        business = context.get('business', {})
+        industry = business.get('industry', '').lower()
+        
+        authority_map = {
+            'hvac': {
+                'certifications': ['NATE Certified', 'EPA 608 Certified'],
+                'affiliations': ['HVAC Excellence', 'Better Business Bureau'],
+                'content_topics': ['Seasonal Maintenance Tips', 'Energy Efficiency Guide', 'Emergency Response Protocol']
+            },
+            'plumbing': {
+                'certifications': ['Master Plumber License', 'Backflow Prevention Certified'],
+                'affiliations': ['Plumbing Association', 'Licensed Contractors Board'],
+                'content_topics': ['Common Plumbing Issues', 'Preventive Maintenance', 'Water Conservation']
+            },
+            'legal': {
+                'certifications': ['Bar Licensed', 'Specialization in Practice Area'],
+                'affiliations': ['State Bar Association', 'Legal Specialty Boards'],
+                'content_topics': ['Legal Updates', 'Case Outcomes', 'Client Rights']
+            },
+            'default': {
+                'certifications': ['Industry Certified', 'Continuing Education'],
+                'affiliations': ['Professional Association', 'Trade Board'],
+                'content_topics': ['Best Practices', 'Industry News', 'Expert Tips']
+            }
+        }
+        
+        authority_data = authority_map.get(industry, authority_map['default'])
+        
+        context['authority'] = {
+            'certifications': authority_data['certifications'],
+            'affiliations': authority_data['affiliations'],
+            'blog_topics': authority_data['content_topics'],
+            'show_expertise_section': True,
+            'content_cadence': 'monthly'
+        }
+        
+        logger.info(f"[Authority] Set up authority signals: {', '.join(authority_data['certifications'])}")
+        return context
+
+
+class RetentionSkill(ImpeccableSkill):
+    """
+    Skill 7: Retention & Lifetime Value
+    Designs customer retention mechanics: email campaigns, loyalty programs, referral incentives.
+    """
+    def __init__(self):
+        self.name = "Retention"
+    
+    def apply(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        business = context.get('business', {})
+        industry = business.get('industry', '').lower()
+        
+        retention_map = {
+            'hvac': {
+                'campaign_type': 'seasonal-maintenance-reminders',
+                'email_frequency': 'quarterly',
+                'loyalty_program': 'service-agreement-discount',
+                'referral_incentive': '$50 credit for each referral'
+            },
+            'plumbing': {
+                'campaign_type': 'preventive-maintenance-tips',
+                'email_frequency': 'bi-monthly',
+                'loyalty_program': 'annual-inspection-discount',
+                'referral_incentive': '$75 credit for each referral'
+            },
+            'legal': {
+                'campaign_type': 'legal-updates-newsletter',
+                'email_frequency': 'monthly',
+                'loyalty_program': 'retainer-agreement-discount',
+                'referral_incentive': 'Free consultation referral fee'
+            },
+            'default': {
+                'campaign_type': 'value-added-updates',
+                'email_frequency': 'monthly',
+                'loyalty_program': 'repeat-customer-discount',
+                'referral_incentive': '$50 credit for each referral'
+            }
+        }
+        
+        retention_data = retention_map.get(industry, retention_map['default'])
+        
+        context['retention'] = {
+            'email_campaigns': retention_data['campaign_type'],
+            'email_frequency': retention_data['email_frequency'],
+            'loyalty_program': retention_data['loyalty_program'],
+            'referral_incentive': retention_data['referral_incentive'],
+            'show_newsletter_signup': True,
+            'estimated_ltv_increase': '35%'
+        }
+        
+        logger.info(f"[Retention] Configured retention strategy: {retention_data['campaign_type']}")
+        return context
+
+
 class ImpeccablePipeline:
     """
     Executes the full chain of skills in succession.
-    Order: Strategy → Copy → Design → Trust → Conversion
+    Order: Strategy → Copy → Design → Trust → Conversion → Authority → Retention
     """
     
     def __init__(self):
@@ -240,21 +337,22 @@ class ImpeccablePipeline:
             CopySkill(),
             DesignSkill(),
             TrustSkill(),
-            ConversionSkill()
+            ConversionSkill(),
+            AuthoritySkill(),
+            RetentionSkill()
         ]
     
     def run(self, raw_context: Dict[str, Any]) -> Dict[str, Any]:
         """Run all skills in sequence, passing the enriched context forward."""
         context = raw_context.copy()
         
-        logger.info("Starting Impeccable Skill Pipeline...")
+        logger.info("Starting Impeccable Skill Pipeline (7-stage)...")
         
         for skill in self.skills:
             try:
                 context = skill.apply(context)
             except Exception as e:
                 logger.error(f"Error in {skill.name} skill: {str(e)}")
-                # Continue with partial context rather than failing completely
         
         logger.info("Impeccable Skill Pipeline complete.")
         return context
