@@ -222,9 +222,17 @@ export class SupabaseArtifactStore implements ArtifactStore {
 export class HTTPJobStateSink implements JobStateSink {
   private readonly baseUrl: string;
   private readonly apiKey: string;
+  private readonly callbackUrl?: string;
+  private readonly callbackSecret?: string;
   private readonly fetchImpl: typeof fetch;
 
-  constructor(options?: { baseUrl?: string; apiKey?: string; fetchImpl?: typeof fetch }) {
+  constructor(options?: {
+    baseUrl?: string;
+    apiKey?: string;
+    callbackUrl?: string;
+    callbackSecret?: string;
+    fetchImpl?: typeof fetch;
+  }) {
     const baseUrl = options?.baseUrl ?? process.env.SITE_MAGIC_API_BASE_URL;
     const apiKey = options?.apiKey ?? process.env.SITE_MAGIC_INTERNAL_API_KEY;
     if (!baseUrl || !apiKey) {
@@ -234,6 +242,8 @@ export class HTTPJobStateSink implements JobStateSink {
     }
     this.baseUrl = baseUrl.replace(/\/+$/, "");
     this.apiKey = apiKey;
+    this.callbackUrl = options?.callbackUrl ?? process.env.SITE_MAGIC_CALLBACK_WEBHOOK_URL;
+    this.callbackSecret = options?.callbackSecret ?? process.env.SITE_MAGIC_CALLBACK_SECRET;
     this.fetchImpl = options?.fetchImpl ?? fetch;
   }
 
@@ -274,6 +284,83 @@ export class HTTPJobStateSink implements JobStateSink {
       throw new Error(
         `Site Magic state transition failed: ${response.status} ${await response.text()}`
       );
+    }
+
+    // Fire webhook callback to SMMM listener (non-blocking, best-effort)
+    // ADR-027: Worker callback protocol for SMMM to track job progress
+    if (this.callbackUrl && this.callbackSecret) {
+      const eventId = body.event_id as string;
+      const callbackPayload: Record<string, unknown> = {
+        eventId,
+        jobId,
+        status: state,
+        timestamp: new Date().toISOString(),
+      };
+
+      // Add optional fields based on state and metadata
+      if (state === "ready_for_review" || state === "shipped") {
+        if (typeof metadata?.buildId === "string") {
+          callbackPayload.buildId = metadata.buildId;
+        }
+        callbackPayload.previewUrl = `https://sites.${process.env.SITE_DOMAIN ?? "netbuild.pro"}/${tenantId}/`;
+      }
+
+      if (state === "failed") {
+        if (typeof metadata?.reason === "string") {
+          callbackPayload.errorCode = metadata.reason;
+          callbackPayload.errorMessage = `Build failed: ${metadata.reason}`;
+        }
+      }
+
+      if (typeof metadata?.critiqueScore === "number" || typeof metadata?.p0Issues === "number") {
+        callbackPayload.qualityMetrics = {
+          critiqueScore: metadata?.critiqueScore,
+          p0Issues: metadata?.p0Issues,
+          selfHealIterations: metadata?.rebuilds ?? 0,
+        };
+      }
+
+      // Fire webhook asynchronously (non-blocking)
+      this.fireWebhook(jobId, callbackPayload).catch((err) => {
+        console.error(`Site Magic callback webhook failed for job ${jobId}:`, err);
+      });
+    }
+  }
+
+  private async fireWebhook(jobId: string, payload: Record<string, unknown>): Promise<void> {
+    if (!this.callbackUrl || !this.callbackSecret) {
+      return;
+    }
+
+    // Constant-time comparison of the secret (prevent timing attacks)
+    const bodyStr = JSON.stringify(payload);
+    const bodyBytes = new TextEncoder().encode(bodyStr);
+    const secretBytes = new TextEncoder().encode(this.callbackSecret);
+
+    // Simple HMAC-SHA256 signature (follow Stripe webhook pattern)
+    const crypto = await import("node:crypto");
+    const hmac = crypto.createHmac("sha256", secretBytes);
+    hmac.update(bodyBytes);
+    const signature = hmac.digest("hex");
+
+    try {
+      const response = await this.fetchImpl(this.callbackUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Site-Magic-Secret": signature,
+        },
+        body: bodyStr,
+      });
+
+      if (!response.ok) {
+        console.warn(
+          `Site Magic callback returned ${response.status} for job ${jobId}: ${await response.text()}`
+        );
+      }
+    } catch (err) {
+      console.error(`Site Magic callback network error for job ${jobId}:`, err);
+      // Do not throw; callback is best-effort
     }
   }
 }

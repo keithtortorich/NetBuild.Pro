@@ -321,7 +321,7 @@ NetBuild.Pro launches with one tier only: Office Staff at $497/month. Its canoni
 ## ADR-027: Site Magic Worker Callback Protocol (SMMM Listener Contract)
 
 **Date:** 2026-08-09
-**Status:** Pending Approval (D3 — architecture decision)
+**Status:** Approved (founder, 2026-08-09)
 **Depth:** D3 (integration contract, no precedent)
 **Affects:** `webstaffr/site_magic_adapters.py` (`HTTPJobStateSink`), worker webhook listener (external SMMM repo)
 
@@ -415,7 +415,7 @@ If either is unset, callbacks are disabled (no-op) and the job transitions silen
 ## ADR-028: Crawler SSRF Protection Strategy (Egress Proxy vs. httpx Connection Pinning)
 
 **Date:** 2026-08-09
-**Status:** Pending Approval (D3 — architecture decision, trade-offs)
+**Status:** Approved (founder, 2026-08-09)
 **Depth:** D3 (network security, bounded by infrastructure)
 **Affects:** `webstaffr/site_magic_adapters.py` (`HttpxSiteCrawler`), deployment configuration
 
@@ -500,7 +500,7 @@ model changes.
 ## ADR-029: Site Magic Build Publishing Route (10-Year Signed URL → Shared CDN)
 
 **Date:** 2026-08-09
-**Status:** Pending Approval (D3 — infrastructure design)
+**Status:** Approved (founder, 2026-08-09)
 **Depth:** D3 (affects public site availability, caching, deployment model)
 **Affects:** `webstaffr/site_magic_adapters.py` (`SupabaseArtifactStorage.publish()`), deployment, DNS
 

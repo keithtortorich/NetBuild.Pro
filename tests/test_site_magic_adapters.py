@@ -97,21 +97,20 @@ class TestSupabaseArtifactStorage(unittest.TestCase):
         self.assertEqual(seen["auth"], "Bearer service-key")
         self.assertEqual(url, "https://project.supabase.co/storage/v1/object/sign/site-magic-builds/x?token=abc")
 
-    def test_publish_uses_ten_year_ttl(self):
-        seen = {}
-
-        def handler(request: httpx.Request) -> httpx.Response:
-            seen["body"] = request.content
-            return httpx.Response(200, json={"signedURL": "/object/sign/site-magic-builds/x?token=abc"})
-
+    def test_publish_returns_public_bucket_url(self):
+        # ADR-029: Phase 1 MVP returns public bucket URL (no signed URL)
+        # Bucket is configured to be publicly readable via Supabase bucket policies
         storage = SupabaseArtifactStorage(
             base_url="https://project.supabase.co",
             service_key="service-key",
-            transport=httpx.MockTransport(handler),
+            transport=httpx.MockTransport(lambda r: httpx.Response(200)),
         )
-        storage.publish(tenant_id="acme_hvac", locator="acme_hvac/job_1/build_1.tar", build_id="build_1")
+        url = storage.publish(tenant_id="acme_hvac", locator="acme_hvac/job_1/build_1.tar", build_id="build_1")
 
-        self.assertIn(b'"expiresIn":315360000', seen["body"])
+        self.assertEqual(
+            url,
+            "https://project.supabase.co/storage/v1/object/public/site-magic-builds/acme_hvac/job_1/build_1.tar"
+        )
 
     def test_sign_call_failure_raises_not_configured(self):
         def handler(request: httpx.Request) -> httpx.Response:

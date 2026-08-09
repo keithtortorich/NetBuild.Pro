@@ -80,18 +80,17 @@ class HTTPWebhookSiteMagicQueue:
 
 
 class SupabaseArtifactStorage:
-    """Signed-URL access to the private Supabase Storage bucket the Node
+    """Public URL access to the Supabase Storage bucket the Node
     worker seals builds into (see webstaffr/site_magic_adapters.ts's
     SupabaseArtifactStore -- same bucket, same object-path convention:
     `{tenant_id}/{job_id_component}/{build_id}.tar`, but this class is only
     ever given `locator` directly, so it doesn't need to reconstruct it).
 
-    `publish()` uses a long-lived (10-year) signed URL rather than making
-    the object world-readable in the bucket. This is a pragmatic MVP
-    choice, not the final serving architecture -- a real deployment
-    probably wants a dedicated public route or CDN mapping rather than
-    handing out Supabase Storage signed URLs as the permanent public site
-    address. Flagged here rather than silently presented as finished.
+    ADR-029: `publish()` returns a public bucket URL (Phase 1 MVP).
+    The bucket is configured to be publicly readable via Supabase bucket
+    policies. Phase 3+ will add a CDN layer (Cloudflare Workers + R2) for
+    custom domain and global caching, but Phase 1 uses direct Supabase
+    Storage URLs.
 
     Env vars:
       SUPABASE_URL                     required
@@ -151,7 +150,10 @@ class SupabaseArtifactStorage:
         return self._sign(locator=locator, expires_in=self._PREVIEW_TTL_SECONDS)
 
     def publish(self, *, tenant_id: str, locator: str, build_id: str) -> str:
-        return self._sign(locator=locator, expires_in=self._PUBLISHED_TTL_SECONDS)
+        # ADR-029: Return public bucket URL (Phase 1 MVP)
+        # Assumes bucket is configured to be publicly readable via Supabase bucket policies.
+        # Phase 3+: Cloudflare Workers + R2 will provide custom domain and CDN.
+        return f"{self.base_url}/storage/v1/object/public/{self.bucket}/{locator}"
 
     def __del__(self) -> None:
         if hasattr(self, "_client"):
@@ -168,14 +170,12 @@ class HttpxSiteCrawler:
     ingestion happens later, asynchronously, and a DNS record an attacker
     controls could have been repointed at a private address in between.
 
-    Known limitation, not silently glossed over: this narrows the
-    validate-then-connect race rather than closing it. A fully closed
-    version pins the exact validated IP at the TCP/TLS layer (httpx has no
-    simple public API for that -- it needs a custom Transport overriding
-    connection-origin resolution) and hasn't been built here; re-validating
-    immediately before each request is the pragmatic middle ground given
-    this can't be exercised against a live attacker-controlled DNS record
-    in this environment anyway.
+    SSRF Protection (ADR-028): Pre-request DNS re-validation (Option B).
+    Narrows the validate-then-connect race (millisecond TOCTOU window)
+    rather than fully closing it. Connection-level IP pinning (Option A)
+    would eliminate TOCTOU entirely but requires custom httpx Transport;
+    deferred to Phase 3 if threat model changes. Suitable for MVP tenant-
+    website crawling (low-risk, intentional content).
 
     Same-origin pages only (same_origin() from site_magic_security.py),
     matching the SSRF boundary's "crawl same-origin pages only" rule --
