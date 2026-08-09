@@ -42,3 +42,4 @@ node_modules/
 # Trae/Hermes local artifacts
 .trae/
 .hermes/
+.env*

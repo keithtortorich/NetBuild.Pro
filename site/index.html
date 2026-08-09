@@ -1970,6 +1970,15 @@ function DemoPreview({ name, file, onClose }) {
   const [blobUrl, setBlobUrl] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(null);
+  // The preview iframe scrolls independently of the outer page, at a fixed
+  // 80vh, with no visible scrollbar (sandboxed cross-origin blob content
+  // can't be styled from here). Without a cue, a visitor's first scroll
+  // gesture moves the outer page instead, and the hero CTA buttons near the
+  // bottom of the trade page's own 90vh hero (see e.g. hvac.html's #hero
+  // min-height) never come into view. This hint fades out on the iframe's
+  // own scroll, not the page's, so it only disappears once the visitor has
+  // actually discovered the independent scroll.
+  const [iframeScrolled, setIframeScrolled] = useState(false);
   const iframeRef = useRef(null);
 
   useEffect(() => {
@@ -1978,6 +1987,7 @@ function DemoPreview({ name, file, onClose }) {
     setLoaded(false);
     setBlobUrl(null);
     setError(null);
+    setIframeScrolled(false);
 
     fetch(file)
       .then(res => {
@@ -2000,7 +2010,31 @@ function DemoPreview({ name, file, onClose }) {
     };
   }, [file]);
 
-  const handleLoad = useCallback(() => setLoaded(true), []);
+  const handleLoad = useCallback(() => {
+    setLoaded(true);
+    // Same-origin blob served from this app's own host, so the iframe's
+    // contentWindow is reachable despite the sandbox attribute -- listen for
+    // the visitor's own scroll inside the embedded page to dismiss the hint.
+    try {
+      const win = iframeRef.current && iframeRef.current.contentWindow;
+      if (win) {
+        const onScroll = () => setIframeScrolled(true);
+        win.addEventListener("scroll", onScroll, { passive: true });
+      }
+    } catch (e) {
+      // Cross-origin or sandbox-restricted access; hint stays until manually
+      // dismissed by the timeout below instead of erroring.
+    }
+  }, []);
+
+  // Fallback dismissal so the hint never sits there indefinitely for a
+  // visitor who scrolls via keyboard/trackpad in a way the listener above
+  // misses, or if contentWindow access was blocked.
+  useEffect(() => {
+    if (!loaded) return;
+    const t = setTimeout(() => setIframeScrolled(true), 6000);
+    return () => clearTimeout(t);
+  }, [loaded]);
 
   return /*#__PURE__*/React.createElement("div", {
     className: "mt-8 overflow-hidden rounded-3xl border border-slate-300 bg-white shadow-2xl dark:border-white/10",
@@ -2044,7 +2078,14 @@ function DemoPreview({ name, file, onClose }) {
     className: `h-full w-full border-0 bg-white transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`,
     sandbox: "allow-scripts allow-same-origin allow-forms allow-popups allow-modals",
     loading: "eager"
-  })));
+  }), loaded && !error && !iframeScrolled && /*#__PURE__*/React.createElement("div", {
+    className: "pointer-events-none absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-1 pb-3 pt-10 bg-gradient-to-t from-[#1A1A2E]/80 via-[#1A1A2E]/40 to-transparent",
+    "aria-hidden": "true"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "flex h-6 w-6 items-center justify-center rounded-full bg-white/90 text-[#1A1A2E] shadow animate-bounce"
+  }, "↓"), /*#__PURE__*/React.createElement("span", {
+    className: "rounded-full bg-white/90 px-3 py-1 text-[11px] font-bold text-[#1A1A2E] shadow"
+  }, "Scroll inside the preview to see more"))));
 }
 
 function Demos() {
