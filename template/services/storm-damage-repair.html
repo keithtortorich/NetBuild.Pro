@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- ====================================================================
+       PAGE-SPECIFIC: Update these variables for each service
+       - serviceName: "Roof Repair", "Roof Replacement", etc.
+       - serviceSlug: "roof-repair", "roof-replacement", etc.
+       - serviceSubtitle: Brief description for meta and hero
+       - city: "Austin"
+       - brand: "Lone Star Roofing"
+       - phone: "(512) 555-1234"
+       ==================================================================== -->
+  <title>Storm Damage Repair in Austin | Lone Star Roofing</title>
+  <meta name="description" content="Storm damage roof repair in Austin — hail, wind, and storm damage. Insurance claim assistance. Fast emergency service. Call (512) 555-1234.">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Storm Damage Repair in Austin | Lone Star Roofing">
+  <meta property="og:description" content="Storm damage roof repair in Austin — hail, wind, and storm damage. Insurance claim assistance. Fast emergency service. Call (512) 555-1234.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://lonestarroofing.com/services/roof-repair.html">
+
+  <!-- ====================================================================
+       Schema: Service + LocalBusiness (page-specific)
+       ==================================================================== -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "name": "Storm Damage Repair in Austin",
+    "provider": {
+      "@type": "LocalBusiness",
+      "name": "Lone Star Roofing",
+      "telephone": "+15125551234",
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "1234 Congress Ave Suite 200",
+        "addressLocality": "Austin",
+        "addressRegion": "TX",
+        "postalCode": "78701"
+      }
+    },
+    "areaServed": {
+      "@type": "City",
+      "name": "Austin",
+      "sameAs": "https://en.wikipedia.org/wiki/Austin,_Texas"
+    },
+    "description": "Professional storm damage repair services in Austin, TX. Same-day emergency service, leak repair, shingle replacement, and more. Free estimates."
+  }
+  </script>
+
+  <!-- FAQ Schema for rich results -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "How much does roof repair cost in Austin?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Roof repair costs in Austin typically range from $300–$1,500 depending on the extent of damage. Minor leak repairs start around $300, while more significant structural repairs can run $1,000–$3,000. We always provide a free, no-obligation estimate before any work begins."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do you offer emergency roof repair in Austin?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes! We offer same-day emergency roof repair for Austin homeowners. If you have an active leak or storm damage, call us at (512) 555-1234 and we'll get a crew out to you as fast as possible — often within 1-2 hours."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Will my homeowners insurance cover roof repair?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "It depends on the cause of damage. Storm damage (hail, wind, fallen trees) is typically covered, while general wear-and-tear is not. We work directly with your insurance adjuster to document the damage and help you navigate the claims process."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How long does a roof repair take?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Most roof repairs are completed in 1–2 days. Emergency tarping can be done same-day. We'll give you a precise timeline during your free estimate."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How do I know if I need a repair or a full replacement?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Our team will inspect your roof and give you an honest recommendation. If the damage is isolated (a few shingles, a small leak), a repair is usually sufficient. If the roof is near the end of its lifespan (20+ years) or has widespread damage, replacement may be more cost-effective in the long run."
+        }
+      }
+    ]
+  }
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="icon" type="image/svg+xml" href="../images/favicon.svg">
+</head>
+<body>
+
+  <a href="#main" class="sr-only">Skip to main content</a>
+
+  <!-- ================================================================
+       NAVIGATION (same as homepage)
+       ================================================================ -->
+  <nav class="nav" role="navigation" aria-label="Main navigation">
+    <div class="container nav__inner">
+      <a href="../index.html" class="nav__logo" aria-label="Lone Star Roofing — Home">
+        <span class="nav__logo-icon" aria-hidden="true">LS</span>
+        Lone Star Roofing
+      </a>
+
+      <div class="nav__links" id="navLinks">
+        <a href="../index.html#services" class="nav__link">Services</a>
+        <a href="../index.html#why-us" class="nav__link">Why Us</a>
+        <a href="../index.html#proof" class="nav__link">Reviews</a>
+        <a href="../index.html#story" class="nav__link">Our Story</a>
+        <a href="../index.html#contact" class="nav__link">Contact</a>
+        <a href="../index.html#estimate" class="btn btn--primary btn--sm">Free Estimate</a>
+      </div>
+
+      <div class="nav__cta">
+        <a href="tel:+15125551234" class="nav__phone" aria-label="Call us">
+          <span aria-hidden="true">📞</span> (512) 555-1234
+        </a>
+      </div>
+
+      <button class="nav__toggle" id="navToggle" aria-label="Toggle navigation menu" aria-expanded="false">
+        <span class="nav__toggle-bar"></span>
+        <span class="nav__toggle-bar"></span>
+        <span class="nav__toggle-bar"></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ================================================================
+       SERVICE HERO
+       ================================================================ -->
+  <section class="service-hero" id="main" aria-label="Service page hero">
+    <div class="container">
+      <nav class="service-hero__breadcrumb" aria-label="Breadcrumb">
+        <a href="../index.html">Home</a>
+        <span aria-hidden="true">/</span>
+        <a href="../index.html#services">Services</a>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page">Storm Damage Repair in Austin</span>
+      </nav>
+
+      <h1 class="service-hero__title">Storm Damage Repair in Austin</h1>
+      <p style="color: rgba(255,255,255,0.8); font-size: 1.125rem; max-width: 600px;">
+        Storm damage in Austin? We handle hail, wind, and debris damage — fast. We document everything, work with your insurance adjuster, and get your roof back in shape.
+      </p>
+    </div>
+  </section>
+
+  <!-- ================================================================
+       SERVICE CONTENT
+       ================================================================ -->
+  <section class="section" aria-label="Service details">
+    <div class="container">
+      <div class="service-content">
+        <!-- Main content -->
+        <div class="service-content__body">
+
+          <!-- Problem headline -->
+          <h2>Got a Leaky Roof? We'll Fix It Fast.</h2>
+          <p>
+            A leaking roof isn't just an annoyance — it's a threat to your entire home. Water damage, mold, ruined insulation, and structural rot can all start from a single missing shingle or cracked flashing.
+          </p>
+          <p>
+            At Lone Star Roofing, we've been diagnosing and repairing Austin roofs for over 15 years. We don't just patch the symptom — we find the root cause and fix it so it stays fixed.
+          </p>
+
+          <!-- What's included -->
+          <h3>What's Included in Our Roof Repair Service</h3>
+          <ul>
+            <li><strong>Thorough Inspection</strong> — We inspect the entire roof, not just the obvious damage. Attic, flashing, vents, and seals all get checked.</li>
+            <li><strong>Precise Diagnosis</strong> — We identify the exact source of the problem (leaks often travel). No guesswork, no unnecessary repairs.</li>
+            <li><strong>Quality Materials</strong> — We use the same high-grade shingles, underlayment, and flashing as our full replacements. No "quick-fix" bandaids.</li>
+            <li><strong>Same-Day Emergency Service</strong> — Active leak? Storm damage? Call us and we'll have a crew out within hours, not days.</li>
+            <li><strong>10-Year Workmanship Guarantee</strong> — Every repair we do is backed by our warranty. If it fails, we fix it — on us.</li>
+            <li><strong>Insurance Claim Assistance</strong> — We document damage, work with your adjuster, and help you get the coverage you're entitled to.</li>
+          </ul>
+
+          <!-- 3-Step Process -->
+          <h3>Our 3-Step Repair Process</h3>
+          <div class="process-steps">
+            <div class="process-step">
+              <div class="process-step__number">1</div>
+              <div class="process-step__content">
+                <h4>Free Inspection &amp; Estimate</h4>
+                <p>We come to your home, inspect the roof and attic, and give you a detailed written estimate. No pressure, no obligation — just the facts and a clear price.</p>
+              </div>
+            </div>
+
+            <div class="process-step">
+              <div class="process-step__number">2</div>
+              <div class="process-step__content">
+                <h4>Expert Repair</h4>
+                <p>Once you approve the estimate, we schedule the work at your convenience. Our crew handles the repair efficiently, minimizing disruption to your day.</p>
+              </div>
+            </div>
+
+            <div class="process-step">
+              <div class="process-step__number">3</div>
+              <div class="process-step__content">
+                <h4>Final Walkthrough &amp; Warranty</h4>
+                <p>After the repair, we walk the roof together so you can see the work. You get our 10-year workmanship guarantee and a follow-up check-in within 30 days.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pricing signal -->
+          <div class="pricing-signal">
+            <p class="pricing-signal__label">Starting From</p>
+            <p class="pricing-signal__price">$350</p>
+            <p class="pricing-signal__note">Most minor roof repairs. Final price depends on scope &amp; materials. <strong>Free estimate — always.</strong></p>
+          </div>
+
+          <!-- 5 FAQs -->
+          <h3>Frequently Asked Questions</h3>
+          <div class="faqs">
+            <div class="faq-item">
+              <button class="faq-item__question" aria-expanded="false">
+                How much does roof repair cost in Austin?
+              </button>
+              <div class="faq-item__answer">
+                <div class="faq-item__answer-inner">
+                  Roof repair costs in Austin typically range from <strong>$300–$1,500</strong> depending on the extent of damage. Minor leak repairs start around $300, while more significant structural repairs can run $1,000–$3,000. We always provide a <strong>free, no-obligation estimate</strong> before any work begins.
+                </div>
+              </div>
+            </div>
+
+            <div class="faq-item">
+              <button class="faq-item__question" aria-expanded="false">
+                Do you offer emergency roof repair in Austin?
+              </button>
+              <div class="faq-item__answer">
+                <div class="faq-item__answer-inner">
+                  Yes! We offer <strong>same-day emergency roof repair</strong> for Austin homeowners. If you have an active leak or storm damage, call us at <a href="tel:+15125551234">(512) 555-1234</a> and we'll get a crew out to you as fast as possible — often within 1-2 hours.
+                </div>
+              </div>
+            </div>
+
+            <div class="faq-item">
+              <button class="faq-item__question" aria-expanded="false">
+                Will my homeowners insurance cover roof repair?
+              </button>
+              <div class="faq-item__answer">
+                <div class="faq-item__answer-inner">
+                  It depends on the cause of damage. Storm damage (hail, wind, fallen trees) is typically covered, while general wear-and-tear is not. We <strong>work directly with your insurance adjuster</strong> to document the damage and help you navigate the claims process.
+                </div>
+              </div>
+            </div>
+
+            <div class="faq-item">
+              <button class="faq-item__question" aria-expanded="false">
+                How long does a roof repair take?
+              </button>
+              <div class="faq-item__answer">
+                <div class="faq-item__answer-inner">
+                  Most roof repairs are completed in <strong>1–2 days</strong>. Emergency tarping can be done same-day. We'll give you a precise timeline during your free estimate.
+                </div>
+              </div>
+            </div>
+
+            <div class="faq-item">
+              <button class="faq-item__question" aria-expanded="false">
+                How do I know if I need a repair or a full replacement?
+              </button>
+              <div class="faq-item__answer">
+                <div class="faq-item__answer-inner">
+                  Our team will inspect your roof and give you an <strong>honest recommendation</strong>. If the damage is isolated (a few shingles, a small leak), a repair is usually sufficient. If the roof is near the end of its lifespan (20+ years) or has widespread damage, replacement may be more cost-effective in the long run. Either way, you'll know the full picture before deciding.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom CTA -->
+          <div style="margin-top: 2.5rem; text-align: center;">
+            <a href="../index.html#estimate" class="btn btn--primary" style="font-size: 1.125rem; padding: 1rem 2rem;">
+              Get Your Free Roof Repair Estimate
+            </a>
+          </div>
+        </div>
+
+        <!-- Sidebar -->
+        <aside class="service-sidebar" aria-label="Quick actions">
+          <div class="service-sidebar__card service-sidebar__cta">
+            <h4>Have an Emergency?</h4>
+            <p style="color: var(--color-text-light); font-size: 0.9375rem; margin-bottom: 1rem;">
+              Active leak or storm damage? Call us now.
+            </p>
+            <a href="tel:+15125551234" class="btn btn--accent">
+              <span aria-hidden="true">📞</span> Call (512) 555-1234
+            </a>
+            <a href="../index.html#estimate" class="btn btn--ghost" style="margin-top: 0.5rem;">
+              Or get a free estimate &rarr;
+            </a>
+            <p style="font-size: 0.8125rem; color: var(--color-text-light); margin-top: 1rem;">
+              Same-day service available
+            </p>
+          </div>
+
+          <div class="service-sidebar__card">
+            <h4>Other Services</h4>
+            <ul class="footer__links" style="color: var(--color-text-light);">
+              <li style="margin-bottom: 0.75rem;"><a href="roof-replacement.html">Roof Replacement</a></li>
+              <li style="margin-bottom: 0.75rem;"><a href="gutter-installation.html">Gutter Installation</a></li>
+              <li style="margin-bottom: 0.75rem;"><a href="skylight-installation.html">Skylight Installation</a></li>
+              <li style="margin-bottom: 0.75rem;"><a href="roof-maintenance.html">Roof Maintenance</a></li>
+              <li style="margin-bottom: 0.75rem;"><a href="storm-damage-repair.html">Storm Damage Repair</a></li>
+            </ul>
+          </div>
+
+          <div class="service-sidebar__card">
+            <h4>We're Rated 4.9 ★</h4>
+            <p style="color: var(--color-text-light); font-size: 0.9375rem;">
+              "Lone Star fixed our leak same-day. Professional, fast, and fair priced. Couldn't recommend more."
+            </p>
+            <p style="font-weight: 600; font-size: 0.875rem; margin-top: 0.75rem;">— Mike T., Round Rock</p>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================
+       LEAD CAPTURE
+       ================================================================ -->
+  <section class="lead-capture" id="estimate" aria-labelledby="estimate-title">
+    <div class="container">
+      <h2 class="section-title" id="estimate-title">Get Your Free Estimate</h2>
+      <p class="section-subtitle">
+        Fill out the form below and we'll get back to you within 1 hour — usually faster.
+      </p>
+
+      <form class="lead-capture__form" id="leadForm" novalidate>
+        <input type="text" class="lead-capture__input" name="name" placeholder="Your Name" required aria-label="Your name" autocomplete="name">
+        <input type="tel" class="lead-capture__input" name="phone" placeholder="Phone Number" required aria-label="Your phone number" autocomplete="tel">
+        <input type="hidden" name="service" value="roof-repair">
+        <button type="submit" class="btn">Get My Free Estimate</button>
+      </form>
+
+      <p class="lead-capture__promise">
+        <span aria-hidden="true">⚡</span> We reply within 1 hour &middot; No obligation &middot; Free inspection
+      </p>
+    </div>
+  </section>
+
+  <!-- ================================================================
+       FOOTER
+       ================================================================ -->
+  <footer class="footer" role="contentinfo">
+    <div class="container">
+      <div class="footer__grid">
+        <div class="footer__brand">
+          <a href="../index.html" class="nav__logo">
+            <span class="nav__logo-icon" aria-hidden="true">LS</span>
+            Lone Star Roofing
+          </a>
+          <p>Austin's trusted roofing &amp; exterior contractor since 2010.</p>
+          <div class="footer__social">
+            <a href="#" aria-label="Facebook" target="_blank" rel="noopener"><span aria-hidden="true">f</span></a>
+            <a href="#" aria-label="Instagram" target="_blank" rel="noopener"><span aria-hidden="true">📷</span></a>
+            <a href="#" aria-label="Google Business Profile" target="_blank" rel="noopener"><span aria-hidden="true">G</span></a>
+            <a href="#" aria-label="Yelp" target="_blank" rel="noopener"><span aria-hidden="true">Y</span></a>
+          </div>
+        </div>
+
+        <div>
+          <h4 class="footer__heading">Services</h4>
+          <ul class="footer__links">
+            <li><a href="roof-repair.html">Roof Repair</a></li>
+            <li><a href="roof-replacement.html">Roof Replacement</a></li>
+            <li><a href="gutter-installation.html">Gutter Installation</a></li>
+            <li><a href="skylight-installation.html">Skylight Installation</a></li>
+            <li><a href="roof-maintenance.html">Roof Maintenance</a></li>
+            <li><a href="storm-damage-repair.html">Storm Damage Repair</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <h4 class="footer__heading">Company</h4>
+          <ul class="footer__links">
+            <li><a href="../index.html#story">Our Story</a></li>
+            <li><a href="../index.html#why-us">Why Us</a></li>
+            <li><a href="../index.html#proof">Reviews</a></li>
+            <li><a href="../index.html#local">Service Area</a></li>
+            <li><a href="../index.html#estimate">Free Estimate</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <h4 class="footer__heading">Contact</h4>
+          <div class="footer__contact-item">
+            <span aria-hidden="true">📍</span>
+            <address style="font-style: normal;">1234 Congress Ave Suite 200, Austin, TX 78701</address>
+          </div>
+          <div class="footer__contact-item">
+            <span aria-hidden="true">📞</span>
+            <a href="tel:+15125551234">(512) 555-1234</a>
+          </div>
+          <div class="footer__contact-item">
+            <span aria-hidden="true">✉️</span>
+            <a href="mailto:info@lonestarroofing.com">info@lonestarroofing.com</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer__bottom">
+        <span>&copy; 2026 Lone Star Roofing. All rights reserved.</span>
+        <div class="footer__bottom-links">
+          <a href="#">Privacy Policy</a>
+          <a href="#">Terms of Service</a>
+          <a href="#">Licenses: TECL #34567</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Sticky mobile bar -->
+  <div class="sticky-bar" aria-label="Mobile quick actions">
+    <div class="sticky-bar__inner">
+      <a href="tel:+15125551234" class="btn btn--primary">
+        <span aria-hidden="true">📞</span> Call Now
+      </a>
+      <a href="../index.html#estimate" class="btn btn--accent">
+        Free Estimate
+      </a>
+    </div>
+  </div>
+
+  <script src="../js/main.js" defer></script>
+
+</body>
+</html>
