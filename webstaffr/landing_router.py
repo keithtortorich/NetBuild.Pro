@@ -175,183 +175,269 @@ async def demo_redirect(trade: str, request: Request):
     return RedirectResponse(url=f"/sites/{tenant_id}/web", status_code=302)
 
 
-# Approved copy from WEBSTAFFR_AGENCY_SITE_COPY_HORMOZI_VOSS.md - replace with Hormozi-Voss methodology
-# Hook: "You left money on the table this week"
-# Subhead: "WebStaffr answers your phone so you don't lose jobs you already paid to generate"
-# Math: $16,000/month narrative (Voss quantifiable pain formula)
-# Structure: 3 steps, zero risk (Hormozi-Voss sales formula)
-# Pricing: Office Staff $497 for the initial launch
-# Colors: royal blue, navy, electric orange, light gray bg
+# Landing page: Matches agency site aesthetics (teal + gold + copper, clean pro layout)
+# Copy from WEBSTAFFR_AGENCY_SITE_COPY_HORMOZI_VOSS.md
+# Design: Teal primary, gold accents, copper CTAs, cream backgrounds (ADR-022 palette)
+# Structure: Utility bar → hero → what's included → pricing → FAQ → CTA footer
+# Colors: Teal (#1a4d5e), gold (#d4a574), copper (#c85a3a), cream (#f5f1e8), dark slate (#2a3a42)
 _LANDING_PAGE_HTML = """
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>NetBuild.Pro | Receptionist for Home Services</title>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="NetBuild.Pro gives contractors a trained virtual office team that answers calls, follows up with leads, and keeps the schedule full.">
+    <title>NetBuild.Pro | Never Let a Paid Lead Go Unanswered</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #1a1a1a; line-height: 1.6; }
-        header { background: linear-gradient(135deg, #4169E1 0%, #1f2937 100%); color: white; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; sticky: top; z-index: 100; }
-        header h1 { font-size: 1.3rem; font-weight: 700; }
-        header a { color: #FF6600; text-decoration: none; font-weight: 600; }
-        .container { max-width: 1000px; margin: 0 auto; padding: 40px 20px; }
-        h2 { font-size: 2.2rem; margin-bottom: 20px; color: #1f2937; }
-        h3 { font-size: 1.5rem; margin-bottom: 16px; color: #1f2937; }
-        p { margin-bottom: 16px; color: #4b5563; font-size: 1.05rem; }
-        .hook { background: #FF6600; color: white; padding: 40px; text-align: center; margin-bottom: 40px; border-radius: 8px; }
-        .hook h2 { color: white; font-size: 2.8rem; margin: 0; }
-        .subhead { font-size: 1.3rem; color: white; margin-top: 16px; }
-        .math-box { background: white; border-left: 4px solid #FF6600; padding: 24px; margin-bottom: 40px; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        .math-box strong { color: #FF6600; }
-        .pricing { background: white; padding: 40px; border-radius: 8px; margin-bottom: 40px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-top: 24px; }
-        .pricing-card { background: #f9fafb; border: 1px solid #e5e7eb; padding: 20px; border-radius: 6px; text-align: center; }
-        .pricing-card.featured { background: #1f2937; color: white; border-color: #FF6600; }
-        .pricing-card.featured h4 { color: #FF6600; }
-        .price { font-size: 2rem; font-weight: 700; margin: 12px 0; }
-        .faq { background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        .faq-item { margin-bottom: 24px; }
-        .faq-question { font-weight: 600; color: #1f2937; margin-bottom: 8px; }
-        .faq-answer { color: #4b5563; }
-        .cta-section { background: linear-gradient(135deg, #4169E1 0%, #1f2937 100%); color: white; padding: 40px; border-radius: 8px; text-align: center; margin-bottom: 40px; }
-        .cta-section h3 { color: white; }
-        button { background: #FF6600; color: white; border: none; padding: 12px 24px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 1rem; }
-        button:hover { background: #e55c00; }
-        .demo-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-top: 24px; }
-        .demo-link { background: white; border: 1px solid #e5e7eb; padding: 16px; border-radius: 6px; text-decoration: none; color: #1f2937; text-align: center; transition: all 0.2s; }
-        .demo-link:hover { border-color: #FF6600; transform: translateY(-2px); }
-        .no-ai { font-size: 0.9rem; color: #6b7280; font-style: italic; margin-top: 16px; }
+    :root {
+        --ws-primary-teal: #1a4d5e;
+        --ws-gold: #d4a574;
+        --ws-copper: #c85a3a;
+        --ws-cream: #f5f1e8;
+        --ws-dark-slate: #2a3a42;
+        --ws-light-gray: #f0f0f0;
+        --ws-border: #e2e6ec;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; color: #333; background: #fff; }
 
-        /* Motion: entrance reveals + micro-interactions (Emil Kowalski rules:
-           scale from 0.95 not 0, purpose-driven timing, respects reduced-motion) */
-        .reveal { opacity: 0; transform: translateY(16px) scale(0.98);
-            transition: opacity 480ms cubic-bezier(0.23,1,0.32,1), transform 480ms cubic-bezier(0.23,1,0.32,1); }
-        .reveal.is-visible { opacity: 1; transform: translateY(0) scale(1); }
-        header { animation: fadeInDown 420ms cubic-bezier(0.23,1,0.32,1) both; }
-        .hook h2 { animation: fadeInUp 560ms cubic-bezier(0.23,1,0.32,1) 80ms both; }
-        .hook .subhead { animation: fadeInUp 560ms cubic-bezier(0.23,1,0.32,1) 180ms both; }
-        @keyframes fadeInDown { from { opacity:0; transform:translateY(-12px);} to { opacity:1; transform:translateY(0);} }
-        @keyframes fadeInUp { from { opacity:0; transform:translateY(18px);} to { opacity:1; transform:translateY(0);} }
-        .pricing-card { transition: transform 200ms cubic-bezier(0.23,1,0.32,1), box-shadow 200ms cubic-bezier(0.23,1,0.32,1); }
-        .pricing-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
-        button, .start-link { transition: transform 140ms cubic-bezier(0.23,1,0.32,1), background 140ms ease; }
-        button:active, .start-link:active { transform: scale(0.97); }
-        @media (prefers-reduced-motion: reduce) {
-            .reveal, header, .hook h2, .hook .subhead { animation:none!important; transition:none!important; opacity:1!important; transform:none!important; }
-            .pricing-card:hover, .demo-link:hover, button:active, .start-link:active { transform:none!important; }
-        }
+    .ws-utility-bar { background: var(--ws-primary-teal); color: white; padding: 8px 0; font-size: 0.875rem; }
+    .ws-utility-bar-inner { max-width: 1200px; margin: 0 auto; padding: 0 20px; display: flex; justify-content: flex-end; gap: 40px; align-items: center; }
+    .ws-utility-phone { display: flex; gap: 8px; align-items: center; }
+    .ws-utility-item-accent { font-weight: 700; color: var(--ws-gold); }
+
+    .ws-header { background: white; border-bottom: 1px solid var(--ws-border); position: sticky; top: 0; z-index: 100; }
+    .ws-header-inner { max-width: 1200px; margin: 0 auto; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; }
+    .ws-brand { display: flex; gap: 12px; align-items: center; font-weight: 700; font-size: 1.25rem; color: var(--ws-primary-teal); }
+    .ws-logo { width: 32px; height: 32px; }
+    .ws-nav { display: flex; gap: 32px; }
+    .ws-nav-link { color: #666; text-decoration: none; font-size: 0.95rem; transition: color 0.2s; }
+    .ws-nav-link:hover { color: var(--ws-copper); }
+    .ws-nav-cta { background: var(--ws-copper); color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; font-size: 0.95rem; font-weight: 600; transition: background 0.2s; }
+    .ws-nav-cta:hover { background: #b04a2a; }
+
+    .ws-hero { background: linear-gradient(135deg, var(--ws-primary-teal) 0%, #0f3a47 100%); color: white; padding: 80px 20px; text-align: center; }
+    .ws-hero-inner { max-width: 700px; margin: 0 auto; }
+    .ws-hero-title { font-size: 2.8rem; font-weight: 700; margin-bottom: 16px; line-height: 1.2; }
+    .ws-hero-subtitle { font-size: 1.2rem; color: rgba(255,255,255,0.9); margin-bottom: 32px; line-height: 1.5; }
+    .ws-hero-cta { display: inline-block; background: var(--ws-copper); color: white; padding: 14px 32px; border-radius: 4px; text-decoration: none; font-weight: 600; transition: background 0.2s; font-size: 1rem; }
+    .ws-hero-cta:hover { background: #b04a2a; }
+
+    .ws-section { padding: 60px 20px; }
+    .ws-section-inner { max-width: 1200px; margin: 0 auto; }
+    .ws-section-heading { font-size: 2rem; font-weight: 700; color: var(--ws-primary-teal); margin-bottom: 16px; }
+    .ws-section-subheading { font-size: 1.1rem; color: #666; margin-bottom: 40px; }
+
+    .ws-features { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 32px; margin-bottom: 40px; }
+    .ws-feature { background: var(--ws-cream); padding: 32px; border-radius: 4px; border-left: 4px solid var(--ws-gold); }
+    .ws-feature-title { font-size: 1.2rem; font-weight: 700; color: var(--ws-primary-teal); margin-bottom: 12px; }
+    .ws-feature-text { color: #666; font-size: 0.95rem; line-height: 1.6; }
+
+    .ws-pricing { background: var(--ws-cream); padding: 60px 20px; }
+    .ws-pricing-inner { max-width: 1200px; margin: 0 auto; }
+    .ws-pricing-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; margin-top: 40px; }
+    .ws-pricing-card { background: white; border: 1px solid var(--ws-border); padding: 40px 24px; border-radius: 4px; text-align: center; transition: transform 0.2s, box-shadow 0.2s; }
+    .ws-pricing-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.1); }
+    .ws-pricing-card.featured { border: 2px solid var(--ws-copper); background: white; }
+    .ws-pricing-label { font-size: 0.85rem; font-weight: 600; color: var(--ws-copper); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .ws-pricing-name { font-size: 1.5rem; font-weight: 700; color: var(--ws-primary-teal); margin-bottom: 16px; }
+    .ws-pricing-amount { font-size: 2.5rem; font-weight: 700; color: var(--ws-copper); margin-bottom: 4px; }
+    .ws-pricing-period { font-size: 0.9rem; color: #999; margin-bottom: 24px; }
+    .ws-pricing-desc { font-size: 0.95rem; color: #666; margin-bottom: 24px; }
+    .ws-pricing-cta { display: block; background: var(--ws-copper); color: white; padding: 12px 24px; border-radius: 4px; text-decoration: none; font-weight: 600; transition: background 0.2s; }
+    .ws-pricing-cta:hover { background: #b04a2a; }
+
+    .ws-faq { padding: 60px 20px; }
+    .ws-faq-inner { max-width: 800px; margin: 0 auto; }
+    .ws-faq-item { margin-bottom: 32px; }
+    .ws-faq-q { font-size: 1.1rem; font-weight: 700; color: var(--ws-primary-teal); margin-bottom: 8px; }
+    .ws-faq-a { color: #666; font-size: 0.95rem; line-height: 1.6; }
+
+    .ws-footer { background: var(--ws-dark-slate); color: white; padding: 60px 20px 24px; }
+    .ws-footer-inner { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 40px; margin-bottom: 40px; }
+    .ws-footer-heading { font-size: 1.125rem; font-weight: 700; margin-bottom: 12px; }
+    .ws-footer-text { font-size: 0.9rem; line-height: 1.6; color: rgba(255,255,255,0.8); }
+    .ws-footer-links { list-style: none; }
+    .ws-footer-links li { margin-bottom: 6px; }
+    .ws-footer-links a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; transition: color 0.2s; }
+    .ws-footer-links a:hover { color: var(--ws-gold); }
+    .ws-footer-bottom { border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px; text-align: center; }
+    .ws-footer-copyright { font-size: 0.8rem; color: rgba(255,255,255,0.6); }
+
+    /* Motion: smooth scroll reveals */
+    .ws-reveal { opacity: 0; transform: translateY(20px); transition: opacity 0.6s ease, transform 0.6s ease; }
+    .ws-reveal.visible { opacity: 1; transform: translateY(0); }
+
+    @media (max-width: 768px) {
+        .ws-nav { display: none; }
+        .ws-hero-title { font-size: 2rem; }
+        .ws-section-heading { font-size: 1.5rem; }
+        .ws-utility-bar-inner { flex-direction: column; gap: 12px; justify-content: center; }
+    }
     </style>
 </head>
 <body>
-    <header>
-        <h1>NetBuild.Pro</h1>
-        <a href="tel:__CONTACT_PHONE_TEL__">__CONTACT_PHONE__</a>
+    <div class="ws-utility-bar">
+        <div class="ws-utility-bar-inner">
+            <div class="ws-utility-phone">(888) 302-8368</div>
+            <div><span class="ws-utility-item-accent">Built for</span> Home Services</div>
+        </div>
+    </div>
+
+    <header class="ws-header">
+        <div class="ws-header-inner">
+            <div class="ws-brand">
+                <svg width="24" height="24" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" class="ws-logo">
+                    <rect x="10" y="10" width="30" height="30" fill="#1a4d5e" rx="4"/>
+                    <rect x="50" y="10" width="30" height="30" fill="#d4a574" rx="4"/>
+                    <rect x="10" y="50" width="30" height="30" fill="#d4a574" rx="4"/>
+                    <rect x="50" y="50" width="30" height="30" fill="#1a4d5e" rx="4"/>
+                </svg>
+                <span>NetBuild.Pro</span>
+            </div>
+            <nav class="ws-nav">
+                <a href="/" class="ws-nav-link">Home</a>
+                <a href="#how" class="ws-nav-link">How It Works</a>
+                <a href="#pricing" class="ws-nav-link">Pricing</a>
+                <a href="#faq" class="ws-nav-link">FAQ</a>
+            </nav>
+            <a href="/start" class="ws-nav-cta">Get Started</a>
+        </div>
     </header>
 
-    <div class="hook">
-        <h2>Turn more incoming calls into booked work.</h2>
-        <p class="subhead">NetBuild.Pro gives home-service businesses a customer-ready site and an integrated receptionist workflow.</p>
-    </div>
-
-    <div class="container">
-        <div class="math-box reveal">
-            <h3>What NetBuild.Pro Sets Up</h3>
-            <p><strong>Your customer site:</strong> services, service area, contact details, and Angel chat built from the business information you provide.</p>
-            <p><strong>Your receptionist workflow:</strong> call handling, lead routing, and booking are activated after your approved phone, calendar, GHL, and Retell integrations are configured and verified.</p>
-            <p>Your site can go live first. Voice and CRM automation are not represented as active until their integrations pass an end-to-end check.</p>
-        </div>
-
-        <div class="pricing reveal">
-            <h3>Pick Your Plan</h3>
-            <p>Choose the service level that matches the work you want NetBuild.Pro to manage.</p>
-            <div class="pricing-grid">
-                <div class="pricing-card featured">
-                    <h4>Essentials</h4>
-                    <div class="price">$497</div>
-                    <p style="font-size: 0.9rem;">/month. Most popular.</p>
-                    <a href="/start" class="start-link" style="display:block; background:#FF6600; color:white; width:100%; margin-top:12px; padding:12px 24px; border-radius:6px; font-weight:600; text-decoration:none;">Start Setup</a>
-                </div>
-                <div class="pricing-card">
-                    <h4>Pro</h4>
-                    <div class="price">$2,497</div>
-                    <p style="font-size: 0.9rem;">/month. Full front office.</p>
-                </div>
-                <div class="pricing-card">
-                    <h4>Growth</h4>
-                    <p style="color: #FF6600;">Custom pricing</p>
-                    <p style="font-size: 0.9rem;">Enterprise support</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="faq reveal">
-            <h3>Common Questions</h3>
-            <div class="faq-item">
-                <div class="faq-question">What is included at setup?</div>
-                <div class="faq-answer">We collect your business details, generate your customer site, and prepare the integration checklist for the receptionist workflow.</div>
-            </div>
-            <div class="faq-item">
-                <div class="faq-question">When does call handling become active?</div>
-                <div class="faq-answer">After the approved phone, Retell, calendar, and CRM configuration passes a controlled end-to-end verification.</div>
-            </div>
-            <div class="faq-item">
-                <div class="faq-question">Can the site launch before the voice workflow?</div>
-                <div class="faq-answer">Yes. Site generation and voice activation are verified separately, so neither is represented as live before it is ready.</div>
-            </div>
-            <div class="faq-item">
-                <div class="faq-question">How does booking work?</div>
-                <div class="faq-answer">Booking uses your approved calendar and GHL configuration. The workflow is activated only after a test appointment is created, observed, and safely removed or retained as agreed.</div>
-            </div>
-            <div class="faq-item">
-                <div class="faq-question">Does it need my sales process?</div>
-                <div class="faq-answer">Yes. We import your intake questions, your pricing, your objection responses. It sounds like your team.</div>
-            </div>
-            <div class="faq-item">
-                <div class="faq-question">What if an integration is not ready?</div>
-                <div class="faq-answer">It stays disabled while the site and other verified parts continue to operate.</div>
-            </div>
-            <div class="faq-item">
-                <div class="faq-question">Who controls the business information?</div>
-                <div class="faq-answer">You provide the services, service area, credentials, pricing signals, and escalation rules. NetBuild.Pro does not invent them.</div>
-            </div>
-            <div class="faq-item">
-                <div class="faq-question">How are failures handled?</div>
-                <div class="faq-answer">Each integration has a readiness check and rollback procedure. A failed external sync must not erase the local customer record.</div>
-            </div>
-            <div class="faq-item">
-                <div class="faq-question">What's next?</div>
-                <div class="faq-answer">Complete the setup form. We will use the submitted business information to generate your site and identify the remaining activation steps.</div>
-            </div>
-        </div>
-
-        <div class="cta-section reveal">
-            <h3>Build Your Customer Site</h3>
-            <p>Start with verified business information. Activate voice and CRM automation after their integrations are ready.</p>
-            <a href="/start" class="start-link" style="display:inline-block; background:#FF6600; color:white; font-size:1.1rem; padding:14px 28px; margin-top:16px; border-radius:6px; font-weight:600; text-decoration:none;">Start Setup</a>
-            <p style="margin-top: 16px; font-size: 0.95rem;">Questions? Call <a href="tel:__CONTACT_PHONE_TEL__" style="color: #FF6600; text-decoration: none;">__CONTACT_PHONE__</a> or email __CONTACT_EMAIL__</p>
+    <div class="ws-hero">
+        <div class="ws-hero-inner">
+            <h1 class="ws-hero-title">Never Let a Paid Lead Go Unanswered</h1>
+            <p class="ws-hero-subtitle">NetBuild.Pro builds your customer site and activates a trained AI receptionist to answer calls, follow up with leads, and keep your schedule full.</p>
+            <a href="/start" class="ws-hero-cta">Start Your Site</a>
         </div>
     </div>
+
+    <section class="ws-section" id="how">
+        <div class="ws-section-inner">
+            <h2 class="ws-section-heading">What NetBuild.Pro Does</h2>
+            <p class="ws-section-subheading">A complete receptionist workflow, verified step by step.</p>
+            <div class="ws-features ws-reveal">
+                <div class="ws-feature">
+                    <div class="ws-feature-title">1. Build Your Site</div>
+                    <div class="ws-feature-text">We generate a customer-ready website from the business information you provide: services, service area, contact details, and Angel chat integration.</div>
+                </div>
+                <div class="ws-feature">
+                    <div class="ws-feature-title">2. Activate Call Handling</div>
+                    <div class="ws-feature-text">After your phone, Retell, calendar, and CRM integrations pass verification, Angel answers incoming calls, qualifies leads, and routes them to you.</div>
+                </div>
+                <div class="ws-feature">
+                    <div class="ws-feature-title">3. Enable Booking</div>
+                    <div class="ws-feature-text">Customers book appointments directly into your calendar. Angel follows up on no-shows and reschedules as needed. Nothing is automated until it passes testing.</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="ws-pricing" id="pricing">
+        <div class="ws-pricing-inner">
+            <h2 class="ws-section-heading">Simple Pricing</h2>
+            <p class="ws-section-subheading">One service level designed for home-service contractors at launch.</p>
+            <div class="ws-pricing-cards">
+                <div class="ws-pricing-card featured ws-reveal">
+                    <div class="ws-pricing-label">Most Popular</div>
+                    <div class="ws-pricing-name">Office Staff</div>
+                    <div class="ws-pricing-amount">$497</div>
+                    <div class="ws-pricing-period">/month</div>
+                    <div class="ws-pricing-desc">Website generation, call handling, lead routing, and booking workflow.</div>
+                    <a href="/start" class="ws-pricing-cta">Start Setup</a>
+                </div>
+            </div>
+            <p style="margin-top: 32px; text-align: center; color: #666; font-size: 0.95rem;">Other service levels and custom pricing available after launch. <a href="tel:__CONTACT_PHONE_TEL__" style="color: var(--ws-copper); text-decoration: none;">Call us</a> for details.</p>
+        </div>
+    </section>
+
+    <section class="ws-faq" id="faq">
+        <div class="ws-faq-inner">
+            <h2 class="ws-section-heading">Common Questions</h2>
+            <div class="ws-faq-item ws-reveal">
+                <div class="ws-faq-q">When does call handling become active?</div>
+                <div class="ws-faq-a">After you've provided your phone number, connected Retell, configured your calendar, and approved GHL settings. Each integration passes an end-to-end verification before we show it as live.</div>
+            </div>
+            <div class="ws-faq-item ws-reveal">
+                <div class="ws-faq-q">Can the site launch before voice automation?</div>
+                <div class="ws-faq-a">Yes. Site generation and call handling are verified separately. Your site goes live as soon as it's built and reviewed. Call handling activates when its integrations are ready.</div>
+            </div>
+            <div class="ws-faq-item ws-reveal">
+                <div class="ws-faq-q">Does Angel use my sales process?</div>
+                <div class="ws-faq-a">Yes. We import your intake questions, pricing, objection responses, and escalation rules. Angel sounds like your team because it is trained on your process.</div>
+            </div>
+            <div class="ws-faq-item ws-reveal">
+                <div class="ws-faq-q">What if an integration fails?</div>
+                <div class="ws-faq-a">It stays disabled while your site and other verified parts continue to operate. We don't risk your customer data with untested automation.</div>
+            </div>
+            <div class="ws-faq-item ws-reveal">
+                <div class="ws-faq-q">Who controls my business information?</div>
+                <div class="ws-faq-a">You do. You provide the services, service area, pricing, and business rules. NetBuild.Pro never invents information on your behalf.</div>
+            </div>
+            <div class="ws-faq-item ws-reveal">
+                <div class="ws-faq-q">What happens next?</div>
+                <div class="ws-faq-a">Complete the setup form with your business details. We'll generate your site and send you a checklist of the remaining integration steps.</div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="ws-footer">
+        <div class="ws-footer-inner">
+            <div>
+                <h3 class="ws-footer-heading">NetBuild.Pro</h3>
+                <p class="ws-footer-text">Customer websites and call handling for home service contractors.</p>
+            </div>
+            <div>
+                <h4 class="ws-footer-heading">Product</h4>
+                <ul class="ws-footer-links">
+                    <li><a href="#how">How It Works</a></li>
+                    <li><a href="#pricing">Pricing</a></li>
+                    <li><a href="/start">Get Started</a></li>
+                </ul>
+            </div>
+            <div>
+                <h4 class="ws-footer-heading">Company</h4>
+                <ul class="ws-footer-links">
+                    <li><a href="/agency">For Agencies</a></li>
+                    <li><a href="/agency/contact">Contact</a></li>
+                </ul>
+            </div>
+            <div>
+                <h4 class="ws-footer-heading">Contact</h4>
+                <p class="ws-footer-text">
+                    <a href="mailto:__CONTACT_EMAIL__" style="color: var(--ws-gold); text-decoration: none;">__CONTACT_EMAIL__</a><br>
+                    <a href="tel:__CONTACT_PHONE_TEL__" style="color: var(--ws-gold); text-decoration: none;">__CONTACT_PHONE__</a>
+                </p>
+            </div>
+        </div>
+        <div class="ws-footer-bottom">
+            <p class="ws-footer-copyright">&copy; 2026 NetBuild.Pro. All rights reserved.</p>
+        </div>
+    </footer>
+
     <script>
-        // Scroll-reveal for .reveal sections. No-op (all visible) if IntersectionObserver
-        // is unavailable or the user prefers reduced motion.
-        (function () {
-            var prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-            var targets = document.querySelectorAll('.reveal');
-            if (prefersReduced || !('IntersectionObserver' in window)) {
-                targets.forEach(function (el) { el.classList.add('is-visible'); });
-                return;
-            }
-            var io = new IntersectionObserver(function (entries) {
-                entries.forEach(function (entry) {
-                    if (entry.isIntersecting) {
-                        entry.target.classList.add('is-visible');
-                        io.unobserve(entry.target);
-                    }
-                });
-            }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
-            targets.forEach(function (el) { io.observe(el); });
-        })();
+    // Scroll reveal for .ws-reveal sections
+    (function () {
+        var prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (prefersReduced) {
+            document.querySelectorAll('.ws-reveal').forEach(el => el.classList.add('visible'));
+            return;
+        }
+        if (!('IntersectionObserver' in window)) {
+            document.querySelectorAll('.ws-reveal').forEach(el => el.classList.add('visible'));
+            return;
+        }
+        var io = new IntersectionObserver(function (entries) {
+            entries.forEach(function (entry) {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                    io.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.1 });
+        document.querySelectorAll('.ws-reveal').forEach(el => io.observe(el));
+    })();
     </script>
 </body>
 </html>
