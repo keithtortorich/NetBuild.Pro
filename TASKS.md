@@ -369,6 +369,32 @@ migration apply, publish, push, deploy remain behind their approval gates.
 
 ---
 
+## PRIORITY #3: ARCHITECTURE DECISIONS (D3, Awaiting Approval)
+
+Three architecture decisions drafted (2026-08-09, ADR-027/028/029 in `docs/DECISIONS.md`):
+
+1. **ADR-027: Site Magic Worker Callback Protocol** — SMMM listener webhook contract
+   - Defines HTTP request/response shape for state transition callbacks
+   - Idempotent design (eventId for retry deduplication)
+   - Environment: `SITE_MAGIC_CALLBACK_WEBHOOK_URL` + `SITE_MAGIC_CALLBACK_SECRET`
+   - **Status:** Ready for founder review
+
+2. **ADR-028: Crawler SSRF Protection Strategy** — DNS rebind defense
+   - Recommendation: Option B (pre-request DNS re-validation) for MVP
+   - Known limitation: millisecond TOCTOU window (documented in code)
+   - Phase 3 escalation: connection-level IP pinning if threat model changes
+   - **Status:** Ready for founder review
+
+3. **ADR-029: Build Publishing Route** — Public site delivery
+   - Phase 1: Supabase Storage public URLs (no signed tokens)
+   - Phase 3+: Cloudflare Workers + R2 (custom domain, global caching)
+   - No migration needed; just URL format change
+   - **Status:** Ready for founder review
+
+**Next step:** Founder approves ADRs → implementation in Phase 3 work. SMMM team implements listener at `SITE_MAGIC_CALLBACK_WEBHOOK_URL` (external, not this repo).
+
+---
+
 ## NEXT SESSION PRIORITIES
 
 1. **Site Magic Phase 3** — live adapters (Codex SDK, GPT Image, crawler,
@@ -380,7 +406,8 @@ migration apply, publish, push, deploy remain behind their approval gates.
 3. **Run Phase 4** — Final end-to-end verification, confirm all gates pass
 4. **Push to main** — Stage site/index.html, tests/*.py, webstaffr/templates/netbuild_pro.html, docs/IMPECCABLE_*.md, docs/VERIFICATION_GATES_*.md
 5. **Fix trust bar dead divs** — trivial template patch (after push, separate PR)
-6. **Founder: payment vendor decision** — Stripe or Orion? → unblocks webhook integration.
+6. **Founder: Approve Priority #3 ADRs** — ADR-027/028/029 ready for review
+7. **Founder: payment vendor decision** — Stripe or Orion? → unblocks webhook integration.
 
 ---
 

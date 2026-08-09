@@ -317,3 +317,279 @@ NetBuild.Pro launches with one tier only: Office Staff at $497/month. Its canoni
 - Future tier expansion requires a new founder-approved packaging decision and migration plan.
 
 ---
+
+## ADR-027: Site Magic Worker Callback Protocol (SMMM Listener Contract)
+
+**Date:** 2026-08-09
+**Status:** Pending Approval (D3 — architecture decision)
+**Depth:** D3 (integration contract, no precedent)
+**Affects:** `webstaffr/site_magic_adapters.py` (`HTTPJobStateSink`), worker webhook listener (external SMMM repo)
+
+### Problem
+
+Site Magic generates beautiful tenant websites end-to-end. The orchestration loop (`site_maker_engine.ts`) runs job state transitions (`queued` → `generating` → `reviewing` → `ready_for_review` → `shipped`). These transitions need to flow back to the external SMMM worker queue so it can track job progress and handle retries.
+
+Current state: `HTTPWebhookSiteMagicQueue` adapter sends jobs *to* SMMM via webhook; `HTTPJobStateSink` is a placeholder that returns to a control-plane API endpoint (internal routing in this repo), not back to SMMM. SMMM has no visibility into whether a job succeeded, failed, or is mid-build.
+
+Decision needed: Specify the HTTP contract for SMMM's listener endpoint so it can hook into the callback.
+
+### Decision
+
+**Define a webhook callback protocol for Site Magic state transitions.**
+
+#### Request Format
+
+```
+POST {SITE_MAGIC_CALLBACK_WEBHOOK_URL}
+X-Site-Magic-Secret: {constant-time-compare SITE_MAGIC_CALLBACK_SECRET}
+Content-Type: application/json
+
+{
+  "eventId": "uuid v4, unique per transition attempt (for idempotency)",
+  "jobId": "site-magic job id (uuid)",
+  "status": "queued | generating | reviewing | ready_for_review | shipped | failed",
+  "timestamp": "ISO 8601 UTC",
+  "buildId": "uuid (present when status=ready_for_review or shipped, absent otherwise)",
+  "errorCode": "string (present only when status=failed)",
+  "errorMessage": "string (present only when status=failed, human-readable)",
+  "qualityMetrics": {
+    "critiqueScore": "number 0-100 (present when status=reviewing or later)",
+    "p0Issues": "number (present when status=reviewing or later)",
+    "selfHealIterations": "number (present when status=ready_for_review or shipped)"
+  },
+  "previewUrl": "https://sites.{domain}/{tenant_id} (present when status=ready_for_review or shipped)"
+}
+```
+
+#### Response Contract
+
+- **202 Accepted** — callback acknowledged, SMMM will process asynchronously
+- **401 Unauthorized** — secret mismatch or missing header
+- **400 Bad Request** — malformed payload
+- **5xx** — Server error; Site Magic retries up to 3 times with exponential backoff
+
+#### Idempotency
+
+- `eventId` uniquely identifies this transition attempt.
+- SMMM's listener must be idempotent: duplicate `eventId` → same 202, no duplicate processing.
+- Site Magic retries failed webhooks; SMMM dedupes via `eventId`.
+
+#### Environment Variables
+
+```
+SITE_MAGIC_CALLBACK_WEBHOOK_URL=https://smmm.example.com/webhooks/site-magic
+SITE_MAGIC_CALLBACK_SECRET=<secret, 32+ bytes, base64 recommended>
+```
+
+If either is unset, callbacks are disabled (no-op) and the job transitions silently within Site Magic.
+
+### Rationale
+
+**Why webhook:** Asynchronous, decoupled, fire-and-forget from Site Magic's perspective. Fits Vercel serverless (no persistent connections).
+
+**Why eventId:** Enables retry logic and idempotent listener without the caller tracking state. Survives job restarts.
+
+**Why constant-time secret compare:** Standard HMAC-style verification (see `webstaffr/workers/angel/stripe_webhook.py` for precedent in this repo).
+
+**Why 202, not 200:** Signals that SMMM is accepting the callback for async processing, not that processing is complete.
+
+**Why qualityMetrics optional:** Early transitions (queued, generating) don't have metrics yet; later ones do. Allows a single schema to represent all transitions.
+
+**Why previewUrl:** SMMM can link back to the live preview for manual review gates.
+
+### Implementation Notes
+
+- `HTTPJobStateSink` in `webstaffr/site_magic_adapters.ts` gains a `callbackUrl` + `callbackSecret` constructor params.
+- Before each state transition, `HTTPJobStateSink.transition()` fires the webhook to `SITE_MAGIC_CALLBACK_WEBHOOK_URL`.
+- Webhook firing is **non-blocking** — if it fails, log the error and continue (Site Magic's state is already persisted, callback is best-effort).
+- Tests: mock the webhook endpoint, verify payload structure, verify idempotency via duplicate `eventId`.
+
+### Consequences
+
+- SMMM owns implementing its own listener at `SITE_MAGIC_CALLBACK_WEBHOOK_URL`.
+- Site Magic does not retry failed callbacks beyond the 3-attempt limit (keeping retry logic simple in Vercel).
+- If the callback webhook is down, SMMM loses visibility until Site Magic pushes another state change (e.g., an error occurs and the job fails, then the failure callback goes out).
+
+---
+
+## ADR-028: Crawler SSRF Protection Strategy (Egress Proxy vs. httpx Connection Pinning)
+
+**Date:** 2026-08-09
+**Status:** Pending Approval (D3 — architecture decision, trade-offs)
+**Depth:** D3 (network security, bounded by infrastructure)
+**Affects:** `webstaffr/site_magic_adapters.py` (`HttpxSiteCrawler`), deployment configuration
+
+### Problem
+
+Site Magic generates a tenant website on a loopback server, then crawls it to collect evidence (screenshots, links, console errors, 4xx responses, etc.). The crawler must fetch URLs like `http://localhost:3000/sites/{tenant_id}/index.html`.
+
+Risk: DNS rebind / TOCTOU attack. If an attacker controls the hostname, they could:
+1. First lookup: resolve to `127.0.0.1` (passes validation).
+2. Request fires: attacker's DNS redirects to internal IP (e.g., `10.0.0.50`, metadata endpoint, admin server).
+3. Crawler leaks data from internal service.
+
+Current implementation in `HttpxSiteCrawler`: re-validate the DNS lookup immediately before each request, narrowing the TOCTOU window. Known limitation documented in class docstring.
+
+Decision needed: Is TOCTOU re-validation sufficient, or do we need connection-level IP pinning?
+
+### Options Evaluated
+
+**Option A: httpx Connection-Level IP Pinning** (Preferred, if feasible)
+- Resolve hostname once, pin IP at connection pool level.
+- httpx has no public API for this; would require subclassing `httpx.HTTPTransport` or using `httpcore` directly.
+- Implementation effort: ~200 lines, one new class.
+- Protection: Eliminates TOCTOU entirely.
+- Tradeoff: **Higher complexity, lower dependency on httpx's API stability.**
+
+**Option B: Pre-Request DNS Re-Validation** (Current)
+- Resolve before each request; reject if IP changes.
+- Current implementation: `resolveHostname()` called inside `_fetch()` right before `session.get()`.
+- Protection: Narrows TOCTOU window, but doesn't eliminate it (millisecond race).
+- Tradeoff: **Simple, but imperfect. Known limitation.**
+
+**Option C: Proxy Egress (Outbound Proxy)**
+- Route all crawler requests through a fixed proxy that validates IPs on its end.
+- Protection: Closed-loop; proxy is the only source of truth for DNS + IP.
+- Tradeoff: **Requires separate infrastructure (egress proxy), operational overhead.**
+
+### Decision
+
+**Use Option B (pre-request DNS re-validation) for MVP; document as known limitation; escalate Option A (connection pinning) to Phase 3 post-launch.**
+
+Rationale:
+- **Phase 1 MVP goal:** Ship with evidence runner, not perfect SSRF defense. Tenant websites are low-risk (intentional, customer-owned content).
+- **Narrow TOCTOU window:** Re-validation reduces the attack surface from "any DNS resolver under attacker control" to "a subsecond race condition after each validation."
+- **Option A complexity:** Connection pinning requires httpx internals knowledge; risk of breaking on httpx version bump.
+- **Option C infrastructure:** Egress proxy adds operational surface not needed for MVP.
+
+#### Implementation
+
+**Crawler behavior (no change from current):**
+```python
+class HttpxSiteCrawler(SiteCrawler):
+    async def fetch(self, url: str) -> str:
+        # Re-validate DNS immediately before request
+        hostname = URL(url).host
+        validated_ip = await self._resolve_and_validate(hostname)
+        # Fail if IP changed since last lookup
+        if validated_ip != self._cached_ips.get(hostname):
+            raise SSRFDetectedError(f"DNS rebind for {hostname}: {validated_ip}")
+        # Safe to fetch
+        response = await self._session.get(url)
+        return response.text
+```
+
+**Class docstring includes:**
+```
+Known limitation: TOCTOU window exists between DNS validation and
+actual request (milliseconds). Not suitable for defense against
+highly determined attackers. Sufficient for MVP tenant-website
+crawling. Phase 3: consider connection-level IP pinning if threat
+model changes.
+```
+
+### Consequences
+
+- **Phase 1:** Ship with documented limitation, MVP-grade protection.
+- **Phase 2:** Monitor for any SSRF exploitation attempts; flag to founder if needed.
+- **Phase 3:** If threat model changes (e.g., multi-tenant DNS rebinding discovered), implement Option A.
+- **Testing:** Unit tests verify that DNS rebind attempts are rejected; integration tests (real DNS) skipped to avoid flakiness.
+
+---
+
+## ADR-029: Site Magic Build Publishing Route (10-Year Signed URL → Shared CDN)
+
+**Date:** 2026-08-09
+**Status:** Pending Approval (D3 — infrastructure design)
+**Depth:** D3 (affects public site availability, caching, deployment model)
+**Affects:** `webstaffr/site_magic_adapters.py` (`SupabaseArtifactStorage.publish()`), deployment, DNS
+
+### Problem
+
+Site Magic generates beautiful websites. Once a build reaches `shipped` status, it needs a stable public URL for the tenant to see their live site:
+
+```
+https://sites.netbuild.pro/{tenant_id}/
+```
+
+Current implementation: `SupabaseArtifactStorage.publish()` returns a 10-year signed Supabase Storage URL. Limitations:
+
+- **Long URLs:** Contains auth token; ugly when shared.
+- **Not customizable:** Hard-wired to Supabase domain.
+- **No caching layer:** Every request hits Supabase Storage directly.
+- **Scaling question:** Does Supabase Storage scale for concurrent user browsing of tenant sites?
+- **Placeholder status:** Explicitly documented as MVP-grade.
+
+Decision needed: Replace 10-year signed URL with a real public-serving design.
+
+### Options Evaluated
+
+**Option A: Supabase CDN (if available)**
+- Supabase offers a managed CDN for Storage buckets.
+- Pros: Integrated, no new infrastructure.
+- Cons: Plan-dependent; may not be available.
+
+**Option B: CloudFront or Cloudflare (public CDN)**
+- Use standard CDN to cache builds.
+- Pros: Industry-standard, global edge caching.
+- Cons: New infrastructure, new vendor, cost (small).
+
+**Option C: Build publishing to Vercel static hosting**
+- Publish builds to Vercel's own static hosting.
+- Pros: Integrated; fast edge serving.
+- Cons: Requires per-tenant Vercel project setup.
+
+**Option D: S3 + CloudFront (self-managed)**
+- Upload builds to AWS S3, cache via CloudFront.
+- Pros: Full control, scalable, industry-standard.
+- Cons: Requires AWS account, setup, cost (small).
+
+### Decision
+
+**Implement Option B (Cloudflare Workers + R2) for Phase 3; use Supabase Storage public URLs (no signed tokens) for Phase 1 MVP.**
+
+Rationale:
+
+#### Phase 1 MVP (Now)
+
+- **Use Supabase Storage bucket public URLs (no signed tokens).**
+  - Make the bucket (or tenant-sites prefix) publicly readable via Supabase bucket policies.
+  - Serve from `https://storage.supabase.co/object/public/{bucket}/{tenant_id}/index.html`.
+  - **Trade-off:** Long URLs, but works immediately, no new infrastructure.
+  - **Assumption:** Supabase Storage can handle concurrent user browsing (we monitor; escalate if CDN needed sooner).
+
+#### Phase 3+ (Post-MVP)
+
+- **Migrate to Cloudflare Workers + R2:**
+  - Cloudflare Workers: serverless functions at the edge.
+  - Cloudflare R2: S3-compatible object storage, cheaper than S3.
+  - **Route:** `https://sites.netbuild.pro/{tenant_id}/` → Cloudflare Worker → fetch from R2 → cache at edge.
+  - **Build publishing:** After Site Magic ships a build, also upload to R2 (or add `R2ArtifactStorage` adapter in production).
+  - **Benefits:** Custom domain, global caching, better UX, cheaper egress.
+
+#### Environment Variables (Phase 1)
+
+```
+# Use Supabase Storage directly; no signed URLs
+SUPABASE_SITE_STORAGE_BUCKET=site-builds  # publicly readable
+# Later (Phase 3): add Cloudflare R2 credentials
+```
+
+#### Implementation (Phase 1)
+
+```python
+class SupabaseArtifactStorage(ArtifactStorage):
+    def publish(self) -> str:
+        # Return a public bucket URL instead of signed URL
+        bucket_url = f"{self.supabase_url}/object/public/{self.bucket_id}/{job_id}/"
+        return bucket_url
+```
+
+### Consequences
+
+- **Phase 1:** Public URLs are long (Supabase domain + path), but stable and immediate.
+- **Monitoring:** Watch Storage performance; escalate to Phase 3 CDN if needed.
+- **Phase 3:** Cloudflare setup requires domain (`netbuild.pro`), new vendor account, DNS CNAME, `R2ArtifactStorage` adapter.
+- **No migration needed:** Public URLs work; just change from signed to public (same length).
+
+---
