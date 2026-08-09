@@ -253,6 +253,12 @@ _LANDING_PAGE_HTML = """
     .ws-faq-q { font-size: 1.1rem; font-weight: 700; color: var(--ws-primary-teal); margin-bottom: 8px; }
     .ws-faq-a { color: #666; font-size: 0.95rem; line-height: 1.6; }
 
+    .ws-demo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 20px; margin-top: 40px; }
+    .ws-demo-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; background: white; border: 2px solid var(--ws-border); padding: 36px 24px; border-radius: 4px; text-decoration: none; transition: all 0.2s; min-height: 160px; }
+    .ws-demo-btn:hover { border-color: var(--ws-copper); background: var(--ws-cream); transform: translateY(-4px); }
+    .ws-demo-name { font-size: 1.1rem; font-weight: 700; color: var(--ws-primary-teal); margin-bottom: 8px; text-align: center; }
+    .ws-demo-desc { font-size: 0.85rem; color: #999; text-align: center; }
+
     .ws-footer { background: var(--ws-dark-slate); color: white; padding: 60px 20px 24px; }
     .ws-footer-inner { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 40px; margin-bottom: 40px; }
     .ws-footer-heading { font-size: 1.125rem; font-weight: 700; margin-bottom: 12px; }
@@ -349,6 +355,51 @@ _LANDING_PAGE_HTML = """
                 </div>
             </div>
             <p style="margin-top: 32px; text-align: center; color: #666; font-size: 0.95rem;">Other service levels and custom pricing available after launch. <a href="tel:__CONTACT_PHONE_TEL__" style="color: var(--ws-copper); text-decoration: none;">Call us</a> for details.</p>
+        </div>
+    </section>
+
+    <section class="ws-section" id="demos">
+        <div class="ws-section-inner">
+            <h2 class="ws-section-heading">See It In Action</h2>
+            <p class="ws-section-subheading">Explore demo sites built for different trades. Each shows your finished website with Angel chat and booking integrated.</p>
+            <div class="ws-demo-grid ws-reveal">
+                <a href="/demo-sites/hvac.html" class="ws-demo-btn">
+                    <div class="ws-demo-name">HVAC</div>
+                    <div class="ws-demo-desc">Heating & Cooling</div>
+                </a>
+                <a href="/demo-sites/plumbing.html" class="ws-demo-btn">
+                    <div class="ws-demo-name">Plumbing</div>
+                    <div class="ws-demo-desc">Water & Drain</div>
+                </a>
+                <a href="/demo-sites/roof.html" class="ws-demo-btn">
+                    <div class="ws-demo-name">Roofing</div>
+                    <div class="ws-demo-desc">Repairs & Installation</div>
+                </a>
+                <a href="/demo-sites/landscape.html" class="ws-demo-btn">
+                    <div class="ws-demo-name">Landscaping</div>
+                    <div class="ws-demo-desc">Design & Maintenance</div>
+                </a>
+                <a href="/demo-sites/pest.html" class="ws-demo-btn">
+                    <div class="ws-demo-name">Pest Control</div>
+                    <div class="ws-demo-desc">Treatment & Prevention</div>
+                </a>
+                <a href="/demo-sites/garage.html" class="ws-demo-btn">
+                    <div class="ws-demo-name">Garage Doors</div>
+                    <div class="ws-demo-desc">Install & Repair</div>
+                </a>
+                <a href="/demo-sites/arbor.html" class="ws-demo-btn">
+                    <div class="ws-demo-name">Tree Service</div>
+                    <div class="ws-demo-desc">Trimming & Removal</div>
+                </a>
+                <a href="/demo-sites/waterrestore.html" class="ws-demo-btn">
+                    <div class="ws-demo-name">Water Restoration</div>
+                    <div class="ws-demo-desc">Damage & Cleanup</div>
+                </a>
+                <a href="/demo-sites/maid.html" class="ws-demo-btn">
+                    <div class="ws-demo-name">Maid Service</div>
+                    <div class="ws-demo-desc">Residential Cleaning</div>
+                </a>
+            </div>
         </div>
     </section>
 
