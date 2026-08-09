@@ -1,7 +1,7 @@
-# WebStaffr Governance Manual
+# NetBuild.Pro Governance Manual
 Unified Source of Truth for Product, Strategy, Operations, and Brand
 
-Version 1.1 | Last Updated: 2026-08-03
+Version 1.2 | Last Updated: 2026-08-09
 
 
 ## Core Doctrine
@@ -16,7 +16,7 @@ This statement governs every corporate, sales, and product decision. It is not a
 
 Home-service businesses do not lose jobs because they lack technology. They lose jobs because they miss opportunities.
 
-The specific opportunity: 27% of home-service calls go unanswered every day. Of those missed calls, 85% never call back—they call a competitor instead.
+The specific opportunity: home-service businesses lose opportunities when calls and follow-up are missed. Public performance claims require a verified source or NetBuild.Pro cohort data.
 
 The outcome contractors buy: More booked jobs. Fewer missed calls. Revenue recovered from leads that would otherwise be lost.
 
@@ -39,7 +39,7 @@ A contractor who trusts the Receptionist will trust the rest of the office. We e
 
 We absorb complexity so customers experience clarity.
 
-Customers see clean outcomes: booked jobs, closed leads, automated follow-up. They do not see the infrastructure, orchestration, or AI machinery behind it. All technical complexity lives inside WebStaffr; none of it appears between WebStaffr and the customer.
+Customers see clean outcomes: booked jobs, closed leads, automated follow-up. They do not see the infrastructure, orchestration, or AI machinery behind it. All technical complexity lives inside NetBuild.Pro; none of it appears between NetBuild.Pro and the customer.
 
 
 ## Market & Strategic Positioning
@@ -80,23 +80,20 @@ For Investors (Executive Voice):
 ### The Free Website Builder
 
 - Purpose: Lead hook. Customer acquisition mechanism.
-- Economics: Free to the contractor, costs WebStaffr nothing extra on free hosting tiers.
+- Economics: Free to the contractor, costs NetBuild.Pro nothing extra on free hosting tiers.
 - Principle: The free site brings the contractor in. The paid plans are the business built on that relationship.
 
-### Pricing Tiers
+### Launch Package
 
-All tiers include the free generated website for 30 days. After 30 days, the contractor can keep the website and staff by subscribing.
+The initial launch has one package. Future packaging requires a founder decision after market validation.
 
 | Tier | Monthly Price | Includes | Gross Profit |
 |------|--------------|----------|-------------|
 | Office Staff | $497/mo | Service Advisor, 24/7 Voice Receptionist, Lead Coordinator, Reputation Manager, Website Operations Manager | $432/mo (87%) |
-| Business Manager | $2,497/mo | Everything in Office Staff, plus Sales Consultant, Marketing Coordinator, Growth Manager | $2,148/mo (86%) |
-| White-Glove | $5,000+/mo custom | Siphony consulting, custom-fitted solutions, bespoke integrations | Negotiated per engagement |
 
 Acquisition Strategy:
-- Office Staff is the primary acquisition target.
-- Business Manager is an upgrade sold to existing Office Staff customers.
-- White-Glove serves high-value customers with unique needs.
+- Office Staff is the only initial-launch package.
+- Additional packages remain out of launch scope until validated.
 
 ### Product Roles & Responsibilities
 
@@ -107,13 +104,10 @@ Each role corresponds to a specific job the contractor is trying to accomplish:
 - Lead Coordinator: Follows up with anyone who didn't book
 - Reputation Manager: Closes the loop after the job (reviews, feedback, customer satisfaction)
 - Website Operations Manager: Keeps the website current, fresh, and accurate
-- Sales Consultant (Business Manager tier): Identifies upsell and cross-sell opportunities
-- Marketing Coordinator (Business Manager tier): Runs seasonal campaigns, promotes services, drives top-of-funnel leads
-- Growth Manager (Business Manager tier): Analyzes operational metrics, identifies expansion opportunities
 
 ### Integration Ecosystem
 
-WebStaffr operates inside the contractor's existing software stack. The baseline environmental signals are field-service-management tools:
+NetBuild.Pro operates inside the contractor's existing software stack. The baseline environmental signals are field-service-management tools:
 
 - ServiceTitan (HVAC, plumbing, electrical, roofing, landscaping)
 - Jobber (HVAC, plumbing, electrical, roofing, landscaping, handyman)
@@ -125,8 +119,6 @@ WebStaffr operates inside the contractor's existing software stack. The baseline
 ### Gross Margin
 
 - Office Staff: $497/mo revenue, $65/mo delivery cost = $432/mo gross profit (87%)
-- Business Manager: $2,497/mo revenue, $349/mo delivery cost = $2,148/mo gross profit (86%)
-- White-Glove: Custom, negotiated per engagement
 
 Delivery cost includes AI inference (Grok), voice infrastructure (Retell), integrations (ServiceTitan, GoHighLevel), and operational overhead.
 
@@ -170,9 +162,9 @@ Downside Case (5% conversion instead of 10%):
 ### The Free Website Lead Hook
 
 How it works:
-1. Contractor discovers WebStaffr
+1. Contractor discovers NetBuild.Pro
 2. Signs up, provides business details via intake form
-3. WebStaffr generates a live website within minutes
+3. NetBuild.Pro generates a live website within minutes
 4. Contractor sees the site live, can show it to others
 5. After 30 days, offered the paid staff plans
 
@@ -225,29 +217,27 @@ Earn the right to expand. Solve one expensive problem first.
 
 ### Visual Identity
 
-**Locked 2026-08-03 (ADR-021).** Source of truth: `webstaffr-standalone.html`, the founder-approved landing page. Site Magic's default direction and every WebStaffr-owned marketing surface derive from this table, not from independent color choices.
+**Locked 2026-08-06 (ADR-022).** This house palette applies to NetBuild.Pro-owned surfaces. Tenant-generated sites use their own verified brand direction.
 
 **Core palette:**
 
 | Color | Hex | Role |
 |-------|-----|------|
-| Navy | #000080 | Primary: headlines, primary text, unified logo, primary CTA on light backgrounds |
-| Royal Blue | #4169E1 | Secondary: links, secondary CTAs, icon accents, focus states |
-| Orange | #FF6600 | Highlight: primary CTA fill, "Staffr" wordmark, focus-visible outline |
-| Gray | #E0E0E0 | Neutral: page background, card fills, muted surfaces |
+| Rust/Orange | #C85A28 | NetBuild wordmark, primary headlines, and CTAs |
+| Gold | #D4A574 | Pro wordmark, accents, and premium indicators |
+| Charcoal | #2B2B2B | Body copy on light backgrounds |
+| Dark Navy | #1A1A2E | Hero sections, dark backgrounds, and dark mode |
+| Light Gray | #F5F5F5 | Page backgrounds and muted surfaces |
 
-**Logo (Garamond Bold Italic, one size larger than surrounding text):**
-- Split (light backgrounds): "Web" #999999 (gray), "Staffr" #FF6600 (orange)
-- Dark (on navy backgrounds): "Web" #cccccc, "Staffr" #FF6600
-- Unified (monochrome contexts): both words #000080 (navy)
+**Logo:** bold sans-serif. On light backgrounds, NetBuild uses rust and Pro uses gold. On dark backgrounds, invert those two colors. Monochrome uses rust.
 
-Supersedes the prior approximate values (gold #bf9000, deep blue #1f4d78 unified) -- see ADR-021 in `docs/DECISIONS.md` for the full doctrine including supporting tones (navy depth scale, dark mode values) and rationale.
+ADR-022 supersedes ADR-021's navy, royal-blue, orange palette.
 
 - Treatment: Always intentional. Never casual.
 
 ### Punctuation Rule
 
-No em-dashes anywhere in WebStaffr copy, internal or external. Use hyphens or rewrite instead.
+No em-dashes anywhere in NetBuild.Pro copy, internal or external. Use hyphens or rewrite instead.
 
 ### Two Communication Styles
 
@@ -259,9 +249,9 @@ No em-dashes anywhere in WebStaffr copy, internal or external. Use hyphens or re
 
 ### Brand Messaging Framework
 
-Core Value Proposition (Commercial): "WebStaffr is your office staff, working 24/7. We answer every call, book every job, and follow up on every lead so you don't miss another customer."
+Core Value Proposition (Commercial): "NetBuild.Pro is your office staff, working around the clock to answer calls, book qualified jobs, and follow up on leads."
 
-Core Value Proposition (Executive): "WebStaffr is an operational revenue-recovery platform that deploys AI office staff into the home-service workflow."
+Core Value Proposition (Executive): "NetBuild.Pro is an operational revenue-recovery platform that deploys AI office staff into the home-service workflow."
 
 What We Are NOT:
 - Not an AI feature company
@@ -271,7 +261,7 @@ What We Are NOT:
 
 What We Solve:
 - Customers want outcomes, not technology explanations
-- Complexity belongs inside WebStaffr; clarity belongs between WebStaffr and the customer
+- Complexity belongs inside NetBuild.Pro; clarity belongs between NetBuild.Pro and the customer
 
 
 ## Operational Governance

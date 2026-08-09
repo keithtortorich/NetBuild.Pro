@@ -20,6 +20,11 @@
     "file": "demos/landscape.html"
   },
   {
+    "name": "Sparkle Clean",
+    "slug": "maid",
+    "file": "demos/maid.html"
+  },
+  {
     "name": "Shield Pest Control",
     "slug": "pest",
     "file": "demos/pest.html"

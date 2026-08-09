@@ -149,6 +149,127 @@ class TestRenderedPagesRoundTrip(SiteRenderTestCase):
         self.assertEqual(widget.status_code, 200)
         self.assertIn("javascript", widget.headers["content-type"])
 
+
+class TestDemoSiteRegressions(SiteRenderTestCase):
+    """Gate 2: Regression test for all 8 demo sites.
+
+    Smoke test that verifies all demo sites return HTTP 200 and contain
+    expected content. This gate catches code changes that silently break
+    rendering. Runs before full test suite (fail fast).
+    """
+
+    def test_demo_hvac_http_200(self):
+        """HVAC demo must render and contain expected content."""
+        tenant_id = self._make_tenant(
+            biz_name="Desert Cooling HVAC",
+            industry="HVAC Technician",
+            service_area="Phoenix, AZ",
+            services=["AC Repair", "Installation", "Maintenance"],
+            tagline="24/7 emergency AC service.",
+        )
+        resp = self.client.get(f"/sites/{tenant_id}/web")
+        self.assertEqual(resp.status_code, 200, f"HVAC demo failed: {resp.text[:200]}")
+        self.assertIn("Desert Cooling HVAC", resp.text)
+        self.assertIn("AC Repair", resp.text)
+
+    def test_demo_plumbing_http_200(self):
+        """Plumbing demo must render and contain expected content."""
+        tenant_id = self._make_tenant(
+            biz_name="Rivera Plumbing",
+            industry="Plumber",
+            service_area="Phoenix, AZ",
+            services=["Leak Repair", "Drain Cleaning", "Emergency"],
+            tagline="Fast, honest plumbing.",
+        )
+        resp = self.client.get(f"/sites/{tenant_id}/web")
+        self.assertEqual(resp.status_code, 200, f"Plumbing demo failed: {resp.text[:200]}")
+        self.assertIn("Rivera Plumbing", resp.text)
+        self.assertIn("Leak Repair", resp.text)
+
+    def test_demo_roof_http_200(self):
+        """Roofing demo must render and contain expected content."""
+        tenant_id = self._make_tenant(
+            biz_name="SkyGuard Roofing",
+            industry="Roofer",
+            service_area="Phoenix, AZ",
+            services=["Roof Repair", "Installation", "Inspection"],
+            tagline="Trusted roofing since 2010.",
+        )
+        resp = self.client.get(f"/sites/{tenant_id}/web")
+        self.assertEqual(resp.status_code, 200, f"Roof demo failed: {resp.text[:200]}")
+        self.assertIn("SkyGuard Roofing", resp.text)
+        self.assertIn("Roof Repair", resp.text)
+
+    def test_demo_landscape_http_200(self):
+        """Landscaping demo must render and contain expected content."""
+        tenant_id = self._make_tenant(
+            biz_name="Verde Landscape",
+            industry="Landscaper",
+            service_area="Phoenix, AZ",
+            services=["Lawn Care", "Hardscape", "Design"],
+            tagline="Beautiful outdoor spaces.",
+        )
+        resp = self.client.get(f"/sites/{tenant_id}/web")
+        self.assertEqual(resp.status_code, 200, f"Landscape demo failed: {resp.text[:200]}")
+        self.assertIn("Verde Landscape", resp.text)
+        self.assertIn("Lawn Care", resp.text)
+
+    def test_demo_pest_http_200(self):
+        """Pest control demo must render and contain expected content."""
+        tenant_id = self._make_tenant(
+            biz_name="ProShield Pest Control",
+            industry="Pest Control",
+            service_area="Phoenix, AZ",
+            services=["Termite Treatment", "Rodent Control", "General Pest"],
+            tagline="Safe, effective pest solutions.",
+        )
+        resp = self.client.get(f"/sites/{tenant_id}/web")
+        self.assertEqual(resp.status_code, 200, f"Pest demo failed: {resp.text[:200]}")
+        self.assertIn("ProShield Pest Control", resp.text)
+        self.assertIn("Termite Treatment", resp.text)
+
+    def test_demo_garage_http_200(self):
+        """Garage door demo must render and contain expected content."""
+        tenant_id = self._make_tenant(
+            biz_name="GateKeeper Garage Doors",
+            industry="Garage Door Specialist",
+            service_area="Phoenix, AZ",
+            services=["Repair", "Installation", "Opener Replacement"],
+            tagline="Swift garage door service.",
+        )
+        resp = self.client.get(f"/sites/{tenant_id}/web")
+        self.assertEqual(resp.status_code, 200, f"Garage demo failed: {resp.text[:200]}")
+        self.assertIn("GateKeeper Garage Doors", resp.text)
+        self.assertIn("Repair", resp.text)
+
+    def test_demo_arbor_http_200(self):
+        """Tree service demo must render and contain expected content."""
+        tenant_id = self._make_tenant(
+            biz_name="Arbor Care Trees",
+            industry="Tree Service",
+            service_area="Phoenix, AZ",
+            services=["Tree Removal", "Pruning", "Stump Grinding"],
+            tagline="Professional tree care.",
+        )
+        resp = self.client.get(f"/sites/{tenant_id}/web")
+        self.assertEqual(resp.status_code, 200, f"Arbor demo failed: {resp.text[:200]}")
+        self.assertIn("Arbor Care Trees", resp.text)
+        self.assertIn("Tree Removal", resp.text)
+
+    def test_demo_waterrestore_http_200(self):
+        """Water damage restoration demo must render and contain expected content."""
+        tenant_id = self._make_tenant(
+            biz_name="SwiftRestore Water Damage",
+            industry="Water Damage Restoration",
+            service_area="Phoenix, AZ",
+            services=["Water Extraction", "Drying", "Mold Remediation"],
+            tagline="24/7 emergency water damage response.",
+        )
+        resp = self.client.get(f"/sites/{tenant_id}/web")
+        self.assertEqual(resp.status_code, 200, f"Water demo failed: {resp.text[:200]}")
+        self.assertIn("SwiftRestore Water Damage", resp.text)
+        self.assertIn("Water Extraction", resp.text)
+
     def test_widget_embed_present_on_rendered_page(self):
         tenant_id = self._make_tenant()
         resp = self.client.get(f"/sites/{tenant_id}/web")

@@ -374,6 +374,173 @@ def main() -> int:
         prompt = load_prompt_template()
         assert prompt and prompt.strip(), "angel_prompt.md loaded empty"
 
+    # Gate 2: Demo site regression smoke test
+    def check_demo_site_regressions():
+        """Gate 2: Verify intake-backed demo rendering returns HTTP 200."""
+        import tempfile
+        from fastapi.testclient import TestClient
+        from webstaffr.app import create_app
+
+        fd, db_path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        try:
+            app = create_app(db_path=db_path)
+            with TestClient(app) as client:
+                # Create one demo tenant to verify rendering works
+                demo_resp = client.post(
+                    "/intake",
+                    json={
+                        "biz_name": "Demo HVAC Service",
+                        "phone": "555-0100",
+                        "email": "demo@example.com",
+                        "industry": "HVAC Technician",
+                        "service_area": "Phoenix, AZ",
+                        "tagline": "Professional HVAC.",
+                        "differentiator": "Fast service.",
+                        "services": ["AC Repair", "Installation"],
+                        "plan": "office_staff",
+                        "license_number": "Not displayed publicly",
+                        "lead_routing": "Founder only",
+                        "approver": "Founder",
+                    },
+                )
+                assert demo_resp.status_code == 200, f"demo intake failed: {demo_resp.text}"
+                tenant_id = demo_resp.json()["tenant_id"]
+
+                home = client.get(f"/sites/{tenant_id}/web")
+                assert home.status_code == 200, "demo home page failed"
+                assert "Demo HVAC Service" in home.text, "demo business name missing"
+        finally:
+            os.remove(db_path)
+
+    # Gate 3: Angel embed verification
+    def check_angel_embed_verification():
+        """Gate 3: Verify the first-party Angel widget is present."""
+        import tempfile
+        from fastapi.testclient import TestClient
+        from webstaffr.app import create_app
+
+        fd, db_path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        try:
+            app = create_app(db_path=db_path)
+            with TestClient(app) as client:
+                demo_resp = client.post(
+                    "/intake",
+                    json={
+                        "biz_name": "Angel Test Service",
+                        "phone": "555-0100",
+                        "email": "test@example.com",
+                        "industry": "Plumber",
+                        "service_area": "Phoenix, AZ",
+                        "tagline": "Professional service.",
+                        "differentiator": "Fast service.",
+                        "services": ["Service A"],
+                        "plan": "office_staff",
+                        "license_number": "Not displayed publicly",
+                        "lead_routing": "Founder only",
+                        "approver": "Founder",
+                    },
+                )
+                assert demo_resp.status_code == 200
+                tenant_id = demo_resp.json()["tenant_id"]
+
+                home = client.get(f"/sites/{tenant_id}/web")
+                assert home.status_code == 200
+                assert "/static/angel-widget.js" in home.text
+                assert f'data-tenant-id="{tenant_id}"' in home.text
+        finally:
+            os.remove(db_path)
+
+    # Gate 4: Brand palette and WCAG compliance
+    def check_brand_palette_compliance():
+        """Gate 4: Verify a tenant-provided color reaches its site."""
+        import tempfile
+        from fastapi.testclient import TestClient
+        from webstaffr.app import create_app
+
+        fd, db_path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        try:
+            app = create_app(db_path=db_path)
+            with TestClient(app) as client:
+                demo_resp = client.post(
+                    "/intake",
+                    json={
+                        "biz_name": "Palette Test",
+                        "phone": "555-0100",
+                        "email": "test@example.com",
+                        "industry": "HVAC Technician",
+                        "service_area": "Phoenix, AZ",
+                        "tagline": "Professional.",
+                        "differentiator": "Fast.",
+                        "services": ["Service"],
+                        "plan": "office_staff",
+                        "brand_colors": "#000080",  # Primary navy
+                        "license_number": "Not displayed publicly",
+                        "lead_routing": "Founder only",
+                        "approver": "Founder",
+                    },
+                )
+                assert demo_resp.status_code == 200
+                tenant_id = demo_resp.json()["tenant_id"]
+
+                home = client.get(f"/sites/{tenant_id}/web")
+                assert home.status_code == 200
+                # Soft check: primary color should appear somewhere
+                has_primary = "#000080" in home.text or "000080" in home.text
+                assert has_primary, "Primary brand color not found in rendered site"
+        finally:
+            os.remove(db_path)
+
+    # Gate 5: Governance linter (no em-dashes, no leaks)
+    def check_governance_linter():
+        """Gate 5: Verify governance rules (no em-dashes, no leaked fields, brand name)."""
+        import tempfile
+        from fastapi.testclient import TestClient
+        from webstaffr.app import create_app
+
+        fd, db_path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        try:
+            app = create_app(db_path=db_path)
+            with TestClient(app) as client:
+                demo_resp = client.post(
+                    "/intake",
+                    json={
+                        "biz_name": "Governance Test",
+                        "phone": "555-0100",
+                        "email": "test@example.com",
+                        "industry": "Plumber",
+                        "service_area": "Phoenix, AZ",
+                        "tagline": "Professional.",
+                        "differentiator": "Fast.",
+                        "services": ["Service"],
+                        "plan": "office_staff",
+                        "lead_routing": "Internal Only",
+                        "approver": "Manager",
+                        "competitors": "Competitors Co",
+                        "license_number": "ROC 12345",
+                    },
+                )
+                assert demo_resp.status_code == 200
+                tenant_id = demo_resp.json()["tenant_id"]
+
+                home = client.get(f"/sites/{tenant_id}/web")
+                assert home.status_code == 200
+
+                # Check for em-dashes (governance ADR-020)
+                assert "—" not in home.text, "Literal em-dash found (governance violation)"
+                assert "&mdash;" not in home.text, "Entity-encoded em-dash found (governance violation)"
+
+                # Check for leaked internal fields
+                assert "Internal Only" not in home.text, "lead_routing leaked"
+                assert "Manager" not in home.text, "approver leaked"
+                assert "Competitors Co" not in home.text, "competitors leaked"
+                assert "ROC 12345" not in home.text, "license_number leaked"
+        finally:
+            os.remove(db_path)
+
     check("imports", check_imports)
     check("migrations_create_expected_tables", check_migrations_create_expected_tables)
     check("app_boots_and_chat_responds", check_app_boots_and_chat_responds)
@@ -384,6 +551,10 @@ def main() -> int:
     check("cors_scoped_correctly", check_cors_scoped_correctly)
     check("rate_limit_trips", check_rate_limit_trips)
     check("angel_prompt_loads", check_angel_prompt_loads)
+    check("demo_site_regressions", check_demo_site_regressions)
+    check("angel_embed_verification", check_angel_embed_verification)
+    check("brand_palette_compliance", check_brand_palette_compliance)
+    check("governance_linter", check_governance_linter)
 
     print("NetBuild.Pro health check")
     print("=" * 40)

@@ -1,5 +1,5 @@
 # NetBuild.Pro Reference
-**Companion to `docs/business/WEBSTAFFR_GOVERNANCE.md` — the minutiae, tables, and hex codes that don't belong in a prose governance document.**
+**Companion to `docs/business/WEBSTAFFR_GOVERNANCE.md`  -  the minutiae, tables, and hex codes that don't belong in a prose governance document.**
 
 This file is machine-checkable reference data: exact values, tables, current tiers, current stack. When the ideal state described in governance changes, this file's numbers should be checked against it. When only an implementation detail changes (a hex code, a vendor, a table row), only this file changes.
 
@@ -11,7 +11,7 @@ Last Updated: 2026-08-06
 
 ## Brand Name
 
-**NetBuild.Pro** — all customer-facing, marketing, investor, and brand surfaces.
+**NetBuild.Pro**  -  all customer-facing, marketing, investor, and brand surfaces.
 
 Internal/technical contexts may use "WebStaffr" or "WS4" for code, package names, and repo history. Never in customer-facing copy.
 
@@ -40,7 +40,7 @@ Internal/technical contexts may use "WebStaffr" or "WS4" for code, package names
 
 ### Logo Usage
 - Light backgrounds: "NetBuild" #C85A28 (rust) + "Pro" #D4A574 (gold)
-- Dark backgrounds (navy/charcoal): "NetBuild" #D4A574 (gold) + "Pro" #C85A28 (rust) — inverted for contrast
+- Dark backgrounds (navy/charcoal): "NetBuild" #D4A574 (gold) + "Pro" #C85A28 (rust)  -  inverted for contrast
 - Monochrome: full wordmark #C85A28 (rust)
 - Font: bold sans-serif
 
@@ -110,7 +110,7 @@ Email sends, website visits, total signups (only paid conversions count).
 
 | Name | Role |
 |------|------|
-| K. Michael Tortorich, MD | Founder — vision, strategy, go-to-market, approves all irreversible changes |
+| K. Michael Tortorich, MD | Founder  -  vision, strategy, go-to-market, approves all irreversible changes |
 | Patrick Bukowski | Operations and client success, as needed |
 | Wenjie Tong | Product architecture and engineering, as needed |
 
@@ -178,9 +178,8 @@ Live status belongs in TASKS.md. This table is the roster only, not a progress t
 | Lead Coordinator | Office Staff |
 | Reputation Manager | Office Staff |
 | Website Operations Manager | Office Staff |
-| Sales Consultant | Business Manager |
-| Marketing Coordinator | Business Manager |
-| Growth Manager | Business Manager |
+
+Future roles and packages are intentionally omitted until post-launch validation.
 
 ---
 

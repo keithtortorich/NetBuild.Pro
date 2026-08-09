@@ -1,16 +1,11 @@
-"""Smoke tests for the public landing page (GET /, webstaffr/landing_router.py).
-
-This page had no test coverage before this file -- added alongside the
-2026-07-29 visual restyle so a future edit can't silently reintroduce a
-debunked statistic or break the page. Not a full content/accessibility
-suite, just the guardrails this session's change depends on.
-"""
+"""Guardrails for the public NetBuild.Pro landing page."""
 
 from __future__ import annotations
 
 import os
 import tempfile
 import unittest
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -30,53 +25,96 @@ class LandingPageTestCase(unittest.TestCase):
         self._client_ctx.__exit__(None, None, None)
         os.remove(self.db_path)
 
-    def test_landing_page_renders(self):
+    def test_landing_page_renders_canonical_brand(self):
         resp = self.client.get("/")
         self.assertEqual(resp.status_code, 200)
         self.assertIn("NetBuild.Pro", resp.text)
+        self.assertNotIn("WebStaff", resp.text)
 
-    def test_landing_uses_canonical_plan_names(self):
+    def test_landing_uses_only_launch_plan(self):
         resp = self.client.get("/")
         self.assertIn("Office Staff", resp.text)
+        self.assertIn("$497", resp.text)
         for retired in ("Essentials", "Business Manager", "White-Glove"):
             self.assertNotIn(retired, resp.text)
 
-    def test_landing_collects_contact_phone_and_email(self):
+    def test_primary_conversion_uses_full_intake(self):
         resp = self.client.get("/")
-        self.assertIn("Email and phone are required.", resp.text)
-        self.assertIn('name: "email"', resp.text)
-        self.assertIn('name: "phone"', resp.text)
-
-    def test_no_unrendered_template_tokens(self):
-        """Every __TOKEN__ placeholder in _LANDING_PAGE_HTML must be
-        substituted -- a leftover token means a substitution was added to
-        the HTML but not to _render_landing_page()'s .replace() chain."""
-        resp = self.client.get("/")
-        self.assertNotIn("__CONTACT_", resp.text)
-        self.assertNotIn("__ICON_", resp.text)
-
-    def test_response_rate_stat_is_labeled_as_an_industry_benchmark(self):
-        """The '78% of homeowners hire whoever responds first' claim was
-        already found, flagged, and removed elsewhere in this repo
-        (sales-crm.html, the real website copy -- see TASKS.md 2026-07-27)
-        after failing independent verification twice. It had drifted back
-        in here; this pins it removed."""
-        resp = self.client.get("/")
-        self.assertNotIn("78%", resp.text)
-        self.assertIn("85%", resp.text)
-        self.assertIn("Industry benchmarks commonly cited", resp.text)
-        self.assertIn("not NetBuild.Pro performance claims", resp.text)
-
-    def test_landing_and_full_intake_are_available(self):
-        landing = self.client.get("/")
-        self.assertIn("function LeadForm()", landing.text)
-        self.assertIn("How do we reach you?", landing.text)
+        self.assertGreaterEqual(resp.text.count('href: "/start"'), 1)
+        self.assertNotIn("<form", resp.text)
+        self.assertIn('window.location.href = "/start"', resp.text)
+        self.assertNotIn("setSent(true)", resp.text)
 
         intake = self.client.get("/start")
         self.assertEqual(intake.status_code, 200)
         self.assertIn('id="intake-form"', intake.text)
         self.assertIn("Create My Customer Site", intake.text)
         self.assertIn("fetch('/intake'", intake.text)
+
+    def test_landing_has_no_unrendered_template_tokens(self):
+        resp = self.client.get("/")
+        self.assertNotIn("__CONTACT_", resp.text)
+        self.assertNotIn("__ICON_", resp.text)
+
+    def test_landing_avoids_unverified_performance_proof(self):
+        resp = self.client.get("/")
+        self.assertIn("Outcome framing only", resp.text)
+        self.assertNotIn("of missed callers never call back", resp.text)
+        self.assertNotIn("of business calls go unanswered", resp.text)
+
+    def test_landing_removes_unsupported_industries(self):
+        resp = self.client.get("/")
+        for industry in ("Salon", "Dental", "Real Estate", "Legal"):
+            self.assertNotIn(industry, resp.text)
+
+    def test_landing_links_only_repository_hosted_demos(self):
+        resp = self.client.get("/")
+        expected = (
+            "hvac.html",
+            "plumbing.html",
+            "roof.html",
+            "landscape.html",
+            "pest.html",
+            "garage.html",
+            "arbor.html",
+            "waterrestore.html",
+            "maid.html",
+        )
+        for filename in expected:
+            self.assertIn(f'file: "/demo-sites/{filename}"', resp.text)
+            demo = self.client.get(f"/demo-sites/{filename}")
+            self.assertEqual(demo.status_code, 200)
+        self.assertNotIn("ctonew.app", resp.text)
+        self.assertNotIn('href="/demos/', resp.text)
+
+    def test_angel_embed_is_functional_and_origin_scoped(self):
+        resp = self.client.get("/")
+        self.assertIn("/static/angel-widget.js", resp.text)
+        self.assertIn('setAttribute("data-tenant-id", "netbuild")', resp.text)
+        self.assertIn("window.location.origin", resp.text)
+
+    def test_static_accessibility_contract(self):
+        resp = self.client.get("/")
+        html = resp.text
+        self.assertEqual(html.count("<h1"), 1)
+        self.assertIn('"aria-label": "Main navigation"', html)
+        self.assertIn('class="skip-link"', html)
+        self.assertIn(":focus-visible", html)
+        self.assertIn("@media (prefers-reduced-motion: reduce)", html)
+        self.assertIn('"aria-expanded": open', html)
+        self.assertIn('"aria-controls": "mobile-menu"', html)
+
+    def test_live_and_static_landing_artifacts_are_identical(self):
+        root = Path(__file__).resolve().parents[1]
+        self.assertEqual(
+            (root / "webstaffr/templates/netbuild_pro.html").read_bytes(),
+            (root / "site/index.html").read_bytes(),
+        )
+
+    def test_landing_has_no_dead_placeholder_links_or_investor_modal(self):
+        resp = self.client.get("/")
+        self.assertNotIn('href="#"', resp.text)
+        self.assertNotIn("investorModal", resp.text)
 
     def test_intake_exposes_tradesman_mvp_choices(self):
         resp = self.client.get("/start")
@@ -87,24 +125,13 @@ class LandingPageTestCase(unittest.TestCase):
         ):
             self.assertIn(expected, resp.text)
 
-    def test_landing_does_not_link_to_unprovisioned_demo_tenants(self):
-        resp = self.client.get("/")
-        self.assertNotIn('href="/demos/', resp.text)
-
-    def test_landing_describes_integration_fit_without_overpromising(self):
-        resp = self.client.get("/")
-        self.assertIn("Can you work with my existing calendar and CRM?", resp.text)
-        self.assertIn("In most cases, yes.", resp.text)
-        self.assertIn("agree on the exact workflow during onboarding", resp.text)
-
     def test_intake_uses_canonical_brand_and_plan_names(self):
         resp = self.client.get("/start")
         self.assertIn("NetBuild.Pro", resp.text)
         self.assertNotIn("WebStaffr", resp.text)
         self.assertIn('value="office_staff" checked', resp.text)
-        self.assertNotIn('value="essentials"', resp.text)
-        self.assertNotIn('value="pro"', resp.text)
-        self.assertNotIn('value="growth"', resp.text)
+        for retired in ("essentials", "pro", "growth"):
+            self.assertNotIn(f'value="{retired}"', resp.text)
 
     def test_investor_summary_avoids_unverified_performance_claims(self):
         resp = self.client.get("/investors/pitch")

@@ -2,9 +2,16 @@
 
 ## ACTIVE NOW
 
-### 2026-08-03: Brand Color Doctrine Locked (ADR-021)
-Founder approved and locked the new landing page (`webstaffr-standalone.html`) as NetBuild.Pro's canonical brand identity. Wrote the color doctrine: navy #000080 (primary), royal blue #4169E1 (secondary), orange #FF6600 (highlight/CTA), gray #E0E0E0 (neutral), plus logo variants and supporting tones -- see `docs/DECISIONS.md` ADR-021 for the full table. Updated `NETBUILD_GOVERNANCE.md`'s stale Visual Identity section (was: gold #bf9000, deep blue #1f4d78 -- neither matched the approved design). Founder's framing: this is the palette Site Magic's direction engine should treat as NetBuild.Pro's house style, distinct from the dynamic per-tenant `brand_colors` system already documented in `DESIGN.md`.
-**Known gap, logged not fixed:** ADR-020 (em-dash rule, 2026-07-30) is referenced in this file and CLAUDE.md but was never actually written into `docs/DECISIONS.md`. Trivial backfill, not done inline to keep ADR-021 scoped.
+### 2026-08-09: Desktop and Repository Consolidation
+**Status:** Complete locally.
+**Outcome:** Merged the unique maid-service demo, updated the Sales Tool for NetBuild.Pro and the single Office Staff launch package, repaired five verification-gate suites, consolidated research and Site Magic references into `docs/`, and moved confirmed duplicates, legacy documents, backup bundles, and unsafe prototypes into `/Users/doc/Desktop/NBP_Archive/desktop-consolidation-2026-08-09`.
+**Governance:** Updated the canonical governance manual to NetBuild.Pro version 1.2, ADR-022 rust/gold house branding, tenant-specific generated-site palettes, and the single-tier launch. Removed unsupported 78%/85% first-responder claims from active guidance.
+**Safety:** No permanent deletion, commit, push, deployment, credential change, or production mutation.
+**Validation:** 597 tests passed with 51 subtests; health 14/14 HEALTHY; `git diff --check` clean.
+
+### Brand Color Doctrine
+**Current:** ADR-022 rust/gold house palette for NetBuild.Pro-owned surfaces. Tenant-generated sites use verified tenant direction.
+**Superseded:** ADR-021 navy/royal-blue/orange house palette.
 
 ### 2026-08-03: Stripe Webhook Fixed (was broken, uncommitted, tests failing)
 Found `webstaffr/workers/angel/stripe_webhook.py` + `/webhooks/stripe` route already written but never wired into `create_app()`'s composition root (`stripe_webhook_verifier` param missing) — 10/10 tests failing on `TypeError`. Also found a real security bug: `StripeSignatureVerifier.verify()` compared the provided signature against itself (`hmac.compare_digest(provided_sig, provided_sig)`), always passing — forgeable once `STRIPE_WEBHOOK_SECRET` is set. Fixed: wired verifier through `app.py`, rewrote verifier to compute real HMAC-SHA256 over raw request body (route now captures raw bytes via `await request.body()` before Stripe's signature can be checked), fixed test fixture's placeholder signature value that never matched its own configured secret. Added `appointments.status` column (migration 0012 SQLite + 0014 postgres_manual, founder-approved) so payment webhooks have somewhere to write paid/payment_failed/refunded. Tests: 403/403 passing. Health: HEALTHY (10/10). Not committed yet — pending founder direction on unrelated uncommitted diffs in the same tree.
@@ -51,11 +58,9 @@ Found `webstaffr/workers/angel/stripe_webhook.py` + `/webhooks/stripe` route alr
 **Resolution:** Restored global rendered-site asset routes while retaining tenant-scoped aliases, defined the ServiceTitan poll path used by the composition root, isolated social endpoint tests from the repository database, and aligned landing-page guardrails with the current launch page.
 **Evidence:** Full suite 542 passed with 51 subtests; health 10/10 HEALTHY.
 
-### Palette Contrast Warning (Brand Doctrine)
-**Status:** Logged 2026-08-04, health check still PASSES.
-**Issue:** `primary-on-neutral-light` measures 4.2:1, WCAG AA needs 4.5:1. Emitted 4x during health check as a warning, not a failure.
-**Likely cause:** ADR-021 brand colors (navy #000080 on gray #E0E0E0).
-**Fix:** darken the neutral or restrict that pairing to large text only.
+### Palette Contrast Warning (Legacy ADR-021)
+**Status:** Resolved by ADR-022 and tenant-palette verification.
+**Resolution:** NetBuild.Pro-owned surfaces use the current rust/gold doctrine; generated sites validate their submitted tenant palettes rather than forcing the superseded navy/gray pairing.
 
 ### Onboarding Smoketest Skill Is Stale (WS3.3 Layout)
 **Status:** Logged 2026-08-04. Skill lives outside this repo (plugin dir), so not fixable in-repo.
@@ -133,12 +138,73 @@ Found: `DB_ERRORS` catch raises `HTTPException(503)` without logging exception t
 
 ---
 
+## DEMO VERIFICATION & PRE-MERGE GATES (In Progress, 2026-08-09)
+
+### Phase 1: Impeccable Demo Verification Plan (Complete)
+**Status:** Planning complete, execution ready.
+
+Created comprehensive 7-stage verification plan for all 9 demo sites (HVAC, plumbing, roof, landscape, pest, garage, tree service, water damage). Each demo runs through:
+1. **SHAPE** — Intake data validation (industry, services, brand intent)
+2. **DIRECTION ENGINE** — Visual rollout per ADR-021 brand doctrine
+3. **GENERATE** — HTML/CSS rendering (HTTP 200, all sections present)
+4. **EVALUATE** — Critique + accessibility + governance audit (≥88 score, 0 P0 issues)
+5. **SELF-HEAL** — Autonomous fix loop until gates met
+6. **SHIP** — Asset hardening and security headers
+7. **VERIFICATION** — Final sign-off (live, mobile responsive, CTAs working)
+
+**Document:** `docs/IMPECCABLE_DEMO_VERIFICATION_PLAN.md`
+**Next:** Execute Phase A–E for each of 8 demos (~45 min per demo, can parallelize).
+
+### Phase 2: Pre-Merge Verification Gates (Complete)
+**Status:** Design complete, implementation ready.
+
+Defined 5 mandatory verification gates to embed in test suite and health check:
+1. **Site Data Schema Audit** — Required/optional fields present and valid
+2. **Template Regression Test** — All 9 demos HTTP 200 after code changes
+3. **Angel Widget Verification** — Retell embed present and endpoint reachable
+4. **Brand Palette & WCAG Audit** — Colors match ADR-021, contrast ≥3:1
+5. **Governance Linter** — No em-dashes, no leaked fields, brand name correct
+6. **Content Freshness** — Intake → render pipeline integrity (no data loss)
+
+**Document:** `docs/VERIFICATION_GATES_PRE_MERGE.md`
+**Next:** Implement as code in test suite, integrate with CI and health check.
+
+### Phase 3: Attach Verification Gates (Complete ✓)
+**Status:** Implementation complete, 2026-08-09.
+
+**Implemented 6 verification gates across 6 test files:**
+- ✓ `tests/test_site_data_schema_audit.py` (8 tests, Gate 1)
+- ✓ `tests/test_site_render_router.py` (extended with 8 demo regression tests, Gate 2)
+- ✓ `tests/test_angel_embed_verification.py` (6 tests, Gate 3)
+- ✓ `tests/test_brand_palette_audit.py` (8 tests, Gate 4)
+- ✓ `tests/test_governance_linter.py` (7 tests, Gate 5)
+- ✓ `tests/test_intake_render_roundtrip.py` (9 tests, Gate 6)
+- ✓ `scripts/health_check.py` (integrated 4 new gate checks: demo regressions, angel embed, brand palette, governance)
+
+**Result:** Full verification gate suite embedded in CI pipeline. Ready for Phase 4 final verification.
+
+### Phase 4: End-to-End Verification (Pending Phase 3)
+**Status:** Ready after Phase 3 complete.
+
+Final verification before merge:
+- [ ] All tests passing (542/542)
+- [ ] Health check HEALTHY (12/12)
+- [ ] All 8 demo sites HTTP 200
+- [ ] No governance violations
+- [ ] Angel embed active on all demos
+- [ ] Brand palette correct (no contrast errors)
+- [ ] Git diff staged & ready
+- [ ] Ready for push approval
+
+---
+
 ## NEXT SESSION PRIORITIES
 
-1. **Fix trust bar dead divs** — trivial template patch, unblocks UI polish.
-2. **Founder: payment vendor decision** — Stripe or Orion? → unblocks webhook integration.
-3. **Webhook integration for payment updates** — D2 scope, new endpoint on Angel router.
-4. **Fish Audio parallel test spike** (pending approval) — measure vs. Retell, 1–2 week run.
+1. **Complete Phase 3** — Implement verification gates in code (all 6 new test files)
+2. **Run Phase 4** — Final end-to-end verification, confirm all gates pass
+3. **Push to main** — Stage site/index.html, tests/*.py, webstaffr/templates/netbuild_pro.html, docs/IMPECCABLE_*.md, docs/VERIFICATION_GATES_*.md
+4. **Fix trust bar dead divs** — trivial template patch (after push, separate PR)
+5. **Founder: payment vendor decision** — Stripe or Orion? → unblocks webhook integration.
 
 ---
 

@@ -758,7 +758,8 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
   </script>
 </head>
 <body>
-  <div id="root"></div>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
+  <div id="root"><h1 class="sr-only">NetBuild.Pro Office Staff for home-service contractors</h1></div>
   <script>
 const {
   useState,
@@ -1001,7 +1002,7 @@ const CTAButton = ({
   dark = false,
   className = ""
 }) => /*#__PURE__*/React.createElement("a", {
-  href: "#get-started",
+  href: "/start",
   className: `focusable btn-press btn-shine inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-extrabold ${dark ? "bg-[#1A1A2E] text-white hover:bg-[#12121F] dark:bg-white dark:text-[#1A1A2E] dark:hover:bg-slate-100" : "bg-[#C85A28] text-white shadow-blue hover:bg-[#A04620]"} ${className}`
 }, children, /*#__PURE__*/React.createElement(Icon, {
   name: "arrow",
@@ -1338,17 +1339,17 @@ function TrustBar() {
     className: "border-y border-slate-100 px-6 py-6 text-center dark:border-white/10 sm:border-x sm:border-y-0"
   }, /*#__PURE__*/React.createElement("p", {
     className: "text-3xl font-extrabold tracking-tight text-[#1A1A2E] dark:text-white"
-  }, "27%"), /*#__PURE__*/React.createElement("p", {
+  }, "Missed calls"), /*#__PURE__*/React.createElement("p", {
     className: "mt-1 text-sm font-semibold text-slate-700 dark:text-slate-300"
-  }, "of business calls go unanswered")), /*#__PURE__*/React.createElement("div", {
+  }, "can become missed jobs")), /*#__PURE__*/React.createElement("div", {
     className: "px-6 py-6 text-center"
   }, /*#__PURE__*/React.createElement("p", {
     className: "text-3xl font-extrabold tracking-tight text-[#1A1A2E] dark:text-white"
-  }, "85%"), /*#__PURE__*/React.createElement("p", {
+  }, "Fast follow-up"), /*#__PURE__*/React.createElement("p", {
     className: "mt-1 text-sm font-semibold text-slate-700 dark:text-slate-300"
-  }, "of missed callers never call back")), /*#__PURE__*/React.createElement("p", {
+  }, "helps protect paid leads"))), /*#__PURE__*/React.createElement("p", {
     className: "border-t border-slate-100 px-6 py-3 text-center text-[11px] font-semibold text-slate-600 dark:border-white/10 dark:text-slate-400"
-  }, "Industry benchmarks commonly cited in small-business telephony research, not NetBuild.Pro performance claims."))));
+  }, "Outcome framing only. NetBuild.Pro publishes performance figures after verified cohort measurement."))));
 }
 const services = [{
   icon: "phone",
@@ -1440,23 +1441,7 @@ const tiers = [{
   description: "A reliable front desk for owner-operators and small crews.",
   features: ["Live call answering", "Lead qualification", "Appointment booking", "Text and form follow-up", "Weekly activity summary"],
   cta: "Start My Free Trial",
-  featured: false
-}, {
-  name: "Business Manager",
-  price: "$2,497",
-  suffix: "/mo",
-  description: "A proactive office engine for teams ready to scale.",
-  features: ["Everything in Office Staff", "Estimate follow-up", "Pipeline management", "Customer reactivation", "Daily performance visibility", "Dedicated business manager"],
-  cta: "Grow My Pipeline",
   featured: true
-}, {
-  name: "White-Glove",
-  price: "Custom",
-  suffix: "",
-  description: "A fully tailored operation for multi-market or complex teams.",
-  features: ["Custom workflows and coverage", "Multi-location support", "Advanced reporting", "System integrations", "Leadership-level reviews"],
-  cta: "Talk to Our Team",
-  featured: false
 }];
 function Pricing() {
   return /*#__PURE__*/React.createElement("section", {
@@ -1468,12 +1453,12 @@ function Pricing() {
     className: "mx-auto max-w-2xl text-center"
   }, /*#__PURE__*/React.createElement("p", {
     className: "text-sm font-extrabold uppercase tracking-[.16em] text-[#C85A28] dark:text-[#D4A574]"
-  }, "Choose your coverage"), /*#__PURE__*/React.createElement("h2", {
+  }, "Initial launch plan"), /*#__PURE__*/React.createElement("h2", {
     className: "mt-4 text-3xl font-extrabold tracking-[-.04em] text-[#1A1A2E] dark:text-white sm:text-4xl"
-  }, "The right office support at every stage."), /*#__PURE__*/React.createElement("p", {
+  }, "One plan. A complete front office."), /*#__PURE__*/React.createElement("p", {
     className: "mt-5 text-base leading-7 text-slate-700 dark:text-slate-300"
-  }, "Start lean, prove the value, and expand your support as the call volume grows.")), /*#__PURE__*/React.createElement("div", {
-    className: "mt-12 grid items-stretch gap-5 lg:grid-cols-3"
+  }, "Office Staff is the only tier available during the initial launch.")), /*#__PURE__*/React.createElement("div", {
+    className: "mx-auto mt-12 grid max-w-md items-stretch gap-5"
   }, tiers.map((tier, i) => /*#__PURE__*/React.createElement(Reveal, {
     key: tier.name,
     delay: i + 1,
@@ -1755,14 +1740,7 @@ function LeadForm() {
       setError('Email and phone are required.');
       return;
     }
-    setSubmitting(true);
-    setTimeout(() => {
-      setSubmitting(false);
-      setSent(true);
-      try {
-        localStorage.setItem('netbuild-onboarded', '1');
-      } catch (_) {}
-    }, 700);
+    window.location.href = "/start";
   };
   if (sent) {
     const nextSteps = [{
@@ -1977,14 +1955,15 @@ function Footer() {
   }, "© 2026 NetBuild.Pro. All rights reserved.")));
 }
 const DEMO_SITES = [
-  { name: "Northwest Tree Care (Arbor)", file: "demos/arbor.html" },
-  { name: "Premier Garage Doors", file: "demos/garage.html" },
-  { name: "Desert Cooling (HVAC)", file: "demos/hvac.html" },
-  { name: "Evergreen Landscapes", file: "demos/landscape.html" },
-  { name: "Shield Pest Control", file: "demos/pest.html" },
-  { name: "Rivera Plumbing", file: "demos/plumbing.html" },
-  { name: "Gulf Coast Roofing", file: "demos/roof.html" },
-  { name: "RapidDry Restore (Water)", file: "demos/waterrestore.html" }
+  { name: "Northwest Tree Care (Arbor)", file: "/demo-sites/arbor.html" },
+  { name: "Premier Garage Doors", file: "/demo-sites/garage.html" },
+  { name: "Desert Cooling (HVAC)", file: "/demo-sites/hvac.html" },
+  { name: "Evergreen Landscapes", file: "/demo-sites/landscape.html" },
+  { name: "Shield Pest Control", file: "/demo-sites/pest.html" },
+  { name: "Rivera Plumbing", file: "/demo-sites/plumbing.html" },
+  { name: "Gulf Coast Roofing", file: "/demo-sites/roof.html" },
+  { name: "RapidDry Restore (Water)", file: "/demo-sites/waterrestore.html" },
+  { name: "Sparkle Clean (Maid Service)", file: "/demo-sites/maid.html" }
 ];
 
 function DemoPreview({ name, file, onClose }) {
@@ -2113,9 +2092,22 @@ function App() {
   return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Navbar, {
     dark: dark,
     toggle: toggle
-  }), /*#__PURE__*/React.createElement("main", null, /*#__PURE__*/React.createElement(Hero, null), /*#__PURE__*/React.createElement(TrustBar, null), /*#__PURE__*/React.createElement(Services, null), /*#__PURE__*/React.createElement(HowItWorks, null), /*#__PURE__*/React.createElement(Pricing, null), /*#__PURE__*/React.createElement(Proof, null), /*#__PURE__*/React.createElement(FAQ, null), /*#__PURE__*/React.createElement(Demos, null), /*#__PURE__*/React.createElement(FinalCTA, null)), /*#__PURE__*/React.createElement(Footer, null));
+  }), /*#__PURE__*/React.createElement("main", { id: "main-content" }, /*#__PURE__*/React.createElement(Hero, null), /*#__PURE__*/React.createElement(TrustBar, null), /*#__PURE__*/React.createElement(Services, null), /*#__PURE__*/React.createElement(HowItWorks, null), /*#__PURE__*/React.createElement(Pricing, null), /*#__PURE__*/React.createElement(Proof, null), /*#__PURE__*/React.createElement(FAQ, null), /*#__PURE__*/React.createElement(Demos, null), /*#__PURE__*/React.createElement(FinalCTA, null)), /*#__PURE__*/React.createElement(Footer, null));
 }
 ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.createElement(App, null));
+</script>
+<script>
+  /* Embed Angel functionally: load the production chat widget, pointed at
+     this site's own backend. api-base derives from the current origin so it
+     works on localhost, preview deploys, and the live netbuild.pro domain. */
+  (function () {
+    var s = document.createElement("script");
+    s.src = "/static/angel-widget.js";
+    s.setAttribute("data-tenant-id", "netbuild");
+    s.setAttribute("data-api-base", window.location.origin);
+    s.async = true;
+    document.head.appendChild(s);
+  })();
 </script>
 </body>
 </html>

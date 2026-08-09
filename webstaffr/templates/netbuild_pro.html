@@ -758,7 +758,8 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
   </script>
 </head>
 <body>
-  <div id="root"></div>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
+  <div id="root"><h1 class="sr-only">NetBuild.Pro Office Staff for home-service contractors</h1></div>
   <script>
 const {
   useState,
@@ -1001,7 +1002,7 @@ const CTAButton = ({
   dark = false,
   className = ""
 }) => /*#__PURE__*/React.createElement("a", {
-  href: "#get-started",
+  href: "/start",
   className: `focusable btn-press btn-shine inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-extrabold ${dark ? "bg-[#1A1A2E] text-white hover:bg-[#12121F] dark:bg-white dark:text-[#1A1A2E] dark:hover:bg-slate-100" : "bg-[#C85A28] text-white shadow-blue hover:bg-[#A04620]"} ${className}`
 }, children, /*#__PURE__*/React.createElement(Icon, {
   name: "arrow",
@@ -1338,17 +1339,17 @@ function TrustBar() {
     className: "border-y border-slate-100 px-6 py-6 text-center dark:border-white/10 sm:border-x sm:border-y-0"
   }, /*#__PURE__*/React.createElement("p", {
     className: "text-3xl font-extrabold tracking-tight text-[#1A1A2E] dark:text-white"
-  }, "27%"), /*#__PURE__*/React.createElement("p", {
+  }, "Missed calls"), /*#__PURE__*/React.createElement("p", {
     className: "mt-1 text-sm font-semibold text-slate-700 dark:text-slate-300"
-  }, "of business calls go unanswered")), /*#__PURE__*/React.createElement("div", {
+  }, "can become missed jobs")), /*#__PURE__*/React.createElement("div", {
     className: "px-6 py-6 text-center"
   }, /*#__PURE__*/React.createElement("p", {
     className: "text-3xl font-extrabold tracking-tight text-[#1A1A2E] dark:text-white"
-  }, "85%"), /*#__PURE__*/React.createElement("p", {
+  }, "Fast follow-up"), /*#__PURE__*/React.createElement("p", {
     className: "mt-1 text-sm font-semibold text-slate-700 dark:text-slate-300"
-  }, "of missed callers never call back"))), /*#__PURE__*/React.createElement("p", {
+  }, "helps protect paid leads"))), /*#__PURE__*/React.createElement("p", {
     className: "border-t border-slate-100 px-6 py-3 text-center text-[11px] font-semibold text-slate-600 dark:border-white/10 dark:text-slate-400"
-  }, "Industry benchmarks commonly cited in small-business telephony research, not NetBuild.Pro performance claims."))));
+  }, "Outcome framing only. NetBuild.Pro publishes performance figures after verified cohort measurement."))));
 }
 const services = [{
   icon: "phone",
@@ -1739,14 +1740,7 @@ function LeadForm() {
       setError('Email and phone are required.');
       return;
     }
-    setSubmitting(true);
-    setTimeout(() => {
-      setSubmitting(false);
-      setSent(true);
-      try {
-        localStorage.setItem('netbuild-onboarded', '1');
-      } catch (_) {}
-    }, 700);
+    window.location.href = "/start";
   };
   if (sent) {
     const nextSteps = [{
@@ -1968,7 +1962,8 @@ const DEMO_SITES = [
   { name: "Shield Pest Control", file: "/demo-sites/pest.html" },
   { name: "Rivera Plumbing", file: "/demo-sites/plumbing.html" },
   { name: "Gulf Coast Roofing", file: "/demo-sites/roof.html" },
-  { name: "RapidDry Restore (Water)", file: "/demo-sites/waterrestore.html" }
+  { name: "RapidDry Restore (Water)", file: "/demo-sites/waterrestore.html" },
+  { name: "Sparkle Clean (Maid Service)", file: "/demo-sites/maid.html" }
 ];
 
 function DemoPreview({ name, file, onClose }) {
@@ -2097,7 +2092,7 @@ function App() {
   return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Navbar, {
     dark: dark,
     toggle: toggle
-  }), /*#__PURE__*/React.createElement("main", null, /*#__PURE__*/React.createElement(Hero, null), /*#__PURE__*/React.createElement(TrustBar, null), /*#__PURE__*/React.createElement(Services, null), /*#__PURE__*/React.createElement(HowItWorks, null), /*#__PURE__*/React.createElement(Pricing, null), /*#__PURE__*/React.createElement(Proof, null), /*#__PURE__*/React.createElement(FAQ, null), /*#__PURE__*/React.createElement(Demos, null), /*#__PURE__*/React.createElement(FinalCTA, null)), /*#__PURE__*/React.createElement(Footer, null));
+  }), /*#__PURE__*/React.createElement("main", { id: "main-content" }, /*#__PURE__*/React.createElement(Hero, null), /*#__PURE__*/React.createElement(TrustBar, null), /*#__PURE__*/React.createElement(Services, null), /*#__PURE__*/React.createElement(HowItWorks, null), /*#__PURE__*/React.createElement(Pricing, null), /*#__PURE__*/React.createElement(Proof, null), /*#__PURE__*/React.createElement(FAQ, null), /*#__PURE__*/React.createElement(Demos, null), /*#__PURE__*/React.createElement(FinalCTA, null)), /*#__PURE__*/React.createElement(Footer, null));
 }
 ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.createElement(App, null));
 </script>
