@@ -12,6 +12,7 @@ import {
   type WorkerDependencies,
 } from "../webstaffr/site_magic_worker.ts";
 import { PlaywrightEvidenceRunner } from "../webstaffr/site_magic_evidence_runner.ts";
+import { OpenRouterImageGenerator } from "../webstaffr/site_magic_adapters.ts";
 
 /** Dry-run stand-in for a real EvidenceRunner -- keeps these worker-wiring
  * tests fast and independent of a real Chromium/axe-core/Lighthouse pass
@@ -55,6 +56,59 @@ function fakeDependencies(): { deps: WorkerDependencies; states: string[] } {
 test("buildProductionDependencies wires a real PlaywrightEvidenceRunner, not a Null stand-in", () => {
   const originals = {
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+    SUPABASE_URL: process.env.SUPABASE_URL,
+    SITE_MAGIC_STORAGE_SERVICE_KEY: process.env.SITE_MAGIC_STORAGE_SERVICE_KEY,
+    SITE_MAGIC_API_BASE_URL: process.env.SITE_MAGIC_API_BASE_URL,
+    SITE_MAGIC_INTERNAL_API_KEY: process.env.SITE_MAGIC_INTERNAL_API_KEY,
+  };
+  Object.assign(process.env, {
+    OPENAI_API_KEY: "test-key", OPENROUTER_API_KEY: "test-openrouter-key",
+    SUPABASE_URL: "https://example.supabase.co",
+    SITE_MAGIC_STORAGE_SERVICE_KEY: "test-service-key",
+    SITE_MAGIC_API_BASE_URL: "https://control-plane.internal",
+    SITE_MAGIC_INTERNAL_API_KEY: "test-internal-key",
+  });
+  try {
+    const deps = buildProductionDependencies("tenant-1");
+    assert.ok(deps.evidence instanceof PlaywrightEvidenceRunner);
+  } finally {
+    for (const [key, value] of Object.entries(originals)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
+});
+
+test("buildProductionDependencies wires OpenRouterImageGenerator for images, not OpenAI -- OpenAI's GPT Image org access is unapproved", () => {
+  const originals = {
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+    SUPABASE_URL: process.env.SUPABASE_URL,
+    SITE_MAGIC_STORAGE_SERVICE_KEY: process.env.SITE_MAGIC_STORAGE_SERVICE_KEY,
+    SITE_MAGIC_API_BASE_URL: process.env.SITE_MAGIC_API_BASE_URL,
+    SITE_MAGIC_INTERNAL_API_KEY: process.env.SITE_MAGIC_INTERNAL_API_KEY,
+  };
+  Object.assign(process.env, {
+    OPENAI_API_KEY: "test-key", OPENROUTER_API_KEY: "test-openrouter-key",
+    SUPABASE_URL: "https://example.supabase.co",
+    SITE_MAGIC_STORAGE_SERVICE_KEY: "test-service-key",
+    SITE_MAGIC_API_BASE_URL: "https://control-plane.internal",
+    SITE_MAGIC_INTERNAL_API_KEY: "test-internal-key",
+  });
+  try {
+    const deps = buildProductionDependencies("tenant-1");
+    assert.ok(deps.images instanceof OpenRouterImageGenerator);
+  } finally {
+    for (const [key, value] of Object.entries(originals)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
+});
+
+test("buildProductionDependencies throws ImageGeneratorNotConfiguredError when OPENROUTER_API_KEY is missing, even if OPENAI_API_KEY is set", () => {
+  const originals = {
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
     SUPABASE_URL: process.env.SUPABASE_URL,
     SITE_MAGIC_STORAGE_SERVICE_KEY: process.env.SITE_MAGIC_STORAGE_SERVICE_KEY,
     SITE_MAGIC_API_BASE_URL: process.env.SITE_MAGIC_API_BASE_URL,
@@ -66,9 +120,9 @@ test("buildProductionDependencies wires a real PlaywrightEvidenceRunner, not a N
     SITE_MAGIC_API_BASE_URL: "https://control-plane.internal",
     SITE_MAGIC_INTERNAL_API_KEY: "test-internal-key",
   });
+  delete process.env.OPENROUTER_API_KEY;
   try {
-    const deps = buildProductionDependencies("tenant-1");
-    assert.ok(deps.evidence instanceof PlaywrightEvidenceRunner);
+    assert.throws(() => buildProductionDependencies("tenant-1"));
   } finally {
     for (const [key, value] of Object.entries(originals)) {
       if (value === undefined) delete process.env[key]; else process.env[key] = value;

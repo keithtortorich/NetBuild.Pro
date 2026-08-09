@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import {
   normalizedScore, orderWeaknesses, releaseGatesPass, SiteMakerEngine,
   mergeDesignAssessment, InvalidDesignAssessmentError,
-  type QualityReport,
+  generateImagesWithBoundedRetry, IMAGE_GENERATION_MAX_ATTEMPTS,
+  type QualityReport, type ImageGenerator,
 } from "../webstaffr/site_maker_engine.ts";
 
 const passing = (): QualityReport => ({
@@ -117,6 +118,82 @@ test("a malformed design_assessor response fails the job closed instead of silen
   });
   assert.equal(result.status, "failed");
   assert.equal(states.at(-1), "failed");
+});
+
+test("generateImagesWithBoundedRetry returns on first success without retrying", async () => {
+  let calls = 0;
+  const images: ImageGenerator = { async generate() { calls += 1; return ["a", "b", "c"]; } };
+  const slept: number[] = [];
+  const result = await generateImagesWithBoundedRetry(
+    images, { model: "m", brief: "b", count: 3 }, async (ms) => { slept.push(ms); }
+  );
+  assert.deepEqual(result, ["a", "b", "c"]);
+  assert.equal(calls, 1);
+  assert.deepEqual(slept, []);
+});
+
+test("generateImagesWithBoundedRetry retries on failure and returns the first later success", async () => {
+  let calls = 0;
+  const images: ImageGenerator = {
+    async generate() {
+      calls += 1;
+      if (calls < 3) throw new Error("transient provider error");
+      return ["a", "b", "c"];
+    },
+  };
+  const slept: number[] = [];
+  const result = await generateImagesWithBoundedRetry(
+    images, { model: "m", brief: "b", count: 3 }, async (ms) => { slept.push(ms); }
+  );
+  assert.deepEqual(result, ["a", "b", "c"]);
+  assert.equal(calls, 3);
+  // backoff delays are recorded between attempts, not after the final success
+  assert.equal(slept.length, 2);
+});
+
+test("generateImagesWithBoundedRetry returns null (not a throw) after exhausting all attempts", async () => {
+  let calls = 0;
+  const images: ImageGenerator = { async generate() { calls += 1; throw new Error("persistent provider outage"); } };
+  const slept: number[] = [];
+  const result = await generateImagesWithBoundedRetry(
+    images, { model: "m", brief: "b", count: 3 }, async (ms) => { slept.push(ms); }
+  );
+  assert.equal(result, null);
+  assert.equal(calls, IMAGE_GENERATION_MAX_ATTEMPTS);
+  // one fewer sleep than attempts -- no backoff wait after the final failed attempt
+  assert.equal(slept.length, IMAGE_GENERATION_MAX_ATTEMPTS - 1);
+});
+
+test("a persistently failing image generator does not fail the job -- build finishes with images marked missing, never fabricated", async () => {
+  const states: Array<{ state: string; metadata?: Record<string, unknown> }> = [];
+  const builderInstructions: string[] = [];
+  const engine = new SiteMakerEngine({
+    states: { async transition(_job, _tenant, state, metadata) { states.push({ state, metadata }); } },
+    codex: {
+      async run(args) {
+        if (args.role === "builder") builderInstructions.push(args.instructions);
+        if (args.role === "finish_reviewer") return { verdict: "PASS", authoredNotInterchangeable: true, materialFindings: [] };
+        if (args.role === "design_assessor") return { designScore: 36, applicableMax: 40, findings: [] };
+        return {};
+      },
+    },
+    images: { async generate() { throw new Error("image vendor outage"); } },
+    evidence: { async assess() { return passing(); } },
+    artifacts: { async sealPrivateImmutable() { return { buildId: "build-missing-images" }; } },
+  });
+  const result = await engine.run({
+    jobId: "job-images-missing", tenantId: "tenant-1", workspace: "/private/job-images-missing",
+    source: { type: "intake", intakeId: "intake-1", verifiedFacts: { company: "Acme" } },
+  });
+  // the job still ships -- an image-vendor outage is not a reason to
+  // quarantine or fail a build that is otherwise sound
+  assert.deepEqual(result, { status: "ready_for_review", buildId: "build-missing-images" });
+  const buildingTransition = states.find((entry) => entry.state === "building");
+  assert.equal(buildingTransition?.metadata?.imagesMissing, true);
+  // the builder role is told images are unavailable and must not fabricate
+  // or reference placeholders -- never a silent gap the visitor discovers
+  assert.match(builderInstructions[0], /No image comps are available/);
+  assert.match(builderInstructions[0], /Never fabricate, reference, or leave placeholders for missing images/);
 });
 
 test("adapter failure fails closed", async () => {

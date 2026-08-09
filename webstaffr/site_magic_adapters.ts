@@ -10,6 +10,19 @@
  * exists yet and GPT Image organization access is unapproved (see
  * docs/STANDUP_2026-08-09_IMPECCABLE_PHASE_1.md). They're unit-tested
  * against fakes only.
+ *
+ * OpenRouterImageGenerator exists as a second real ImageGenerator so
+ * comps aren't blocked on GPT Image org approval -- same OPENROUTER_API_KEY
+ * this repo already uses in design_critique/client.py, no new vendor
+ * account needed. It is NOT yet run against live credentials either
+ * (unit-tested against fakes only): OpenRouter has no dedicated
+ * images-generate endpoint, so this goes through chat-completions against
+ * an image-output-capable model and reads image parts back out of the
+ * response message -- a different response shape than OpenAI's
+ * b64_json-per-item Images API, unverified against a real OpenRouter
+ * response until a key is set. Swap ImageGenerator's real implementation
+ * in buildProductionDependencies() (site_magic_worker.ts) once one path
+ * is confirmed working.
  */
 
 import { randomUUID } from "node:crypto";
@@ -110,6 +123,89 @@ export class OpenAIImageGenerator implements ImageGenerator {
       }
       return `data:image/png;base64,${item.b64_json}`;
     });
+  }
+}
+
+/**
+ * Wraps OpenRouter's OpenAI-compatible chat-completions endpoint for
+ * image-output-capable models (e.g. google/gemini-2.5-flash-image).
+ * Same OPENROUTER_API_KEY as design_critique/client.py -- no separate
+ * vendor account, and unblocked by OpenAI's GPT Image org-approval gate.
+ *
+ * OpenRouter has no images-generate endpoint of its own: an
+ * image-output model returns image parts inline in the assistant
+ * message (as data: URIs already, per OpenRouter's documented
+ * multimodal-output shape), not as a separate b64_json array the way
+ * OpenAI's Images API does. That's the only shape difference from
+ * OpenAIImageGenerator above -- the return contract (string[] of data:
+ * URIs) is identical, so SiteMakerEngine and its callers don't need to
+ * know which ImageGenerator is wired in.
+ *
+ * Not yet run against a live OpenRouter response (no key set at time of
+ * writing) -- unit-tested against fakes only, same caveat as this
+ * file's other adapters. Verify the actual response shape against a
+ * real call before relying on this in production; OpenRouter's
+ * multimodal-output format has changed before and providers vary in
+ * how many image parts they return per call.
+ */
+export class OpenRouterImageGenerator implements ImageGenerator {
+  private readonly apiKey: string;
+  private readonly fetchImpl: typeof fetch;
+
+  static readonly API_URL = "https://openrouter.ai/api/v1/chat/completions";
+
+  constructor(apiKey?: string, fetchImpl?: typeof fetch) {
+    const key = apiKey ?? process.env.OPENROUTER_API_KEY;
+    if (!key) {
+      throw new ImageGeneratorNotConfiguredError(
+        "OpenRouterImageGenerator requires OPENROUTER_API_KEY (env var or constructor arg)."
+      );
+    }
+    this.apiKey = key;
+    this.fetchImpl = fetchImpl ?? fetch;
+  }
+
+  async generate(args: { model: string; brief: string; count: 3 }): Promise<string[]> {
+    const images: string[] = [];
+    // OpenRouter's chat-completions shape returns (at most, per provider
+    // behavior) one image-bearing response per call -- there is no `n`
+    // parameter like OpenAI's Images API. To satisfy ImageGenerator's
+    // fixed count of 3 comps, issue `count` independent calls rather than
+    // assuming a provider will honor a batch request it doesn't support.
+    for (let i = 0; i < args.count; i += 1) {
+      const response = await this.fetchImpl(OpenRouterImageGenerator.API_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://netbuild.pro",
+          "X-Title": "NetBuild.Pro Site Magic",
+        },
+        body: JSON.stringify({
+          model: args.model,
+          messages: [{ role: "user", content: args.brief }],
+          modalities: ["image", "text"],
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(
+          `OpenRouter image call ${i + 1}/${args.count} failed: ${response.status} ${await response.text()}`
+        );
+      }
+      const data = (await response.json()) as {
+        choices?: Array<{
+          message?: { images?: Array<{ image_url?: { url?: string } }> };
+        }>;
+      };
+      const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+      if (!imageUrl) {
+        throw new Error(
+          `OpenRouter image call ${i + 1}/${args.count} for ${args.model} returned no image part`
+        );
+      }
+      images.push(imageUrl);
+    }
+    return images;
   }
 }
 

@@ -150,7 +150,7 @@
   model hosting required in this repo either way.
 - **Security**: never commit if it embeds any credential in the URL.
 
-### 11. `OPENROUTER_API_KEY` + `DESIGN_CRITIQUE_MODEL` (optional, for `OpenRouterDesignCritiqueClient`)
+### 11. `OPENROUTER_API_KEY` + `DESIGN_CRITIQUE_MODEL` (dual-purpose: `OpenRouterDesignCritiqueClient` and Site Magic's `OpenRouterImageGenerator`)
 - **Purpose**: on-demand design/UI critique of one rendered tenant site
   page (`scripts/design_critique.py`) -- founder- or session-invoked, not
   part of any automatic path. `site_renderer.py`'s render path and
@@ -158,6 +158,15 @@
   (`webstaffr/site_a11y_check.py`) both stay free and mechanical; this is
   the separate, judgment-based half, which costs real per-call money and
   therefore never runs unattended.
+- **Second use (2026-08-10):** `webstaffr/site_magic_adapters.ts`'s
+  `OpenRouterImageGenerator` also reads this same key --
+  `buildProductionDependencies()` (`site_magic_worker.ts`) wires it as
+  Site Magic's real `ImageGenerator`, replacing `OpenAIImageGenerator`
+  (OpenAI's GPT Image org-access approval is still pending; see
+  `TASKS.md`). Same env var, no new vendor account. If `OPENROUTER_API_KEY`
+  is unset, `buildProductionDependencies()` throws
+  `ImageGeneratorNotConfiguredError` at construction (fail-closed) --
+  Site Magic jobs will not start silently degraded.
 - **How to get**: an OpenRouter account API key (openrouter.ai).
 - **Behavior**:
   - `OPENROUTER_API_KEY` set -> `OpenRouterDesignCritiqueClient` is used.

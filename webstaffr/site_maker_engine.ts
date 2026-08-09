@@ -4,6 +4,8 @@ export const DESIGN_MODEL = "gpt-5.6-sol";
 export const IMAGE_MODEL = "gpt-image-2";
 export const MAX_REMEDIATION_ROUNDS = 2;
 export const MAX_REBUILDS = 1;
+export const IMAGE_GENERATION_MAX_ATTEMPTS = 3;
+export const IMAGE_GENERATION_RETRY_BASE_MS = 500;
 
 export type JobState =
   | "queued" | "ingesting" | "directing" | "building" | "evaluating"
@@ -162,6 +164,42 @@ export function mergeDesignAssessment(report: QualityReport, assessment: Record<
   return { ...report, designScore, applicableMax, findings: findings as Finding[] };
 }
 
+/**
+ * Bounded-retry wrapper around ImageGenerator.generate(), used instead of
+ * the old contract where a single failed call (network blip, provider
+ * hiccup) took down the whole Site Magic job. Founder direction
+ * (2026-08-10): image generation should be resilient -- a build should
+ * still finish and ship even if comps never come through, rather than
+ * quarantining/failing the entire job over an image-vendor outage.
+ *
+ * All-or-nothing per attempt (ImageGenerator's own contract is "exactly
+ * `count` images or throw" -- see OpenRouterImageGenerator/
+ * OpenAIImageGenerator), retried up to IMAGE_GENERATION_MAX_ATTEMPTS times
+ * with linear backoff. Returns null (not a thrown error) after the last
+ * attempt still fails -- the caller treats null as "images missing,
+ * proceed without them", never as a reason to fabricate placeholder
+ * images (see this repo's no-fabrication invariant).
+ *
+ * `sleep` is an injected seam so tests exercising the retry path don't
+ * have to wait out real backoff delays.
+ */
+export async function generateImagesWithBoundedRetry(
+  images: ImageGenerator,
+  args: { model: string; brief: string; count: 3 },
+  sleep: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+): Promise<string[] | null> {
+  for (let attempt = 1; attempt <= IMAGE_GENERATION_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      return await images.generate(args);
+    } catch {
+      if (attempt < IMAGE_GENERATION_MAX_ATTEMPTS) {
+        await sleep(IMAGE_GENERATION_RETRY_BASE_MS * attempt);
+      }
+    }
+  }
+  return null;
+}
+
 function hostileSourceEnvelope(source: SiteSource): string {
   const serialized = JSON.stringify(source);
   return [
@@ -215,13 +253,21 @@ export class SiteMakerEngine {
         role: "direction", model: DESIGN_MODEL, workspace: job.workspace,
         instructions: `Create DESIGN.md and a surface brief from product truth: ${JSON.stringify(product)}`,
       });
-      const comps = await this.deps.images.generate({ model: IMAGE_MODEL, brief: JSON.stringify(direction), count: 3 });
-      if (comps.length !== 3) throw new Error("Direction generator must return exactly three private comps");
+      const comps = await generateImagesWithBoundedRetry(
+        this.deps.images,
+        { model: IMAGE_MODEL, brief: JSON.stringify(direction), count: 3 }
+      );
+      const imagesMissing = comps === null;
+      if (!imagesMissing && comps.length !== 3) {
+        throw new Error("Direction generator must return exactly three private comps");
+      }
 
-      await this.move(job, "building");
+      await this.move(job, "building", imagesMissing ? { imagesMissing: true } : undefined);
       await this.deps.codex.run({
         role: "builder", model: DESIGN_MODEL, workspace: job.workspace,
-        instructions: `Build the complete responsive production site using the selected direction. Never fabricate business facts. Directions: ${JSON.stringify(direction)}`,
+        instructions: imagesMissing
+          ? `Build the complete responsive production site using the selected direction. No image comps are available -- image generation failed after ${IMAGE_GENERATION_MAX_ATTEMPTS} attempts. Build using typography, color, layout, and iconography only. Never fabricate, reference, or leave placeholders for missing images. Never fabricate business facts. Directions: ${JSON.stringify(direction)}`
+          : `Build the complete responsive production site using the selected direction. Never fabricate business facts. Directions: ${JSON.stringify(direction)}`,
       });
 
       while (true) {

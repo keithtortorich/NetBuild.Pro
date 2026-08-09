@@ -35,7 +35,7 @@ import {
 } from "./site_maker_engine.ts";
 import {
   OpenAICodexRuntime,
-  OpenAIImageGenerator,
+  OpenRouterImageGenerator,
   SupabaseArtifactStore,
   HTTPJobStateSink,
 } from "./site_magic_adapters.ts";
@@ -55,12 +55,20 @@ export interface WorkerDependencies {
 export type DependencyFactory = (tenantId: string) => WorkerDependencies;
 
 /** Real adapters wired from env, built fresh per job -- see module
- * docstring for why `evidence` can't be a single shared instance. */
+ * docstring for why `evidence` can't be a single shared instance.
+ *
+ * images: OpenRouterImageGenerator, not OpenAIImageGenerator -- OpenAI's
+ * GPT Image org-access gate is unapproved (see site_magic_adapters.ts's
+ * module docstring), while OpenRouter uses the OPENROUTER_API_KEY this
+ * repo already has configured for design_critique/client.py. Same
+ * ImageGenerator contract (string[] of data: URIs), so SiteMakerEngine is
+ * unaffected by the swap. If OpenAI org access is later approved and a
+ * switch back is wanted, this is the one line to change. */
 export function buildProductionDependencies(tenantId: string): WorkerDependencies {
   return {
     states: new HTTPJobStateSink(),
     codex: new OpenAICodexRuntime(),
-    images: new OpenAIImageGenerator(),
+    images: new OpenRouterImageGenerator(),
     evidence: new PlaywrightEvidenceRunner({ tenantId }),
     artifacts: new SupabaseArtifactStore(),
   };

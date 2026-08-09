@@ -7,6 +7,7 @@ import {
   JobStateSinkNotConfiguredError,
   OpenAICodexRuntime,
   OpenAIImageGenerator,
+  OpenRouterImageGenerator,
   SupabaseArtifactStore,
   HTTPJobStateSink,
 } from "../webstaffr/site_magic_adapters.ts";
@@ -67,6 +68,63 @@ test("OpenAIImageGenerator.generate rejects a response with the wrong comp count
   const generator = new OpenAIImageGenerator("test-key", stubFetch);
   await assert.rejects(() =>
     generator.generate({ model: "gpt-image-2", brief: "a plumbing brand", count: 3 })
+  );
+});
+
+test("OpenRouterImageGenerator throws ImageGeneratorNotConfiguredError with no api key", () => {
+  const previous = process.env.OPENROUTER_API_KEY;
+  delete process.env.OPENROUTER_API_KEY;
+  try {
+    assert.throws(() => new OpenRouterImageGenerator(), ImageGeneratorNotConfiguredError);
+  } finally {
+    if (previous !== undefined) process.env.OPENROUTER_API_KEY = previous;
+  }
+});
+
+test("OpenRouterImageGenerator.generate returns exactly the requested count as data URIs, one call per comp", async () => {
+  let calls = 0;
+  const stubFetch = (async () => {
+    calls += 1;
+    return new Response(
+      JSON.stringify({
+        choices: [
+          { message: { images: [{ image_url: { url: `data:image/png;base64,COMP${calls}` } }] } },
+        ],
+      }),
+      { status: 200, headers: { "content-type": "application/json" } }
+    );
+  }) as typeof fetch;
+  const generator = new OpenRouterImageGenerator("test-key", stubFetch);
+  const comps = await generator.generate({
+    model: "google/gemini-2.5-flash-image",
+    brief: "a plumbing brand",
+    count: 3,
+  });
+  assert.equal(comps.length, 3);
+  assert.equal(calls, 3);
+  for (const comp of comps) {
+    assert.match(comp, /^data:image\/png;base64,/);
+  }
+});
+
+test("OpenRouterImageGenerator.generate rejects when a response has no image part", async () => {
+  const stubFetch = (async () =>
+    new Response(
+      JSON.stringify({ choices: [{ message: {} }] }),
+      { status: 200, headers: { "content-type": "application/json" } }
+    )) as typeof fetch;
+  const generator = new OpenRouterImageGenerator("test-key", stubFetch);
+  await assert.rejects(() =>
+    generator.generate({ model: "google/gemini-2.5-flash-image", brief: "a plumbing brand", count: 3 })
+  );
+});
+
+test("OpenRouterImageGenerator.generate rejects on a non-ok HTTP response", async () => {
+  const stubFetch = (async () =>
+    new Response("rate limited", { status: 429 })) as typeof fetch;
+  const generator = new OpenRouterImageGenerator("test-key", stubFetch);
+  await assert.rejects(() =>
+    generator.generate({ model: "google/gemini-2.5-flash-image", brief: "a plumbing brand", count: 3 })
   );
 });
 
