@@ -257,6 +257,7 @@ html,body{height:100%;font-family:'Inter',sans-serif;background:var(--offwhite);
     <button class="tab" data-panel="tracker">Tracker</button>
     <button class="tab" data-panel="referral">Referral</button>
     <button class="tab" data-panel="notes">Notes</button>
+    <button class="tab" data-panel="launch">Launch Plan</button>
   </div>
 
   <!-- PANELS -->
@@ -553,6 +554,77 @@ html,body{height:100%;font-family:'Inter',sans-serif;background:var(--offwhite);
         </div>
         <button class="btn btn--navy" id="addNoteBtn">Save Note</button>
         <div id="noteList" style="margin-top:12px;"></div>
+      </div>
+    </div>
+
+    <!-- MONDAY LAUNCH PLAN -->
+    <div class="panel" id="panel-launch">
+      <div class="card">
+        <div class="card__head">Monday launch &mdash; 2026-08-10 &middot; Memphis HVAC, $0 start</div>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 12px;">Full detail in docs/MONDAY_LAUNCH_RUNBOOK.md. Schedule below is shown in Manila time (PHT) against Memphis time (CDT) &mdash; 13 hours ahead.</p>
+        <button class="btn btn--navy" id="copyLaunchBriefBtn">Copy Full Brief (for CMO)</button>
+      </div>
+
+      <div class="card">
+        <div class="card__head">Targets</div>
+        <div class="score-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
+          <div class="score-box"><strong>15&ndash;20</strong><span>Target dials</span></div>
+          <div class="score-box"><strong>3&ndash;5</strong><span>Conversations</span></div>
+          <div class="score-box"><strong>1</strong><span>Verbal yes goal</span></div>
+          <div class="score-box"><strong>$497</strong><span>Price / mo</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__head">Hour by hour (Manila / Memphis)</div>
+        <div class="obj-list" id="launchSchedule"></div>
+      </div>
+
+      <div class="card">
+        <div class="card__head">The moment someone says yes</div>
+        <div class="obj-list" id="launchYesSteps"></div>
+      </div>
+
+      <div class="card">
+        <div class="card__head">Top 4 calls (verified angle)</div>
+        <div class="obj-list" id="launchTop4"></div>
+      </div>
+
+      <div class="card">
+        <div class="card__head">Call script</div>
+        <div class="pitch-out">
+          <div class="pitch-box" id="launchScriptBox">
+            <div class="copy-toast" id="launchScriptToast">Copied!</div>
+            <span id="launchScriptContent"></span>
+          </div>
+        </div>
+        <button class="btn btn--outline" style="margin-top:8px" id="copyLaunchScriptBtn">Copy script</button>
+      </div>
+
+      <div class="card">
+        <div class="card__head">Where the $497 goes</div>
+        <div class="compare-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="compare-box compare-box--human">
+            <div class="compare-box__label">Delivery cost held back</div>
+            <div class="compare-box__val">~$65</div>
+            <div class="compare-box__sub">per month</div>
+          </div>
+          <div class="compare-box compare-box--ws">
+            <div class="compare-box__label">Gross profit banked</div>
+            <div class="compare-box__val">~$432</div>
+            <div class="compare-box__sub">per month</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__head">Verification checklist</div>
+        <div class="obj-list" id="launchChecklist"></div>
+      </div>
+
+      <div class="card">
+        <div class="card__head">Call list</div>
+        <p style="font-size:13px;line-height:1.6;margin:0;">50 Memphis-area HVAC businesses, pre-loaded into the <strong>Leads</strong> tab in call order. Top 4 carry a verified angle (weak site, no after-hours coverage, high review volume). The other 46 share the campaign's structural reason: techs are in trucks all day, so most small/independent shops have no one answering the phone after-hours or mid-job &mdash; every missed call is a missed job.</p>
       </div>
     </div>
 
@@ -1319,9 +1391,108 @@ function seedMondayCallListIfEmpty() {
   saveData();
 }
 
+const LAUNCH_SCHEDULE = [
+  ['8:00 PM Mon', '7:00 AM Memphis', "Sign up Retell AI, verify email, confirm $10 credit live &mdash; don't build the agent yet"],
+  ['8:15 PM Mon', '7:15 AM Memphis', 'Run production_smoke.py, confirm landing + one demo site load'],
+  ['8:30 PM Mon', '7:30 AM Memphis', 'One-shot test intake &mdash; see a real tenant + rendered site before promising it'],
+  ['8:30&ndash;9:00 PM', '7:30&ndash;8:00 AM Memphis', 'Read the call script twice out loud, prospect list open next to phone'],
+  ['9:00 PM&ndash;12:30 AM', '8&ndash;11:30 AM Memphis', '<strong>Call block 1</strong>'],
+  ['12:30&ndash;1:00 AM', '11:30 AM&ndash;12 PM Memphis', "Yes &rarr; send intake link now. No yes &rarr; log callbacks for the next list"],
+  ['1:00&ndash;2:00 AM', '12&ndash;1 PM Memphis', 'Break. Prep the intake submission for the best lead'],
+  ['2:00&ndash;5:00 AM', '1&ndash;4 PM Memphis', '<strong>Call block 2</strong> &mdash; callbacks, text follow-ups, next 10-15 names'],
+  ['5:00&ndash;6:00 AM Tue', '4&ndash;5 PM Memphis', '"Call me end of day" owners pick up here']
+];
+const LAUNCH_YES_STEPS = [
+  'Get name, phone, city/area, hours, 2-3 services on the call &mdash; no form while on the phone',
+  'Submit POST /intake &mdash; creates tenant + renders site, returns tenant_id',
+  'Text the live site URL within 5 minutes &mdash; that speed is the pitch',
+  "Same-day voice: Retell number &rarr; Angel's prompt &rarr; set RETELL_WEBHOOK_SECRET",
+  'Collect payment &mdash; Stripe Payment Link fallback until STRIPE_WEBHOOK_SECRET is set'
+];
+const LAUNCH_TOP4 = [
+  ['Waller Heat & Air', '(901) 331-6589', '30 yrs in business, GoDaddy site, no online booking or AI answering'],
+  ['Tiger Paws HVAC', '(901) 330-1473', 'Solo/family shop, claims 24/7 with no way to prove it'],
+  ['Al Britt Air & Heat', '(901) 324-6213', '116 reviews, but office hours M-F 8-5 only'],
+  ['Comfortable LLC', '(901) 262-5931', '638 reviews, high call volume, high missed-call odds']
+];
+const LAUNCH_SCRIPT = `"Hi, is this [Owner Name]? This is [Your Name], I work with HVAC companies in Memphis. Quick question -- when your phone rings and your techs are on a job, what happens to that call?"
+
+(Let them answer. Almost always: voicemail, rings out, or a tired dispatcher between jobs.)
+
+"Yeah, that's what I figured. I build a system that answers every call and text instantly -- even at 2 AM -- captures the job details, and gets it on your calendar before the customer even hangs up. I can show you exactly what it'd look like for [Business Name] in about 5 minutes, no cost to look. You got 5 minutes right now, or should I call back this afternoon?"
+
+If price comes up: "$497 a month, no setup fee, no contract -- cancel anytime. Most guys make that back on the first missed call it catches."`;
+const LAUNCH_CHECKLIST = [
+  [true,  'GET /health &rarr; 200 ok, release 92ee022'],
+  [true,  'Landing page renders with current copy'],
+  [true,  'OPENROUTER_API_KEY live, image call verified'],
+  [false, 'netbuild.pro/demos loads post-DNS-propagation'],
+  [false, 'Test email round-trips clean'],
+  [false, 'Monday night (your time): run toolkit #3 test intake, open generated site'],
+  [false, 'STRIPE_WEBHOOK_SECRET set (or use Payment Link fallback)'],
+  [false, 'Retell signup done before first client call']
+];
+
+function renderLaunchPlan() {
+  $('launchSchedule').innerHTML = LAUNCH_SCHEDULE.map(([manila, memphis, text]) =>
+    `<div style="display:grid;grid-template-columns:150px 1fr;gap:6px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">
+      <div><strong>${manila}</strong><br><span style="color:var(--muted);font-size:11px;">${memphis}</span></div>
+      <div style="align-self:center;">${text}</div>
+    </div>`).join('');
+  $('launchYesSteps').innerHTML = LAUNCH_YES_STEPS.map((step, i) =>
+    `<div style="display:flex;gap:10px;font-size:13px;padding:4px 0;"><strong>${i + 1}.</strong><span>${step}</span></div>`).join('');
+  $('launchTop4').innerHTML = LAUNCH_TOP4.map(([name, phone, angle]) =>
+    `<div style="padding:8px 0;border-bottom:1px solid var(--border);">
+      <div style="display:flex;justify-content:space-between;font-size:14px;"><strong>${escapeHtml(name)}</strong><span style="color:var(--muted);">${phone}</span></div>
+      <div style="font-size:12px;color:var(--muted);margin-top:2px;">${escapeHtml(angle)}</div>
+    </div>`).join('');
+  $('launchScriptContent').textContent = LAUNCH_SCRIPT;
+  $('launchChecklist').innerHTML = LAUNCH_CHECKLIST.map(([done, text]) =>
+    `<div style="font-size:13px;padding:3px 0;">${done ? '&#9989;' : '&#9744;'} ${text}</div>`).join('');
+}
+
+function buildLaunchBriefText() {
+  const lines = [];
+  lines.push('NETBUILD.PRO -- MONDAY LAUNCH BRIEF (2026-08-10)');
+  lines.push('Memphis HVAC, $0 start');
+  lines.push('');
+  lines.push('TARGETS: 15-20 dials, 3-5 real conversations, 1 verbal yes. Price: $497/mo.');
+  lines.push('');
+  lines.push('SCHEDULE (Manila time / Memphis time):');
+  LAUNCH_SCHEDULE.forEach(([manila, memphis, text]) => {
+    lines.push(`- ${manila.replace(/&ndash;/g, '-')} (${memphis.replace(/&ndash;/g, '-')}): ${text.replace(/<\/?strong>/g, '').replace(/&rarr;/g, '->').replace(/&mdash;/g, '--')}`);
+  });
+  lines.push('');
+  lines.push('THE MOMENT SOMEONE SAYS YES:');
+  LAUNCH_YES_STEPS.forEach((s, i) => lines.push(`${i + 1}. ${s.replace(/&rarr;/g, '->').replace(/&mdash;/g, '--')}`));
+  lines.push('');
+  lines.push('CALL SCRIPT:');
+  lines.push(LAUNCH_SCRIPT);
+  lines.push('');
+  lines.push('TOP 4 CALLS:');
+  LAUNCH_TOP4.forEach(([name, phone, angle]) => lines.push(`- ${name} ${phone} -- ${angle}`));
+  lines.push('');
+  lines.push(`FULL CALL LIST: ${MONDAY_HVAC_CALL_LIST.length} Memphis-area HVAC businesses, pre-loaded in the Leads tab. Reason for the rest: techs are in trucks all day, so most small shops have no one answering after-hours or mid-job.`);
+  lines.push('');
+  lines.push('WHERE THE $497 GOES: ~$65/mo delivery cost held back, ~$432/mo gross profit banked.');
+  lines.push('');
+  lines.push('VERIFICATION CHECKLIST:');
+  LAUNCH_CHECKLIST.forEach(([done, text]) => lines.push(`[${done ? 'x' : ' '}] ${text.replace(/&rarr;/g, '->').replace(/&mdash;/g, '--')}`));
+  return lines.join('\n');
+}
+
+$('copyLaunchBriefBtn').addEventListener('click', function () {
+  copyText(this, buildLaunchBriefText());
+  showToast('Brief copied -- paste into an email or Slack message');
+});
+$('copyLaunchScriptBtn').addEventListener('click', function () {
+  copyText(this, LAUNCH_SCRIPT);
+});
+
 /* ── INIT ── */
 loadData();
 seedMondayCallListIfEmpty();
+renderLaunchPlan();
 renderAll();
 tallyCalls();
 renderCallLog();
