@@ -52,9 +52,20 @@
 
 - Canonical checkout: `/Users/doc/Desktop/NetBuild.Pro`
 - Branch: `main`
-- Starting commit: `b095176`
-- No commit, push, deployment, production queue activation, credential change, or production migration occurred.
-- Working tree contains this incomplete Phase 1 work plus the protected pre-existing `webstaffr/templates/site/base.html` edit.
+- Site Magic Phase 2 commit: `869895e` (`feat: Site Magic Phase 2 -- API, repository, adapters, worker entrypoint`)
+- Local `main`, `origin/main`, and `origin/HEAD` all resolve to `869895e`.
+- The scoped Site Magic Phase 2 changes were committed and pushed to GitHub `main`. This means **available on origin**, not deployed to production.
+- No deployment, production queue activation, credential activation, Supabase migration, or production smoke test occurred.
+- The remaining dirty tree was deliberately excluded from the push and must be reviewed as a separate change set.
+
+## Remaining Dirty-Tree Review Gate
+
+- The v3.5.0 Impeccable restore still appears as extensive `.claude/skills/impeccable` and `.github/skills/impeccable` churn against the previously tracked v4 tree. Do not stage it until both restored trees are compared file-for-file against source commit `99fbe4bb10a1453c82027a477503ce240d9b0b47`.
+- Finder-style conflict files such as `SKILL 2.md`, `SKILL 3.md`, `adapt 2.md`, and similarly suffixed scripts are not canonical upstream paths. After hash comparison, remove only confirmed duplicates in a recoverable way; never include them in the pin commit.
+- `webstaffr/skills.py`, `webstaffr/skills/__init__.py`, and `tests/test_site_magic_engine.py` were intentionally retired by the approved plan because the homemade pipeline fabricated customer claims and the test covered that obsolete implementation. Their deletion is expected, but should receive one final isolated regression review before its own commit.
+- `webstaffr/templates/agency/static/agency.css` and `agency.js` were not part of the pushed Site Magic scope. Verify that the refactored agency router and templates no longer reference or serve them before accepting deletion; otherwise restore them.
+- `.gitignore` is additive and limited to Node/Site Magic runtime artifacts.
+- The pre-existing `webstaffr/templates/site/base.html` modification remains protected and unrelated.
 
 ## Next Three Priorities
 

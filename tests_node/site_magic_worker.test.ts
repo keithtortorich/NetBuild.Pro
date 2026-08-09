@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
 import type { EvidenceRunner, QualityReport } from "../webstaffr/site_maker_engine.ts";
 import {
+  buildProductionDependencies,
   fetchJobRecord,
   processJob,
   resolveSource,
@@ -10,11 +11,12 @@ import {
   UnresolvableSourceError,
   type WorkerDependencies,
 } from "../webstaffr/site_magic_worker.ts";
+import { PlaywrightEvidenceRunner } from "../webstaffr/site_magic_evidence_runner.ts";
 
-/** Dry-run stand-in for the not-yet-built real EvidenceRunner (Priority #2,
- * deliberately deferred). Always reports every deterministic gate passing
- * so a full circuit run can prove SiteMakerEngine wiring without
- * Playwright/axe-core/Lighthouse. */
+/** Dry-run stand-in for a real EvidenceRunner -- keeps these worker-wiring
+ * tests fast and independent of a real Chromium/axe-core/Lighthouse pass
+ * (that's exercised for real in site_magic_evidence_runner.test.ts).
+ * Always reports every deterministic gate passing. */
 class FakeEvidenceRunner implements EvidenceRunner {
   async assess(): Promise<QualityReport> {
     return {
@@ -37,6 +39,9 @@ function fakeDependencies(): { deps: WorkerDependencies; states: string[] } {
         if (args.role === "finish_reviewer") {
           return { verdict: "PASS", authoredNotInterchangeable: true, materialFindings: [] };
         }
+        if (args.role === "design_assessor") {
+          return { designScore: 36, applicableMax: 40, findings: [] };
+        }
         return {};
       },
     },
@@ -46,6 +51,30 @@ function fakeDependencies(): { deps: WorkerDependencies; states: string[] } {
   };
   return { deps, states };
 }
+
+test("buildProductionDependencies wires a real PlaywrightEvidenceRunner, not a Null stand-in", () => {
+  const originals = {
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    SUPABASE_URL: process.env.SUPABASE_URL,
+    SITE_MAGIC_STORAGE_SERVICE_KEY: process.env.SITE_MAGIC_STORAGE_SERVICE_KEY,
+    SITE_MAGIC_API_BASE_URL: process.env.SITE_MAGIC_API_BASE_URL,
+    SITE_MAGIC_INTERNAL_API_KEY: process.env.SITE_MAGIC_INTERNAL_API_KEY,
+  };
+  Object.assign(process.env, {
+    OPENAI_API_KEY: "test-key", SUPABASE_URL: "https://example.supabase.co",
+    SITE_MAGIC_STORAGE_SERVICE_KEY: "test-service-key",
+    SITE_MAGIC_API_BASE_URL: "https://control-plane.internal",
+    SITE_MAGIC_INTERNAL_API_KEY: "test-internal-key",
+  });
+  try {
+    const deps = buildProductionDependencies("tenant-1");
+    assert.ok(deps.evidence instanceof PlaywrightEvidenceRunner);
+  } finally {
+    for (const [key, value] of Object.entries(originals)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
+});
 
 test("resolveSource maps a url job", () => {
   const source = resolveSource({ source_type: "url", source_payload: { url: "https://example.com/" } });
@@ -126,7 +155,7 @@ test("dry run: full circuit from control-plane job record to a sealed build, no 
       { status: 200, headers: { "content-type": "application/json" } }
     )) as typeof fetch;
 
-  const result = await processJob("job-dry-run", "tenant-1", deps, {
+  const result = await processJob("job-dry-run", "tenant-1", () => deps, {
     baseUrl: "https://control-plane.internal", apiKey: "internal-key", fetchImpl: stubFetch,
   });
 
@@ -137,7 +166,7 @@ test("dry run: full circuit from control-plane job record to a sealed build, no 
 test("webhook server rejects a wrong shared secret", async () => {
   const { deps } = fakeDependencies();
   const server = startWebhookServer({
-    port: 0, secret: "correct-secret", deps,
+    port: 0, secret: "correct-secret", buildDeps: () => deps,
     controlPlane: { baseUrl: "https://control-plane.internal", apiKey: "internal-key" },
   });
   await new Promise((resolve) => server.once("listening", resolve));
@@ -166,7 +195,7 @@ test("webhook server accepts the right secret, responds 202, and runs the job as
 
   let settled: { jobId: string; result: unknown } | undefined;
   const server = startWebhookServer({
-    port: 0, secret: "correct-secret", deps,
+    port: 0, secret: "correct-secret", buildDeps: () => deps,
     controlPlane: { baseUrl: "https://control-plane.internal", apiKey: "internal-key", fetchImpl: stubFetch },
     onJobSettled: (jobId, result) => { settled = { jobId, result }; },
   });

@@ -126,6 +126,42 @@ export function deterministicGatesPass(report: QualityReport): boolean {
     && report.tenantIsolationPassed;
 }
 
+export class InvalidDesignAssessmentError extends Error {}
+
+export interface DesignAssessment {
+  designScore: number;
+  applicableMax: number;
+  findings: Finding[];
+}
+
+/**
+ * designScore/applicableMax/findings need LLM judgment (Nielsen heuristics,
+ * P0-P3 issue triage) -- there is no deterministic CLI that produces them.
+ * Impeccable's critique/audit commands are Claude Code sub-agent workflows
+ * (reference/critique.md, reference/audit.md), not scriptable tools; only
+ * `impeccable detect --json` is a real deterministic CLI, and that maps to
+ * QualityReport.detectorFindings, not designScore. So EvidenceRunner stays
+ * purely deterministic (axe, Lighthouse, detect, Playwright checks) and
+ * this function is the one place that splices the design_assessor codex
+ * role's judgment into the otherwise-mechanical report, right before any
+ * gate check reads it. Throws rather than defaulting a malformed or
+ * missing assessment to a passing shape -- same fail-closed posture as an
+ * unconfigured adapter.
+ */
+export function mergeDesignAssessment(report: QualityReport, assessment: Record<string, unknown>): QualityReport {
+  const { designScore, applicableMax, findings } = assessment;
+  if (
+    typeof designScore !== "number"
+    || typeof applicableMax !== "number"
+    || !Array.isArray(findings)
+  ) {
+    throw new InvalidDesignAssessmentError(
+      "design_assessor must return {designScore: number, applicableMax: number, findings: Finding[]}"
+    );
+  }
+  return { ...report, designScore, applicableMax, findings: findings as Finding[] };
+}
+
 function hostileSourceEnvelope(source: SiteSource): string {
   const serialized = JSON.stringify(source);
   return [
@@ -192,9 +228,10 @@ export class SiteMakerEngine {
         await this.move(job, "evaluating");
         const designAssessment = await this.deps.codex.run({
           role: "design_assessor", model: DESIGN_MODEL, workspace: job.workspace,
-          instructions: "Independently assess specificity, hierarchy, persuasion, emotional journey, mobile experience, and Nielsen heuristics from 0 to 4. Do not modify files.",
+          instructions: "Independently assess specificity, hierarchy, persuasion, emotional journey, mobile experience, and Nielsen heuristics. Score every APPLICABLE heuristic 0-4 (skip ones that don't apply to this surface) and sum earned points as designScore against applicableMax (the sum of possible points for only the applicable heuristics). List every issue worth fixing as a P0-P3 finding with a stable id and a one-line summary. Return exactly {\"designScore\": number, \"applicableMax\": number, \"findings\": [{\"id\": string, \"priority\": \"P0\"|\"P1\"|\"P2\"|\"P3\", \"summary\": string}]}. Do not modify files.",
         });
         let report = await this.deps.evidence.assess({ workspace: job.workspace, widths: [390, 768, 1440] });
+        report = mergeDesignAssessment(report, designAssessment);
 
         if (!deterministicGatesPass(report)) {
           if (remediationRounds >= MAX_REMEDIATION_ROUNDS) {

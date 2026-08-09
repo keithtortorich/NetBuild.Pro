@@ -6,12 +6,15 @@
  *
  * Fail-closed like the rest of this repo: buildProductionDependencies()
  * throws a *NotConfiguredError immediately for anything missing rather
- * than degrading silently. It currently ALWAYS resolves `evidence` to
- * NullEvidenceRunner -- no real EvidenceRunner exists yet (that's
- * docs/STANDUP_2026-08-09_IMPECCABLE_PHASE_2.md Priority #2, deliberately
- * not built here). SiteMakerEngine.run() already catches that thrown
- * error and reports "failed", so a production run failing at the first
- * evaluating step is correct current behavior, not a bug in this file.
+ * than degrading silently.
+ *
+ * Dependencies are built per job, not once at server startup:
+ * PlaywrightEvidenceRunner (site_magic_evidence_runner.ts) needs the
+ * job's own tenantId at construction (tenantIsolationPassed checks for a
+ * hardcoded *other*-tenant path, which requires knowing which tenant is
+ * "self"), so there is no single WorkerDependencies value that's valid
+ * across jobs for different tenants. buildDeps is a factory, called once
+ * per incoming webhook after the tenant_id is known.
  */
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { Server } from "node:http";
@@ -22,7 +25,6 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   SiteMakerEngine,
-  NullEvidenceRunner,
   type SiteMagicJobInput,
   type SiteSource,
   type CodexRuntime,
@@ -37,6 +39,7 @@ import {
   SupabaseArtifactStore,
   HTTPJobStateSink,
 } from "./site_magic_adapters.ts";
+import { PlaywrightEvidenceRunner } from "./site_magic_evidence_runner.ts";
 
 export class WorkerNotConfiguredError extends Error {}
 export class UnresolvableSourceError extends Error {}
@@ -49,14 +52,16 @@ export interface WorkerDependencies {
   artifacts: ArtifactStore;
 }
 
-/** Real adapters wired from env. `evidence` is deliberately still
- * NullEvidenceRunner -- see module docstring. */
-export function buildProductionDependencies(): WorkerDependencies {
+export type DependencyFactory = (tenantId: string) => WorkerDependencies;
+
+/** Real adapters wired from env, built fresh per job -- see module
+ * docstring for why `evidence` can't be a single shared instance. */
+export function buildProductionDependencies(tenantId: string): WorkerDependencies {
   return {
     states: new HTTPJobStateSink(),
     codex: new OpenAICodexRuntime(),
     images: new OpenAIImageGenerator(),
-    evidence: new NullEvidenceRunner(),
+    evidence: new PlaywrightEvidenceRunner({ tenantId }),
     artifacts: new SupabaseArtifactStore(),
   };
 }
@@ -137,13 +142,13 @@ export async function runJob(
 export async function processJob(
   jobId: string,
   tenantId: string,
-  deps: WorkerDependencies,
+  buildDeps: DependencyFactory,
   controlPlane: { baseUrl: string; apiKey: string; fetchImpl?: typeof fetch }
 ): Promise<{ status: "ready_for_review" | "failed" | "quarantined"; buildId?: string }> {
   const record = await fetchJobRecord(jobId, tenantId, controlPlane);
   const source = resolveSource(record);
   const workspace = await mkdtemp(join(tmpdir(), `site-magic-${jobId}-`));
-  return runJob({ jobId, tenantId, workspace, source }, deps);
+  return runJob({ jobId, tenantId, workspace, source }, buildDeps(tenantId));
 }
 
 function verifySecret(provided: string | undefined, expected: string): boolean {
@@ -165,7 +170,7 @@ function verifySecret(provided: string | undefined, expected: string): boolean {
 export function startWebhookServer(options: {
   port: number;
   secret: string;
-  deps: WorkerDependencies;
+  buildDeps: DependencyFactory;
   controlPlane: { baseUrl: string; apiKey: string; fetchImpl?: typeof fetch };
   onJobSettled?: (
     jobId: string,
@@ -199,7 +204,7 @@ export function startWebhookServer(options: {
       res.writeHead(202).end();
       const jobId = payload.job_id;
       const tenantId = payload.tenant_id;
-      processJob(jobId, tenantId, options.deps, options.controlPlane)
+      processJob(jobId, tenantId, options.buildDeps, options.controlPlane)
         .then((result) => options.onJobSettled?.(jobId, result))
         .catch((error) => options.onJobSettled?.(jobId, { error }));
     });
@@ -222,7 +227,7 @@ if (isMainModule) {
   startWebhookServer({
     port,
     secret,
-    deps: buildProductionDependencies(),
+    buildDeps: buildProductionDependencies,
     controlPlane: { baseUrl, apiKey },
     onJobSettled: (jobId, result) => {
       console.log(`[site-magic-worker] job ${jobId} settled`, result);
