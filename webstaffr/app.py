@@ -99,6 +99,7 @@ _PRIVATE_CORS_PATHS = {"/auth/session", "/auth/logout"}
 # membership in _CORS_SCOPED_PATHS can't match a dynamic segment.
 _PUBLIC_CORS_PREFIXES = ("/intake/presets", "/sites/")
 _PRIVATE_CORS_PREFIXES = ("/tenants/",)
+_SERVICETITAN_POLL_PATH = "/integrations/servicetitan/poll"
 
 
 def _customer_allowed_origins_from_env() -> frozenset[str]:

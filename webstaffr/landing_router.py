@@ -141,11 +141,7 @@ async def investor_pitch():
         "narrative": "You don't need more leads. You need to stop losing the ones you already have.",
         "problem": "Home-service contractors need a reliable way to capture incoming demand while they are working.",
         "solution": "NetBuild.Pro builds the customer site first, then activates call handling, CRM routing, and booking after each approved integration is verified.",
-        "pricing": {
-            "essentials_monthly": 497,
-            "pro_monthly": 2497,
-            "growth": "custom"
-        },
+        "pricing": {"office_staff_monthly": 497},
         "ask": "$15K-50K SAFE",
         "contact": {
             "email": _CONTACT_EMAIL,
@@ -184,7 +180,7 @@ async def demo_redirect(trade: str, request: Request):
 # Subhead: "WebStaffr answers your phone so you don't lose jobs you already paid to generate"
 # Math: $16,000/month narrative (Voss quantifiable pain formula)
 # Structure: 3 steps, zero risk (Hormozi-Voss sales formula)
-# Pricing: Test Drive free 14d, Office Staff $497 featured, Business Manager $2,497, White-Glove custom
+# Pricing: Office Staff $497 for the initial launch
 # Colors: royal blue, navy, electric orange, light gray bg
 _LANDING_PAGE_HTML = """
 <!DOCTYPE html>

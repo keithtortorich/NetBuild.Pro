@@ -1,0 +1,4 @@
+interface:
+  display_name: "NB.P Analyze"
+  short_description: "Verify NetBuild.Pro repository and release status"
+  default_prompt: "Use $nbp-analyze to inspect NetBuild.Pro and report its current verified status."

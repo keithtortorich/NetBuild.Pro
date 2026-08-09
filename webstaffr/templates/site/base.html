@@ -27,7 +27,7 @@
   --ws-shadow-lift: 0 10px 30px rgba(16, 24, 38, 0.1);
 }
 </style>
-<link rel="stylesheet" href="{{ site_root }}/static/site.css">
+<link rel="stylesheet" href="/static/site.css">
 <script type="application/ld+json">{{ local_business_schema | tojson_script }}</script>
 {% if service_schema %}
 <script type="application/ld+json">{{ service_schema | tojson_script }}</script>
@@ -69,7 +69,7 @@
   </div>
 </footer>
 
-<script src="{{ site_root }}/static/angel-widget.js" data-tenant-id="{{ site.tenant_id }}" data-api-base="{{ api_base }}"></script>
+<script src="/static/angel-widget.js" data-tenant-id="{{ site.tenant_id }}" data-api-base="{{ api_base }}"></script>
 <script>
 // Scroll-reveal for .ws-section blocks. No-op (all visible) if
 // IntersectionObserver is unavailable or the user prefers reduced motion.

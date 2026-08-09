@@ -22,7 +22,7 @@ def _minimal_submission(tmp_path: Path) -> IntakeSubmission:
         differentiator="Differentiator",
         services=["Service A"],
         license_number="LIC-1",
-        plan="essentials",
+        plan="office_staff",
         lead_routing="office",
         approver="owner",
     )

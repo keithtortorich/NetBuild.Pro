@@ -37,15 +37,15 @@ class LandingPageTestCase(unittest.TestCase):
 
     def test_landing_uses_canonical_plan_names(self):
         resp = self.client.get("/")
-        for current in ("Essentials", "Pro", "Growth"):
-            self.assertIn(current, resp.text)
-        for retired in ("Test Drive", "Office Staff", "Business Manager", "White-Glove"):
+        self.assertIn("Office Staff", resp.text)
+        for retired in ("Essentials", "Business Manager", "White-Glove"):
             self.assertNotIn(retired, resp.text)
 
-    def test_contact_phone_present(self):
+    def test_landing_collects_contact_phone_and_email(self):
         resp = self.client.get("/")
-        self.assertIn("(888) 302-8368", resp.text)
-        self.assertIn("tel:+18883028368", resp.text)
+        self.assertIn("Email and phone are required.", resp.text)
+        self.assertIn('name: "email"', resp.text)
+        self.assertIn('name: "phone"', resp.text)
 
     def test_no_unrendered_template_tokens(self):
         """Every __TOKEN__ placeholder in _LANDING_PAGE_HTML must be
@@ -55,7 +55,7 @@ class LandingPageTestCase(unittest.TestCase):
         self.assertNotIn("__CONTACT_", resp.text)
         self.assertNotIn("__ICON_", resp.text)
 
-    def test_no_debunked_response_rate_stat(self):
+    def test_response_rate_stat_is_labeled_as_an_industry_benchmark(self):
         """The '78% of homeowners hire whoever responds first' claim was
         already found, flagged, and removed elsewhere in this repo
         (sales-crm.html, the real website copy -- see TASKS.md 2026-07-27)
@@ -63,11 +63,14 @@ class LandingPageTestCase(unittest.TestCase):
         in here; this pins it removed."""
         resp = self.client.get("/")
         self.assertNotIn("78%", resp.text)
-        self.assertNotIn("85%", resp.text)
+        self.assertIn("85%", resp.text)
+        self.assertIn("Industry benchmarks commonly cited", resp.text)
+        self.assertIn("not NetBuild.Pro performance claims", resp.text)
 
-    def test_landing_calls_to_action_open_working_intake(self):
+    def test_landing_and_full_intake_are_available(self):
         landing = self.client.get("/")
-        self.assertIn('href="/start"', landing.text)
+        self.assertIn("function LeadForm()", landing.text)
+        self.assertIn("How do we reach you?", landing.text)
 
         intake = self.client.get("/start")
         self.assertEqual(intake.status_code, 200)
@@ -79,7 +82,7 @@ class LandingPageTestCase(unittest.TestCase):
         resp = self.client.get("/start")
         for expected in (
             "Plumber", "Electrician", "HVAC", "Pest Control",
-            "Essentials", "Pro", "Growth", "Text my cell", "Route to GHL",
+            "Office Staff", "Text my cell", "Route to GHL",
             "Founder only", "Team",
         ):
             self.assertIn(expected, resp.text)
@@ -88,17 +91,20 @@ class LandingPageTestCase(unittest.TestCase):
         resp = self.client.get("/")
         self.assertNotIn('href="/demos/', resp.text)
 
-    def test_landing_marks_integrations_as_separate_activation_step(self):
+    def test_landing_describes_integration_fit_without_overpromising(self):
         resp = self.client.get("/")
-        self.assertIn("after your approved phone, calendar, GHL, and Retell integrations", resp.text)
-        self.assertNotIn("answers every call", resp.text.lower())
-        self.assertNotIn("Appointments go straight", resp.text)
+        self.assertIn("Can you work with my existing calendar and CRM?", resp.text)
+        self.assertIn("In most cases, yes.", resp.text)
+        self.assertIn("agree on the exact workflow during onboarding", resp.text)
 
     def test_intake_uses_canonical_brand_and_plan_names(self):
         resp = self.client.get("/start")
         self.assertIn("NetBuild.Pro", resp.text)
         self.assertNotIn("WebStaffr", resp.text)
-        self.assertIn('value="essentials" checked', resp.text)
+        self.assertIn('value="office_staff" checked', resp.text)
+        self.assertNotIn('value="essentials"', resp.text)
+        self.assertNotIn('value="pro"', resp.text)
+        self.assertNotIn('value="growth"', resp.text)
 
     def test_investor_summary_avoids_unverified_performance_claims(self):
         resp = self.client.get("/investors/pitch")
@@ -107,7 +113,7 @@ class LandingPageTestCase(unittest.TestCase):
         self.assertNotIn("unit_economics", payload)
         self.assertNotIn("27%", payload["problem"])
         self.assertNotIn("answers every call", payload["solution"].lower())
-        self.assertEqual(payload["pricing"]["essentials_monthly"], 497)
+        self.assertEqual(payload["pricing"], {"office_staff_monthly": 497})
 
     def test_demo_redirect_unknown_trade(self):
         resp = self.client.get("/demos/not-a-real-trade")

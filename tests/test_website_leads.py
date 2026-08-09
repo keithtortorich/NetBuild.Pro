@@ -25,7 +25,7 @@ def _intake_payload(**overrides):
         "differentiator": "Family operated",
         "services": ["Leak Repair", "Drain Cleaning"],
         "license_number": "N/A",
-        "plan": "essentials",
+        "plan": "office_staff",
         "lead_routing": "office",
         "approver": "owner",
     }

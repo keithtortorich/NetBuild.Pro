@@ -161,14 +161,12 @@ Each is already coded to the invariants (Protocol + `Null*` + `*NotConfiguredErr
 
 ### Phase 3 — Customer portal (Weeks 6–9)
 
-**Goal:** the retention surface and the upgrade lever. A Business Manager customer opens this and sees their staff working.
+**Goal:** a future retention surface after the single-tier launch is validated.
 
 Built on Phase 1's `activity_events` and Phase 2's session. Jinja2 server-rendered, matching the existing `site_renderer.py` stack — no new frontend framework, no new dependency.
 
-**Gated to Business Manager tier.** Two things follow from that:
+**Deferred packaging:** initial launch uses only Office Staff at $497/month with slug `office_staff`. Portal tiering and additional packages require a later founder decision after market validation (ADR-026).
 
-- **Tier gating needs the plan-name drift resolved first.** `intake.py` accepts `essentials / pro / growth`; the tier this portal belongs to is called Business Manager in every pricing document. There is no mapping between the two vocabularies. A tier check cannot be written against a name that does not exist in the code. **This is now a Phase 3 prerequisite, not a backlog item** (logged in TASKS.md 2026-08-04).
-- **Office Staff tenants need a preview, not a locked door.** The portal is the reason to pay 5x more. A $497 tenant should see the overview screen with their real numbers and the deeper screens visibly gated — not a 403. That is a conversion surface, not a paywall.
 
 | Screen | Content | Tier | Depth |
 |---|---|---|---|
@@ -298,7 +296,7 @@ Ordered by how much they block:
 2. **Payment vendor: Stripe or Orion** — Stripe integration is already written, tested, and its signature bug fixed. Choosing Orion discards working code.
 3. **TCPA/DNC compliance review** — now a hard gate on all Phase 1 outbound, given the automatic-send decision. Legal, not engineering.
 4. **Auth: managed provider or roll our own** — blocks Phase 2, therefore every dashboard. Engineering recommendation is managed.
-5. **Tier naming** — `essentials / pro / growth` in code vs Office Staff / Business Manager / White-Glove in pricing. Blocks Phase 3 tier gating. Product call, then a rename or mapping.
+5. **Future tier packaging** — launch uses only `office_staff`; define additional tiers after initial market validation.
 6. **SMS/email vendor** — blocks Phase 5c only. Recommendation on file since 2026-07-27.
 7. **Impeccable install: commit or gitignore** — vendored third-party toolchain, currently uncommitted. Committing makes it reproducible and reviewable; gitignoring keeps the repo clean but leaves the capability machine-local. Affects whether Phase 3's compressed estimate survives a machine change.
 

@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS intake_submissions (
     booking_system TEXT,
 
     -- Section 8: Workforce Plan
-    plan TEXT NOT NULL,                 -- essentials | growth | pro
+    plan TEXT NOT NULL,                 -- office_staff for initial launch
     lead_routing TEXT NOT NULL,
     timeline TEXT,
     approver TEXT NOT NULL,

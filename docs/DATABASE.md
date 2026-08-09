@@ -78,7 +78,7 @@ difference.
 | `review_count` | INTEGER | |
 | `certifications`, `has_before_after`, `testimonials` | TEXT | |
 | `facebook_url`, `instagram_url`, `fsm_system`, `booking_system` | TEXT | |
-| `plan` | TEXT | NOT NULL, `'essentials'\|'growth'\|'pro'` |
+| `plan` | TEXT | NOT NULL, `'office_staff'` for initial launch |
 | `lead_routing` | TEXT | NOT NULL, **internal-only** |
 | `timeline` | TEXT | **internal-only** |
 | `approver` | TEXT | NOT NULL, **internal-only** |

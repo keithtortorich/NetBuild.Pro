@@ -40,7 +40,7 @@ def _valid_payload(**overrides):
         "differentiator": "We show up on time, every time.",
         "services": ["Leak Repair", "Drain Cleaning"],
         "license_number": "ROC 999999",
-        "plan": "growth",
+        "plan": "office_staff",
         "lead_routing": "Text Maria at 602-555-0101, replies within 1 hour.",
         "approver": "Maria Lopez",
     }

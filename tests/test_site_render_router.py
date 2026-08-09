@@ -45,7 +45,7 @@ def _valid_payload(**overrides):
         "differentiator": "We show up on time, every time.",
         "services": ["Leak Repair", "Drain Cleaning"],
         "license_number": _NEVER_LEAK_VALUES["license_number"],
-        "plan": "growth",
+        "plan": "office_staff",
         "lead_routing": _NEVER_LEAK_VALUES["lead_routing"],
         "approver": _NEVER_LEAK_VALUES["approver"],
         "competitors": _NEVER_LEAK_VALUES["competitors"],

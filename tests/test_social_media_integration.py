@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -81,55 +82,63 @@ from fastapi.testclient import TestClient
 
 
 def test_mount_endpoint_returns_mount() -> None:
-    app = create_app(internal_api_verifier=NullSharedSecretVerifier())
-    with TestClient(app) as http:
-        response = http.post(
-            "/integrations/social-media/mount",
-            json={
-                "tenant_id": "tenant-1",
-                "social_tenant_id": "org-1",
-                "platforms": ["meta"],
-                "default_brand_id": "brand-1",
-                "mode": "agent_managed",
-            },
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        app = create_app(
+            db_path=str(Path(tmp_dir) / "app.db"),
+            internal_api_verifier=NullSharedSecretVerifier(),
         )
-        assert response.status_code == 200
-        data = response.json()
-        assert data["tenant_id"] == "tenant-1"
-        assert data["social_tenant_id"] == "org-1"
-        assert data["platforms"] == ["meta"]
-        assert data["default_brand_id"] == "brand-1"
-        assert data["mode"] == "agent_managed"
-        assert data["mount_id"] == 1
-        assert "created_at" in data
+        with TestClient(app) as http:
+            response = http.post(
+                "/integrations/social-media/mount",
+                json={
+                    "tenant_id": "tenant-1",
+                    "social_tenant_id": "org-1",
+                    "platforms": ["meta"],
+                    "default_brand_id": "brand-1",
+                    "mode": "agent_managed",
+                },
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert data["tenant_id"] == "tenant-1"
+            assert data["social_tenant_id"] == "org-1"
+            assert data["platforms"] == ["meta"]
+            assert data["default_brand_id"] == "brand-1"
+            assert data["mode"] == "agent_managed"
+            assert data["mount_id"] == 1
+            assert "created_at" in data
 
 
 def test_intent_endpoint_returns_pending_review() -> None:
-    app = create_app(internal_api_verifier=NullSharedSecretVerifier())
-    with TestClient(app) as http:
-        mount = http.post(
-            "/integrations/social-media/mount",
-            json={
-                "tenant_id": "tenant-1",
-                "social_tenant_id": "org-1",
-                "platforms": ["meta"],
-                "default_brand_id": "brand-1",
-                "mode": "agent_managed",
-            },
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        app = create_app(
+            db_path=str(Path(tmp_dir) / "app.db"),
+            internal_api_verifier=NullSharedSecretVerifier(),
         )
-        assert mount.status_code == 200
-        intent = http.post(
-            "/integrations/social-media/mount/1/intent",
-            json={
-                "campaign_intent": {"objective": "bookings"},
-                "post_draft": {"headline": "test"},
-            },
-        )
-        assert intent.status_code == 200
-        data = intent.json()
-        assert data["status"] == "pending_review"
-        assert data["workflow_instance_id"] == "wf_1"
-        assert data["approval_url"] == "/approvals/wf_1"
+        with TestClient(app) as http:
+            mount = http.post(
+                "/integrations/social-media/mount",
+                json={
+                    "tenant_id": "tenant-1",
+                    "social_tenant_id": "org-1",
+                    "platforms": ["meta"],
+                    "default_brand_id": "brand-1",
+                    "mode": "agent_managed",
+                },
+            )
+            assert mount.status_code == 200
+            intent = http.post(
+                "/integrations/social-media/mount/1/intent",
+                json={
+                    "campaign_intent": {"objective": "bookings"},
+                    "post_draft": {"headline": "test"},
+                },
+            )
+            assert intent.status_code == 200
+            data = intent.json()
+            assert data["status"] == "pending_review"
+            assert data["workflow_instance_id"] == "wf_1"
+            assert data["approval_url"] == "/approvals/wf_1"
 
 
 def test_social_media_routes_default_to_closed() -> None:

@@ -295,7 +295,7 @@ class CustomDomainIntegrationTestCase(unittest.TestCase):
                 "differentiator": "Family operated",
                 "services": ["Leak Repair"],
                 "license_number": "N/A",
-                "plan": "essentials",
+                "plan": "office_staff",
                 "lead_routing": "office",
                 "approver": "owner",
             },

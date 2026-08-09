@@ -195,11 +195,13 @@ def render_robots(tenant_id: str, request: Request) -> Response:
 # aiofiles requirement, no extra directory-traversal surface to reason
 # about, and both files are small enough that reading them fresh per
 # request costs nothing measurable on Vercel's serverless model.
+@site_render_router.get("/static/site.css")
 @site_render_router.get("/sites/{tenant_id}/web/static/site.css")
-def static_site_css(tenant_id: str) -> Response:
+def static_site_css(tenant_id: str | None = None) -> Response:
     return Response(content=_STATIC_SITE_CSS.read_text(), media_type="text/css")
 
 
+@site_render_router.get("/static/angel-widget.js")
 @site_render_router.get("/sites/{tenant_id}/web/static/angel-widget.js")
-def static_angel_widget_js(tenant_id: str) -> Response:
+def static_angel_widget_js(tenant_id: str | None = None) -> Response:
     return Response(content=_STATIC_WIDGET_JS.read_text(), media_type="application/javascript")

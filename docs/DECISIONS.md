@@ -298,3 +298,22 @@ The portal is the clearest visible difference between the tiers and the stronges
 - Office Staff tenants see the Overview screen with their real numbers and deeper screens visibly gated, rather than a 403. The portal is a conversion surface for them, not a locked door.
 
 ---
+
+## ADR-026: Single Office Staff Tier for Initial Launch
+
+**Date:** 2026-08-09
+**Status:** Accepted (founder decision)
+**Depth:** D4 (product packaging and pricing)
+
+### Decision
+
+NetBuild.Pro launches with one tier only: Office Staff at $497/month. Its canonical application slug is `office_staff`. Legacy `essentials`, `pro`, and `growth` slugs are not accepted as aliases. Business Manager and White-Glove are deferred until after initial market validation.
+
+### Consequences
+
+- Public pricing and intake expose only Office Staff.
+- Tests, health checks, current documentation, and new persisted intake records use `office_staff`.
+- Historical records and archived documents may retain old names for provenance, but active product surfaces may not advertise or submit them.
+- Future tier expansion requires a new founder-approved packaging decision and migration plan.
+
+---
