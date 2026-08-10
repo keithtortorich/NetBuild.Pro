@@ -324,14 +324,15 @@ def create_app(
     # the same for /intake. Scoped to just those paths -- see
     # ScopedCORSMiddleware above -- rather than an app-wide wildcard, which
     # would also cover /book and /webhooks/ghl as an unintended side effect.
-    app.add_middleware(
-        ScopedCORSMiddleware,
-        customer_allowed_origins=(
-            frozenset(customer_allowed_origins)
-            if customer_allowed_origins is not None
-            else _customer_allowed_origins_from_env()
-        ),
-    )
+    # TEMPORARILY DISABLED for debugging POST request exceptions
+    # app.add_middleware(
+    #     ScopedCORSMiddleware,
+    #     customer_allowed_origins=(
+    #         frozenset(customer_allowed_origins)
+    #         if customer_allowed_origins is not None
+    #         else _customer_allowed_origins_from_env()
+    #     ),
+    # )
     # TEMPORARILY DISABLED for debugging POST request exceptions
     # app.add_middleware(RequestBodyLimitMiddleware, max_bytes=max_request_body_bytes)
     app.add_middleware(SecurityHeadersMiddleware)
