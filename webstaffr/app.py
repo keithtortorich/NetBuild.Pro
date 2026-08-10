@@ -32,6 +32,7 @@ from .attribution_router import create_attribution_router
 from .auth_router import create_auth_router
 from .custom_domain_middleware import CustomDomainMiddleware
 from .customer_auth import CustomerAuthorizer, IdentityVerifier, identity_verifier_from_env
+from .dashboard_router import dashboard_router
 from .db import connect, migrate, using_postgres
 from .demo_router import demo_router
 from .intake_router import intake_router
@@ -224,6 +225,7 @@ def create_app(
         customer_identity_verifier or identity_verifier_from_env()
     )
     app.state.internal_api_verifier = active_internal_api_verifier
+    app.state.customer_authorizer = customer_authorizer
     # Resolved once here (not left to create_site_magic_router()'s own
     # defaulting) so intake_router's post-commit auto-enqueue hook uses the
     # exact same queue instance the Site Magic API itself enqueues through.
@@ -243,6 +245,9 @@ def create_app(
     app.include_router(create_website_lead_router(ghl_client=ghl_client))
     app.include_router(create_auth_router(customer_authorizer))
     app.include_router(create_attribution_router(customer_authorizer))
+    app.include_router(
+        dashboard_router
+    )
     app.include_router(
         create_site_magic_router(
             customer_authorizer,

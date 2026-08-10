@@ -2,6 +2,16 @@
 
 ## ACTIVE NOW
 
+### 2026-08-11: Client Dashboard — NetBuild Control Center (D2, Complete Locally, Uncommitted)
+**Status:** Complete locally, tests green, visual pass confirmed. Not committed (approval gate).
+**What:** Client-facing dashboard so trade-business owners watch what NetBuild does for them — calls, leads, bookings, reviews, site build, and the voice agent's ROI, in one branded surface.
+**Why now:** The backend already had tenant-scoped read endpoints (`/tenants/{id}/metrics`, `auth_router`, `attribution_router`) but no dashboard surface. This fills it as a pure read-only aggregation, no schema change.
+**Files:** `webstaffr/dashboard.py` (tenant-scoped `DashboardRepository` + `build_dashboard_data()` — reuses `attribution.CallEventRepository`, COUNTs over intake_submissions/website_leads/appointments/review_requests/review_responses/quotes/site_magic_jobs/call_events/tracking_numbers, every query `WHERE tenant_id = ?`), `webstaffr/dashboard_router.py` (`GET /dashboard`, `GET /tenants/{id}/dashboard` SPA shell, `GET /tenants/{id}/dashboard-data` JSON gated by `CustomerAuthorizer` viewer role), `webstaffr/templates/dashboard.html` (single-file branded SPA: rust/gold/navy palette, 6 KPI cards, ROI donut, NetBuild Agent status, website status, reviews, unified activity feed, honest empty states, Supabase magic-link sign-in), wired as a sibling router in `webstaffr/app.py` (sets `app.state.customer_authorizer`), `tests/test_dashboard.py` (11 tests).
+**Verification:** `tests/test_dashboard.py` 11/11 passing; full attribution suite green (32 total). Tenant isolation confirmed (no cross-tenant leak; static check asserts every SQL block is tenant-scoped). SPA renders, auth returns 401/403, HTML serves, screenshot confirmed polished/on-brand. Repo dir was OS-locked (`Operation not permitted`) mid-session from a background preview server; cleared, TASKS.md now updated.
+**No-fabrication invariant holds:** empty tenant shows zeros/nulls, never invented busy numbers; ROI figure is the repo's `$250/booked` placeholder, labeled ESTIMATE.
+**Depends on (separate D3 item, not built here):** customer bootstrap-on-first-login — there is no path yet that creates `customer_users`/`tenant_memberships` after intake, so real clients cannot log in. Until then, `?preview=1` shows the design with a clearly-labeled SAMPLE PREVIEW mode. Live sign-in needs `SUPABASE_URL`/`SUPABASE_PUBLISHABLE_KEY` set (already read by the shell).
+**Open question for founder:** swap the `$250/booked` ROI placeholder for a per-plan real figure (Office Staff $497/mo) once bootstrap exists?
+
 ### 2026-08-11: Site Magic Worker — Railway Deploy Artifacts (Committed, Pushed, Build-Verified)
 **Status:** Code done and live on `main` (`8c2b3de`). Waiting on founder for Railway account/env vars.
 **Why:** `site_magic_worker.ts` is a persistent Node process (Playwright/Chromium Evidence Runner) -- can't run on Vercel serverless. This is why the one real prod job (`550e8400-e29b-41d4-a716-446655440001`) has sat at `status: queued` since 2026-08-10 -- nothing has ever consumed the webhook queue.
