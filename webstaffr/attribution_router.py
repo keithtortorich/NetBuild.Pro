@@ -7,11 +7,10 @@ Deliberately read-only from the outside: call events are written by
 in-process callers (retell_router.py's webhook handlers, workers/angel/
 router.py's /book handler) that already hold an open, tenant-resolved
 connection -- not via a public ingestion endpoint. This keeps the public
-surface here to exactly what the Lovable dashboard needs to read, rather
-than adding a new unauthenticated write endpoint alongside /book and
-/webhooks/ghl -- both of those needed shared-secret auth added after the
-fact (see api_auth.py), a lesson worth designing around here instead of
-repeating.
+API surface minimal, avoiding a new unauthenticated write endpoint
+alongside /book and /webhooks/ghl -- both of those needed shared-secret
+auth added after the fact (see api_auth.py), a lesson worth designing
+around here instead of repeating.
 """
 
 from __future__ import annotations

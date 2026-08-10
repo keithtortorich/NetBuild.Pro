@@ -1,6 +1,5 @@
 """Public-facing projection of an IntakeSubmission -- what GET
-/sites/{tenant_id} returns for the Lovable-hosted, tenant_id-driven
-customer site to render.
+/sites/{tenant_id} returns for the tenant's site to render.
 
 Deliberately NOT a straight dump of the intake_submissions row. Several
 fields collected at intake are internal operations data, not content for
@@ -33,7 +32,7 @@ Perfect-site principle (see CLAUDE.md session addendum, ported from the
 legacy webstaff repo's Perfect-Site-Checklist): this module never invents
 a rating, review count, or testimonial. Optional fields that are None in
 the submission stay absent from the output entirely, rather than being
-filled with a plausible-looking default -- the Lovable site's job is to
+filled with a plausible-looking default -- the site renderer's job is to
 omit that section when the key is missing, not to fabricate content.
 """
 

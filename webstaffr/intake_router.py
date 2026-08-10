@@ -258,7 +258,7 @@ def _enqueue_site_magic_job_if_configured(submission: IntakeSubmission, request:
 @intake_router.get("/intake/presets")
 def list_presets() -> dict:
     """All supported industries, for populating the intake form's industry
-    selector without hardcoding the list on the Lovable/frontend side.
+    selector without hardcoding the list on the frontend side.
     """
     return {"industries": SUPPORTED_INDUSTRIES}
 

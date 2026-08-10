@@ -1,9 +1,7 @@
-"""FastAPI router serving rendered HTML customer/tenant sites -- the
-in-repo, Jinja2-based replacement for Lovable's Site Weaver as the
-*generation* mechanism (see docs/SITE_RENDERER_PLAN.md for the full
-decision record). GET /sites/{tenant_id} (site_router.py) keeps returning
-JSON unchanged; this router adds HTML pages alongside it at
-/sites/{tenant_id}/web and below.
+"""FastAPI router serving rendered HTML customer/tenant sites via Jinja2
+templates (see docs/SITE_RENDERER_PLAN.md for architecture). GET /sites/{tenant_id}
+(site_router.py) keeps returning JSON unchanged; this router adds HTML pages
+alongside it at /sites/{tenant_id}/web and below.
 
 Mounted into the main app via create_app().include_router(site_render_router),
 sibling to site_router, same composition-root rule as every other worker.

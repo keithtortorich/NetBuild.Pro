@@ -92,7 +92,7 @@ So we don't sell software. We sell staff.
 ## Where We're At
 
 **Done this week:**
-- Production-ready Jinja2 site renderer (replaces Lovable dependency)
+- Production-ready Jinja2 site renderer
 - 10 trade-specific demo templates
 - Full test coverage (tenant isolation, never-leak, schema validation)
 - API → database → live site in 48 hours

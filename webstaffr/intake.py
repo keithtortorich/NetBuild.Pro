@@ -11,8 +11,8 @@ see db.get_connection), tenant-scoped throughout.
 Perfect-site principle carried forward from the legacy repo's
 Perfect-Site-Checklist audit (2026-07-04): this module only ever stores
 what the business actually submitted. It never fabricates a rating, review
-count, or testimonial, and callers building a site from this data (e.g. a
-Lovable prompt) must apply the same rule -- omit a section rather than
+count, or testimonial, and callers building a site from this data (e.g. the
+site renderer) must apply the same rule -- omit a section rather than
 invent content when a field is empty.
 """
 

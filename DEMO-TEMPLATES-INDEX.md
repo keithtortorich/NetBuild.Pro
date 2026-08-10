@@ -86,14 +86,14 @@ Each template includes:
 
 ---
 
-## Next Steps for Lovable Integration
+## Next Steps for Site Generation
 
-1. **Import to Lovable** — Drag each HTML template into Lovable's design importer
+1. **Site Renderer Integration** — Jinja2 templates render via site_renderer.py
 2. **Brand Customization** — Override company names, phone numbers, locations per customer
 3. **Image Placeholders** — Replace emoji placeholders with real photos (hero image, founder)
 4. **Lead Form Integration** — Wire form to customer's CRM (e.g., GHL, Stripe, Zapier)
 5. **Angel Widget Configuration** — Test live widget embedding and message routing
-6. **Domain & Deployment** — Deploy via Netlify → custom domain per customer
+6. **Domain & Deployment** — Deploy via Vercel + custom domain per tenant
 
 ---
 
@@ -167,4 +167,4 @@ All changes are non-destructive and template-portable.
 
 ---
 
-**Ready for deployment to Lovable and customer integration.**
+**Ready for site generation and customer integration.**

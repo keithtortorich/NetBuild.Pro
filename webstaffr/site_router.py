@@ -1,10 +1,8 @@
 """FastAPI router serving public, tenant_id-driven site data -- what the
-Lovable-hosted customer site (a single dynamic app, not one Lovable
-project per customer -- see CLAUDE.md session addendum) fetches client-side
-to render a business's page.
+customer site fetches client-side to render a business's page.
 
 Mounted into the main app via create_app().include_router(site_router) in
-webstaffr/workers/angel/router.py, same pattern as intake_router.
+webstaffr/app.py, same pattern as intake_router.
 """
 
 from __future__ import annotations

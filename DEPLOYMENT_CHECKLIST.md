@@ -60,7 +60,7 @@ application credentials had to be (and are being) entered fresh; three of seven 
    - Retell bad-signature rejection: **not testable yet** -- `RETELL_WEBHOOK_SECRET` unset,
      so the Null verifier accepts everything by design. Test when Retell is configured.
 
-5. - [ ] **[Founder]** Eyeball-check: open a real generated customer site (Lovable-hosted),
+5. - [ ] **[Founder]** Eyeball-check: open a real generated customer site (site renderer),
    confirm the Angel widget loads and a chat round-trip works end to end. Now meaningful --
    `GROK_API_KEY` is live.
 

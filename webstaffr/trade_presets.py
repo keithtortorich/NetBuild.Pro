@@ -201,8 +201,8 @@ def normalize_industry(industry: str) -> str:
 def get_preset(industry: str) -> dict:
     """Returns the combined hint + software preset for an industry, always
     resolvable (falls back to 'Other'). Used by GET /intake/presets/{industry}
-    so the Lovable-generated form can adapt placeholder copy and FSM options
-    per trade without this backend owning any UI itself."""
+    so the frontend can adapt placeholder copy and FSM options per trade
+    without this backend owning any UI itself."""
     key = normalize_industry(industry)
     return {
         "industry": key,

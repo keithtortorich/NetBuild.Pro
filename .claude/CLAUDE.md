@@ -11,7 +11,7 @@
 **Branch:** Always `main` unless explicitly working on a feature branch.
 
 **Key files:**
-- `site_renderer.py` — Jinja2 engine (WS4 innovation; replaced Lovable Site Weaver)
+- `site_renderer.py` — Jinja2 engine for server-side site rendering
 - `health_check.py` — 9-check suite (improved from WS3's 8)
 - `docs/SITE_RENDERER_PLAN.md` — Architecture
 - `TASKS.md` — Current blockers, progress, milestones

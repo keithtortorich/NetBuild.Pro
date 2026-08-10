@@ -80,21 +80,20 @@ _ALLOWED_ORIGINS = _os.environ.get(
 
 # Paths called directly from browser JS running on an arbitrary origin --
 # the customer-site widget (angel-widget.js) for /chat, the intake form
-# (wherever it's hosted -- the WebStaffr marketing site today, a
-# Lovable-generated page later) for /intake and its read-only presets
-# endpoints, and the Lovable multi-tenant site's client-side fetch of its
-# own content for /sites/{tenant_id}. These are the only paths that need
-# CORS headers. /book and /webhooks/ghl are not meant to be readable by
-# browser JS running on an arbitrary third-party origin -- /webhooks/ghl
-# is only ever called server-to-server by GoHighLevel (CORS is a
-# browser-enforced restriction and has no bearing on that caller), and
-# /book has no browser caller today. Scoping here means adding a
-# browser-facing caller for /book later requires a deliberate change to
-# this set, not an accidental side effect of an app-wide wildcard.
+# for /intake and its read-only presets endpoints, and the customer site's
+# client-side fetch of its own content for /sites/{tenant_id}. These are
+# the only paths that need CORS headers. /book and /webhooks/ghl are not
+# meant to be readable by browser JS running on an arbitrary third-party
+# origin -- /webhooks/ghl is only ever called server-to-server by
+# GoHighLevel (CORS is a browser-enforced restriction and has no bearing
+# on that caller), and /book has no browser caller today. Scoping here
+# means adding a browser-facing caller for /book later requires a
+# deliberate change to this set, not an accidental side effect of an
+# app-wide wildcard.
 _PUBLIC_CORS_PATHS = {"/chat", "/intake"}
 _PRIVATE_CORS_PATHS = {"/auth/session", "/auth/logout"}
 # /tenants/{tenant_id}/{metrics,calls,tracking-number} are read by the
-# Lovable dashboard client-side, same reasoning as /sites/{tenant_id} --
+# customer dashboard client-side, same reasoning as /sites/{tenant_id} --
 # see _CORS_SCOPED_PREFIXES below, where the actual prefix is registered
 # (a dynamic path segment can't be listed here as an exact match).
 # Prefixes rather than exact paths, for routes with a path parameter

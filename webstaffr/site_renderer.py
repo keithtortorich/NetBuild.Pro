@@ -1,6 +1,5 @@
-"""Server-side rendering of customer/tenant sites -- the free, in-repo
-alternative to Lovable's Site Weaver (see docs/SITE_RENDERER_PLAN.md for
-the full decision record).
+"""Server-side rendering of customer/tenant sites using Jinja2 templates.
+See docs/SITE_RENDERER_PLAN.md for architecture.
 
 Consumes the same public projection GET /sites/{tenant_id} already
 returns (build_public_site_data()) -- this module adds no new fields and
