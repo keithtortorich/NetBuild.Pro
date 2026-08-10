@@ -1,0 +1,10 @@
+node_modules
+generated_sites
+.git
+.env
+.env.local
+tests
+tests_node
+docs
+outputs
+*.md

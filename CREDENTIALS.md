@@ -192,13 +192,13 @@
     immutable build artifacts. Real adapter:
     `webstaffr.site_magic_adapters.SupabaseArtifactStorage`.
   - `SITE_MAGIC_WORKER_WEBHOOK_URL` + `SITE_MAGIC_WORKER_WEBHOOK_SECRET`
-    -- hand-off to the existing SMMM/Celery worker infrastructure the Site
-    Magic engine actually runs on (never inside Vercel). This repo has no
-    visibility into that service's real API, so the adapter defines only
-    OUR side of a generic authenticated-webhook contract (POST
-    `{job_id, tenant_id}`, `X-Site-Magic-Secret` header) rather than
-    guessing SMMM's internals -- whoever owns that service registers a
-    listener at the URL. Real adapter:
+    -- hand-off to the Site Magic worker (`webstaffr/site_magic_worker.ts`),
+    deployed as its own Railway service (2026-08-10 decision -- persistent
+    Node process with Chromium/Playwright, architecturally incompatible with
+    Vercel's serverless model; see `Dockerfile` + `railway.json` at repo
+    root). `SITE_MAGIC_WORKER_WEBHOOK_URL` is that Railway service's public
+    URL. The adapter defines a generic authenticated-webhook contract (POST
+    `{job_id, tenant_id}`, `X-Site-Magic-Secret` header). Real adapter:
     `webstaffr.site_magic_adapters.HTTPWebhookSiteMagicQueue`.
   - `SITE_MAGIC_API_BASE_URL` + `SITE_MAGIC_INTERNAL_API_KEY` (worker-side
     env vars) -- the worker's own callback credentials, pointed the other

@@ -7,7 +7,8 @@
   },
   "scripts": {
     "check:site-magic": "node --check webstaffr/site_maker_engine.ts && node --check webstaffr/site_magic_adapters.ts && node --check webstaffr/site_magic_worker.ts && node --check webstaffr/site_magic_evidence_runner.ts",
-    "test:site-magic": "node --test tests_node/*.test.ts"
+    "test:site-magic": "node --test tests_node/*.test.ts",
+    "start:site-magic-worker": "node webstaffr/site_magic_worker.ts"
   },
   "dependencies": {
     "@openai/codex-sdk": "^0.98.0",
