@@ -335,7 +335,8 @@ def create_app(
     # )
     # TEMPORARILY DISABLED for debugging POST request exceptions
     # app.add_middleware(RequestBodyLimitMiddleware, max_bytes=max_request_body_bytes)
-    app.add_middleware(SecurityHeadersMiddleware)
+    # TEMPORARILY DISABLED for debugging POST request exceptions
+    # app.add_middleware(SecurityHeadersMiddleware)
 
     @app.get("/health")
     def health() -> dict:
