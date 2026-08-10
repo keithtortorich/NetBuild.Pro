@@ -332,7 +332,8 @@ def create_app(
             else _customer_allowed_origins_from_env()
         ),
     )
-    app.add_middleware(RequestBodyLimitMiddleware, max_bytes=max_request_body_bytes)
+    # TEMPORARILY DISABLED for debugging POST request exceptions
+    # app.add_middleware(RequestBodyLimitMiddleware, max_bytes=max_request_body_bytes)
     app.add_middleware(SecurityHeadersMiddleware)
 
     @app.get("/health")
