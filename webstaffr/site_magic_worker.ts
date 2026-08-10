@@ -39,6 +39,9 @@ import {
   SupabaseArtifactStore,
   HTTPJobStateSink,
 } from "./site_magic_adapters.ts";
+import {
+  OpenRouterCodegenRuntime,
+} from "./site_magic_codegen_runtime.ts";
 import { PlaywrightEvidenceRunner } from "./site_magic_evidence_runner.ts";
 
 export class WorkerNotConfiguredError extends Error {}
@@ -65,9 +68,22 @@ export type DependencyFactory = (tenantId: string) => WorkerDependencies;
  * unaffected by the swap. If OpenAI org access is later approved and a
  * switch back is wanted, this is the one line to change. */
 export function buildProductionDependencies(tenantId: string): WorkerDependencies {
+  // Use vendor-independent CodexRuntime via OmniRoute (ADR-031)
+  // OmniRoute provides 290 providers, auto-fallback, free tiers
+  // baseUrl can be overridden via SITE_MAGIC_API_BASE_URL (default: http://localhost:20128/v1)
+  const useOmniRoute = process.env.SITE_MAGIC_USE_OMNIROUTE !== "false";
+
+  const codexRuntime: CodexRuntime = useOmniRoute
+    ? new OpenRouterCodegenRuntime({
+        apiKey: "dummy",
+        model: process.env.SITE_MAGIC_DESIGN_MODEL ?? "auto/best-free",
+        baseUrl: process.env.SITE_MAGIC_API_BASE_URL ?? "http://localhost:20128/v1",
+      })
+    : new OpenAICodexRuntime();
+
   return {
     states: new HTTPJobStateSink(),
-    codex: new OpenAICodexRuntime(),
+    codex: codexRuntime,
     images: new OpenRouterImageGenerator(),
     evidence: new PlaywrightEvidenceRunner({ tenantId }),
     artifacts: new SupabaseArtifactStore(),
