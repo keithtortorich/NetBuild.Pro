@@ -465,6 +465,22 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
         radial-gradient(circle at 8% 95%, rgba(255,102,0,.12), transparent 30%),
         linear-gradient(145deg, #0D0D18 0%, #1A1A2E 58%, #0D0D18 100%);
     }
+    /* Section rhythm - fixed palette, same in light and dark mode by design */
+    .section-gradient {
+      background:
+        radial-gradient(ellipse 80% 60% at 20% 0%, rgba(200,90,40,.18), transparent 55%),
+        radial-gradient(ellipse 70% 50% at 90% 100%, rgba(212,165,116,.12), transparent 50%),
+        linear-gradient(160deg, #1A1A2E 0%, #2B2B2B 45%, #1A1A2E 100%);
+      color: #F5F5F5;
+    }
+    .section-dark {
+      background: #1A1A2E;
+      color: #F5F5F5;
+    }
+    .section-light {
+      background: #F5F5F5;
+      color: #2B2B2B;
+    }
     .shadow-soft { box-shadow: 0 20px 60px rgba(7,19,51,.10); }
     html.dark .shadow-soft { box-shadow: 0 20px 60px rgba(0,0,0,.35); }
     .shadow-blue { box-shadow: 0 16px 40px rgba(65,105,225,.24); }
@@ -756,6 +772,21 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
       } catch (e) {}
     })();
   </script>
+  <style>
+    .skip-link {
+      position: absolute;
+      left: -9999px;
+      top: 0;
+      z-index: 100;
+      padding: 0.75rem 1.25rem;
+      background: #0f172a;
+      color: #fff;
+      border-radius: 0 0 0.5rem 0;
+    }
+    .skip-link:focus {
+      left: 0;
+    }
+  </style>
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to main content</a>
@@ -1371,17 +1402,17 @@ const services = [{
 function Services() {
   return /*#__PURE__*/React.createElement("section", {
     id: "services",
-    className: "cv-auto bg-white py-20 dark:bg-[#000055] sm:py-24"
+    className: "cv-auto section-gradient py-20 sm:py-24"
   }, /*#__PURE__*/React.createElement("div", {
     className: "mx-auto max-w-6xl px-4 sm:px-6 lg:px-8"
   }, /*#__PURE__*/React.createElement(Reveal, {
     className: "mx-auto max-w-2xl text-center"
   }, /*#__PURE__*/React.createElement("p", {
-    className: "text-sm font-extrabold uppercase tracking-[.16em] text-[#C85A28] dark:text-[#D4A574]"
+    className: "text-sm font-extrabold uppercase tracking-[.16em] text-[#D4A574]"
   }, "Stop doing two jobs"), /*#__PURE__*/React.createElement("h2", {
-    className: "mt-4 text-3xl font-extrabold tracking-[-.04em] text-[#1A1A2E] dark:text-white sm:text-4xl"
+    className: "mt-4 text-3xl font-extrabold tracking-[-.04em] text-white sm:text-4xl"
   }, "Stay on the tools. We’ll run the office."), /*#__PURE__*/React.createElement("p", {
-    className: "mt-5 text-base leading-7 text-slate-700 dark:text-slate-300"
+    className: "mt-5 text-base leading-7 text-white/75"
   }, "NetBuild.Pro gives growing contractors the front-office consistency of a great in-house team, without recruiting, training, payroll, or turnover.")), /*#__PURE__*/React.createElement("div", {
     className: "mt-12 grid gap-5 md:grid-cols-2"
   }, services.map((service, index) => /*#__PURE__*/React.createElement(Reveal, {
@@ -1406,17 +1437,17 @@ function HowItWorks() {
   const steps = [["01", "We learn your business", "Your services, service area, scheduling rules, pricing boundaries, and the way you want customers treated."], ["02", "We build your playbook", "We create call flows, qualification questions, follow-up sequences, and escalation rules around your operation."], ["03", "We answer and book", "Your team goes live, handles the work, and keeps you informed without interrupting the jobs already on your schedule."]];
   return /*#__PURE__*/React.createElement("section", {
     id: "how-it-works",
-    className: "cv-auto bg-[#F5F5F5] py-20 dark:bg-[#00005A] sm:py-24"
+    className: "cv-auto section-dark py-20 sm:py-24"
   }, /*#__PURE__*/React.createElement("div", {
     className: "mx-auto max-w-6xl px-4 sm:px-6 lg:px-8"
   }, /*#__PURE__*/React.createElement("div", {
     className: "grid gap-10 lg:grid-cols-[.8fr_1.2fr] lg:gap-16"
   }, /*#__PURE__*/React.createElement(Reveal, null, /*#__PURE__*/React.createElement("p", {
-    className: "text-sm font-extrabold uppercase tracking-[.16em] text-[#1A1A2E] dark:text-[#D4A574]"
+    className: "text-sm font-extrabold uppercase tracking-[.16em] text-[#D4A574]"
   }, "Simple to start"), /*#__PURE__*/React.createElement("h2", {
-    className: "mt-4 text-3xl font-extrabold tracking-[-.04em] text-[#1A1A2E] dark:text-white sm:text-4xl"
+    className: "mt-4 text-3xl font-extrabold tracking-[-.04em] text-white sm:text-4xl"
   }, "From missed calls to booked work in three steps."), /*#__PURE__*/React.createElement("p", {
-    className: "mt-5 max-w-md text-base leading-7 text-slate-700 dark:text-slate-300"
+    className: "mt-5 max-w-md text-base leading-7 text-white/75"
   }, "We fit around the systems you already use and make the handoff feel seamless to your customers."), /*#__PURE__*/React.createElement(CTAButton, {
     className: "mt-7"
   }, "Build My Call Playbook")), /*#__PURE__*/React.createElement("ol", {
@@ -1446,17 +1477,17 @@ const tiers = [{
 function Pricing() {
   return /*#__PURE__*/React.createElement("section", {
     id: "pricing",
-    className: "cv-auto bg-white py-20 dark:bg-[#000055] sm:py-24"
+    className: "cv-auto section-light py-20 sm:py-24"
   }, /*#__PURE__*/React.createElement("div", {
     className: "mx-auto max-w-6xl px-4 sm:px-6 lg:px-8"
   }, /*#__PURE__*/React.createElement(Reveal, {
     className: "mx-auto max-w-2xl text-center"
   }, /*#__PURE__*/React.createElement("p", {
-    className: "text-sm font-extrabold uppercase tracking-[.16em] text-[#C85A28] dark:text-[#D4A574]"
+    className: "text-sm font-extrabold uppercase tracking-[.16em] text-[#C85A28]"
   }, "Initial launch plan"), /*#__PURE__*/React.createElement("h2", {
-    className: "mt-4 text-3xl font-extrabold tracking-[-.04em] text-[#1A1A2E] dark:text-white sm:text-4xl"
+    className: "mt-4 text-3xl font-extrabold tracking-[-.04em] text-[#1A1A2E] sm:text-4xl"
   }, "One plan. A complete front office."), /*#__PURE__*/React.createElement("p", {
-    className: "mt-5 text-base leading-7 text-slate-700 dark:text-slate-300"
+    className: "mt-5 text-base leading-7 text-slate-700"
   }, "Office Staff is the only tier available during the initial launch.")), /*#__PURE__*/React.createElement("div", {
     className: "mx-auto mt-12 grid max-w-md items-stretch gap-5"
   }, tiers.map((tier, i) => /*#__PURE__*/React.createElement(Reveal, {
@@ -1491,7 +1522,7 @@ function Pricing() {
     dark: !tier.featured,
     className: tier.featured ? "!bg-[#C85A28] !text-white !shadow-none hover:!bg-[#A04620]" : ""
   }, tier.cta))))), /*#__PURE__*/React.createElement("p", {
-    className: "mt-8 text-center text-sm font-semibold text-slate-700 dark:text-slate-300"
+    className: "mt-8 text-center text-sm font-semibold text-slate-700"
   }, "No card. No long-term contract. Get a job or your first month is free.")));
 }
 function MetricCard({
@@ -1525,18 +1556,18 @@ function Proof() {
   const weekBars = [42, 55, 48, 70, 63, 88, 76, 95];
   return /*#__PURE__*/React.createElement("section", {
     id: "proof",
-    className: "cv-auto bg-white py-20 dark:bg-[#000055] sm:py-24",
+    className: "cv-auto section-gradient py-20 sm:py-24",
     "aria-label": "Customer results"
   }, /*#__PURE__*/React.createElement("div", {
     className: "mx-auto max-w-6xl px-4 sm:px-6 lg:px-8"
   }, /*#__PURE__*/React.createElement(Reveal, {
     className: "mx-auto max-w-2xl text-center"
   }, /*#__PURE__*/React.createElement("p", {
-    className: "text-sm font-extrabold uppercase tracking-[.16em] text-[#C85A28] dark:text-[#D4A574]"
+    className: "text-sm font-extrabold uppercase tracking-[.16em] text-[#D4A574]"
   }, "Proof, not promises"), /*#__PURE__*/React.createElement("h2", {
-    className: "mt-4 text-3xl font-extrabold tracking-[-.04em] text-[#1A1A2E] dark:text-white sm:text-4xl"
+    className: "mt-4 text-3xl font-extrabold tracking-[-.04em] text-white sm:text-4xl"
   }, "Contractors measure us in booked work."), /*#__PURE__*/React.createElement("p", {
-    className: "mt-5 text-base leading-7 text-slate-700 dark:text-slate-300"
+    className: "mt-5 text-base leading-7 text-white/75"
   }, "Here's what a strong first month can look like. The first month has to earn its place, or you don't pay.")), /*#__PURE__*/React.createElement("div", {
     className: "mt-12 grid gap-5 lg:grid-cols-[1.15fr_0.85fr]"
   }, /*#__PURE__*/React.createElement(Reveal, null, /*#__PURE__*/React.createElement("figure", {
@@ -1627,35 +1658,35 @@ function FAQItem({
 }) {
   const [open, setOpen] = useState(false);
   return /*#__PURE__*/React.createElement("div", {
-    className: "border-b border-slate-200 dark:border-white/10"
+    className: "border-b border-slate-200"
   }, /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: () => setOpen(!open),
     className: "focusable flex min-h-[64px] w-full items-center justify-between gap-5 rounded-lg py-5 text-left",
     "aria-expanded": open
   }, /*#__PURE__*/React.createElement("span", {
-    className: "font-extrabold text-[#1A1A2E] dark:text-white"
+    className: "font-extrabold text-[#1A1A2E]"
   }, question), /*#__PURE__*/React.createElement("span", {
-    className: `grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#F5F5F5] text-[#C85A28] transition-transform duration-300 dark:bg-[#C85A28]/25 dark:text-[#D4A574] ${open ? "rotate-180" : ""}`
+    className: `grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white text-[#C85A28] transition-transform duration-300 ${open ? "rotate-180" : ""}`
   }, /*#__PURE__*/React.createElement(Icon, {
     name: "chevron",
     className: "h-4 w-4"
   }))), open && /*#__PURE__*/React.createElement("p", {
-    className: "faq-answer-enter max-w-2xl pb-6 pr-10 text-sm leading-7 text-slate-700 dark:text-slate-300"
+    className: "faq-answer-enter max-w-2xl pb-6 pr-10 text-sm leading-7 text-slate-700"
   }, answer));
 }
 function FAQ() {
   return /*#__PURE__*/React.createElement("section", {
     id: "faq",
-    className: "cv-auto bg-[#F5F5F5] py-20 dark:bg-[#00005A] sm:py-24"
+    className: "cv-auto section-light py-20 sm:py-24"
   }, /*#__PURE__*/React.createElement("div", {
     className: "mx-auto grid max-w-6xl gap-10 px-4 sm:px-6 lg:grid-cols-[.7fr_1.3fr] lg:gap-16 lg:px-8"
   }, /*#__PURE__*/React.createElement(Reveal, null, /*#__PURE__*/React.createElement("p", {
-    className: "text-sm font-extrabold uppercase tracking-[.16em] text-[#1A1A2E] dark:text-[#D4A574]"
+    className: "text-sm font-extrabold uppercase tracking-[.16em] text-[#C85A28]"
   }, "Questions, answered"), /*#__PURE__*/React.createElement("h2", {
-    className: "mt-4 text-3xl font-extrabold tracking-[-.04em] text-[#1A1A2E] dark:text-white sm:text-4xl"
+    className: "mt-4 text-3xl font-extrabold tracking-[-.04em] text-[#1A1A2E] sm:text-4xl"
   }, "Know exactly what you're getting."), /*#__PURE__*/React.createElement("p", {
-    className: "mt-5 max-w-md text-base leading-7 text-slate-700 dark:text-slate-300"
+    className: "mt-5 max-w-md text-base leading-7 text-slate-700"
   }, "Still unsure? Tell us how your calls work today and we’ll map out where NetBuild.Pro fits.")), /*#__PURE__*/React.createElement(Reveal, {
     delay: 1
   }, faqs.map(([question, answer]) => /*#__PURE__*/React.createElement(FAQItem, {
@@ -1955,16 +1986,19 @@ function Footer() {
   }, "© 2026 NetBuild.Pro. All rights reserved.")));
 }
 const DEMO_SITES = [
-  { name: "Northwest Tree Care (Arbor)", file: "/demo-sites/arbor.html" },
-  { name: "Premier Garage Doors", file: "/demo-sites/garage.html" },
-  { name: "Desert Cooling (HVAC)", file: "/demo-sites/hvac.html" },
-  { name: "Evergreen Landscapes", file: "/demo-sites/landscape.html" },
-  { name: "Shield Pest Control", file: "/demo-sites/pest.html" },
-  { name: "Rivera Plumbing", file: "/demo-sites/plumbing.html" },
-  { name: "Gulf Coast Roofing", file: "/demo-sites/roof.html" },
-  { name: "RapidDry Restore (Water)", file: "/demo-sites/waterrestore.html" },
-  { name: "Sparkle Clean (Maid Service)", file: "/demo-sites/maid.html" }
+  { name: "Northwest Tree Care", trade: "Tree Service", file: "/demo-sites/arbor.html" },
+  { name: "Premier Garage Doors", trade: "Garage Door Repair", file: "/demo-sites/garage.html" },
+  { name: "Desert Cooling", trade: "HVAC", file: "/demo-sites/hvac.html" },
+  { name: "Brightline Electric", trade: "Electrician", file: "/demo-sites/electrical.html" },
+  { name: "Evergreen Landscapes", trade: "Landscaping", file: "/demo-sites/landscape.html" },
+  { name: "Shield Pest Control", trade: "Pest Control", file: "/demo-sites/pest.html" },
+  { name: "Rivera Plumbing", trade: "Plumber", file: "/demo-sites/plumbing.html" },
+  { name: "Gulf Coast Roofing", trade: "Roofing", file: "/demo-sites/roof.html" },
+  { name: "RapidDry Restore", trade: "Water Damage Restoration", file: "/demo-sites/waterrestore.html" },
+  { name: "Sparkle Clean", trade: "Cleaning Services", file: "/demo-sites/maid.html" }
 ];
+const DEMO_LOCATION = "Phoenix Metro, AZ";
+const DEMO_FEATURES = ["Service-led homepage", "Angel-ready layout"];
 
 function DemoPreview({ name, file, onClose }) {
   const [blobUrl, setBlobUrl] = useState(null);
@@ -2088,6 +2122,44 @@ function DemoPreview({ name, file, onClose }) {
   }, "Scroll inside the preview to see more"))));
 }
 
+function DemoCard({ demo, active, onOpen }) {
+  const isActive = active && active.name === demo.name;
+  return /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => onOpen(demo.name),
+    "aria-pressed": isActive,
+    className: `focusable group flex w-full flex-col overflow-hidden rounded-[22px] border bg-[#16161F] text-left transition duration-300 ${isActive ? "border-[#D4A574] shadow-[0_0_0_1px_rgba(212,165,116,0.35),0_20px_50px_rgba(0,0,0,0.35)]" : "border-white/10 hover:border-[#D4A574]/50"}`
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between gap-3 px-5 pt-5"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "rounded-full bg-[#0D0D18] px-3 py-1 text-[10px] font-extrabold uppercase tracking-[.14em] text-[#D4A574]"
+  }, demo.trade), /*#__PURE__*/React.createElement("span", {
+    className: "inline-flex items-center gap-1.5 rounded-full border border-[#D4A574]/35 bg-[#D4A574]/10 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[.12em] text-[#D4A574]"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "h-1.5 w-1.5 rounded-full bg-[#D4A574]"
+  }, null), "Demo site")), /*#__PURE__*/React.createElement("div", {
+    className: "mt-6 flex-1 px-5"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "inline-flex rounded-full bg-[#0D0D18] px-3 py-1.5 text-[10px] font-bold text-white/55"
+  }, "Repository hosted"), /*#__PURE__*/React.createElement("h3", {
+    className: "mt-5 text-xl font-extrabold tracking-tight text-white"
+  }, demo.name), /*#__PURE__*/React.createElement("p", {
+    className: "mt-1 text-sm font-semibold text-white/45"
+  }, `${demo.trade} example · ${DEMO_LOCATION}`), /*#__PURE__*/React.createElement("ul", {
+    className: "mt-5 space-y-2"
+  }, DEMO_FEATURES.map(f => /*#__PURE__*/React.createElement("li", {
+    key: f,
+    className: "flex items-center gap-2 text-sm font-semibold text-white/80"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-[#D4A574]"
+  }, "✓"), f)))), /*#__PURE__*/React.createElement("div", {
+    className: "mt-6 border-t border-white/10 px-5 py-4"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-[.14em] text-[#D4A574] transition group-hover:gap-3"
+  }, "View live demo", /*#__PURE__*/React.createElement("span", {
+    "aria-hidden": "true"
+  }, "→"))));
+}
 function Demos() {
   const [active, setActive] = useState(null);
 
@@ -2099,26 +2171,25 @@ function Demos() {
 
   return /*#__PURE__*/React.createElement("section", {
     id: "demos",
-    className: "bg-[#F5F5F5] py-20 dark:bg-[#1A1A2E] sm:py-24"
+    className: "cv-auto section-dark py-20 sm:py-24"
   }, /*#__PURE__*/React.createElement("div", {
     className: "mx-auto max-w-6xl px-4 sm:px-6 lg:px-8"
   }, /*#__PURE__*/React.createElement("div", {
     className: "mx-auto max-w-3xl text-center"
   }, /*#__PURE__*/React.createElement("span", {
-    className: "inline-flex items-center gap-2 rounded-full bg-[#1A1A2E]/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[.12em] text-[#1A1A2E] dark:bg-white/10 dark:text-white/80"
+    className: "inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-bold uppercase tracking-[.12em] text-white/80"
   }, "Live Demo Sites"), /*#__PURE__*/React.createElement("h2", {
-    className: "mt-4 text-3xl font-extrabold tracking-[-.03em] text-[#1A1A2E] dark:text-white sm:text-4xl"
+    className: "mt-4 text-3xl font-extrabold tracking-[-.03em] text-white sm:text-4xl"
   }, "Hardwired example sites for the trades we serve"), /*#__PURE__*/React.createElement("p", {
-    className: "mt-4 text-base leading-7 text-slate-700 dark:text-slate-300"
+    className: "mt-4 text-base leading-7 text-white/75"
   }, "Complete production-ready landing pages shipped with NetBuild.Pro. Click any trade to open the full site inside this page.")), /*#__PURE__*/React.createElement("div", {
-    className: "mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
-  }, DEMO_SITES.map(demo => /*#__PURE__*/React.createElement("button", {
+    className: "mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3"
+  }, DEMO_SITES.map(demo => /*#__PURE__*/React.createElement(DemoCard, {
     key: demo.name,
-    type: "button",
-    onClick: () => openDemo(demo.name),
-    "aria-pressed": active && active.name === demo.name,
-    className: `focusable rounded-2xl border px-4 py-4 text-left text-sm font-extrabold transition ${active && active.name === demo.name ? "border-[#C85A28] bg-[#C85A28] text-white shadow-md" : "border-slate-300 bg-white text-[#1A1A2E] hover:border-[#C85A28] dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:border-[#D4A574]"}`
-  }, demo.name))), active && /*#__PURE__*/React.createElement(DemoPreview, {
+    demo: demo,
+    active: active,
+    onOpen: openDemo
+  }))), active && /*#__PURE__*/React.createElement(DemoPreview, {
     name: active.name,
     file: active.file,
     onClose: closeDemo
