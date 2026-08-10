@@ -2,6 +2,14 @@
 
 ## ACTIVE NOW
 
+### 2026-08-10: Landing Page Logo Swap
+**Status:** Complete locally, uncommitted.
+**What:** Founder dropped the actual asset (`docs/netbuild-pro-wordmark-source.jpeg`, moved there from repo root for tidiness) -- serif "NETBUILD.PRO / THE NETWORK FOR / HOME SERVICE TRADES" wordmark, previously only seen pasted in chat, unrecoverable from that. Trimmed to content bounds and keyed white-to-transparent with Pillow (source had a plain white background, confirmed uniform via corner-pixel sampling), embedded as an inline base64 `data:image/png` in `netbuild_pro.html` (this repo has no generic `StaticFiles` mount -- `/static/*` routes are hand-registered one at a time in `site_render_router.py` by design, "dependency-minimal" per its own comment -- and the asset is 33KB source / ~120KB base64, small enough that adding a new route for one image wasn't worth it).
+**Contrast fix:** the wordmark's ink is near-black (sampled RGB ~(5,0,0)), designed for a light background. Both call sites (`Navbar` over `hero-glow`, `Footer`'s `bg-[#1A1A2E]`) are permanently dark -- black-on-navy would have been invisible. Wrapped the image in a light plaque (`rounded-xl bg-white/95 border border-white/10 shadow-sm`, same pattern as the Hero's existing "Just booked" card) instead of altering the founder's actual brand colors.
+**Removed:** the old `Logo` component's `variant` prop (split/dark/unified text-color logic) -- only one asset now, no variants needed. Both call sites simplified to `React.createElement(Logo, null)`.
+**Verification:** `node --check` passed. Health check 14/14 HEALTHY. Confirmed via Browser pane screenshot (Navbar) and DOM query (`img.complete`, `naturalWidth`/`naturalHeight` -- Footer, since the screenshot tool hit the same stale-frame issue as the prior session on scroll).
+**Not done:** Not committed -- approval gate.
+
 ### 2026-08-10: Landing Page Visual Pass (Section Rhythm + Demo Cards)
 **Status:** Complete locally, uncommitted.
 **What:** Founder supplied a reference design file (`~/Desktop/CCCCCCC.html`, an earlier single-HVAC-tier draft of this same page, not something ever committed or deployed) plus reference screenshots. Ported two things from it into the live `webstaffr/templates/netbuild_pro.html`:
