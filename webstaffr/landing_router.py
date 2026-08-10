@@ -320,43 +320,48 @@ _LANDING_PAGE_HTML = """
             <h2 class="ws-section-heading">See It In Action</h2>
             <p class="ws-section-subheading">Explore demo sites built for different trades. Each shows your finished website with Angel chat and booking integrated.</p>
             <div class="ws-demo-grid ws-reveal">
-                <a href="/demo-sites/hvac.html" class="ws-demo-btn">
+                <a href="/demos/hvac" class="ws-demo-btn">
                     <div class="ws-demo-name">HVAC</div>
                     <div class="ws-demo-desc">Heating & Cooling</div>
                 </a>
-                <a href="/demo-sites/plumbing.html" class="ws-demo-btn">
+                <a href="/demos/plumbing" class="ws-demo-btn">
                     <div class="ws-demo-name">Plumbing</div>
                     <div class="ws-demo-desc">Water & Drain</div>
                 </a>
-                <a href="/demo-sites/roof.html" class="ws-demo-btn">
+                <a href="/demos/electrical" class="ws-demo-btn">
+                    <div class="ws-demo-name">Electrical</div>
+                    <div class="ws-demo-desc">Wiring & Panels</div>
+                </a>
+                <a href="/demos/roofing" class="ws-demo-btn">
                     <div class="ws-demo-name">Roofing</div>
                     <div class="ws-demo-desc">Repairs & Installation</div>
                 </a>
-                <a href="/demo-sites/landscape.html" class="ws-demo-btn">
+                <a href="/demos/landscaping" class="ws-demo-btn">
                     <div class="ws-demo-name">Landscaping</div>
                     <div class="ws-demo-desc">Design & Maintenance</div>
                 </a>
-                <a href="/demo-sites/pest.html" class="ws-demo-btn">
+                <a href="/demos/pest-control" class="ws-demo-btn">
                     <div class="ws-demo-name">Pest Control</div>
                     <div class="ws-demo-desc">Treatment & Prevention</div>
                 </a>
-                <a href="/demo-sites/garage.html" class="ws-demo-btn">
+                <a href="/demos/garage-door" class="ws-demo-btn">
                     <div class="ws-demo-name">Garage Doors</div>
                     <div class="ws-demo-desc">Install & Repair</div>
                 </a>
-                <a href="/demo-sites/arbor.html" class="ws-demo-btn">
+                <a href="/demos/tree-service" class="ws-demo-btn">
                     <div class="ws-demo-name">Tree Service</div>
                     <div class="ws-demo-desc">Trimming & Removal</div>
                 </a>
-                <a href="/demo-sites/waterrestore.html" class="ws-demo-btn">
+                <a href="/demos/water-restoration" class="ws-demo-btn">
                     <div class="ws-demo-name">Water Restoration</div>
                     <div class="ws-demo-desc">Damage & Cleanup</div>
                 </a>
-                <a href="/demo-sites/maid.html" class="ws-demo-btn">
-                    <div class="ws-demo-name">Maid Service</div>
+                <a href="/demos/cleaning" class="ws-demo-btn">
+                    <div class="ws-demo-name">Cleaning Services</div>
                     <div class="ws-demo-desc">Residential Cleaning</div>
                 </a>
             </div>
+            <p style="margin-top:20px;text-align:center;"><a href="/demos" style="color:var(--ws-copper);text-decoration:none;">See all demo sites &rarr;</a></p>
         </div>
     </section>
 
