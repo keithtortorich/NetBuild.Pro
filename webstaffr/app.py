@@ -316,7 +316,8 @@ def create_app(
     # internal /sites/{tenant_id}/web routing structure via Host header lookup.
     # Must run before CORS (and most other middleware) so path rewriting happens
     # before routing decisions are made.
-    app.add_middleware(CustomDomainMiddleware)
+    # TEMPORARILY DISABLED for debugging POST request exceptions
+    # app.add_middleware(CustomDomainMiddleware)
 
     # The widget is embedded on customer websites (arbitrary origins), so
     # /chat needs CORS enabled; the intake form (wherever it's hosted) needs
