@@ -206,6 +206,7 @@ function createDefaultWorkspaceFs(): WorkspaceFs {
 export class OpenRouterCodegenRuntime {
   private apiKey: string;
   private model: string;
+  private baseUrl: string;
   private fetch: typeof global.fetch;
   private fs: WorkspaceFs;
   private pathValidator: PathValidator;
@@ -213,16 +214,21 @@ export class OpenRouterCodegenRuntime {
   constructor(opts?: {
     apiKey?: string;
     model?: string;
+    baseUrl?: string;
     fetchImpl?: typeof global.fetch;
     fs?: WorkspaceFs;
   }) {
     this.apiKey = opts?.apiKey ?? process.env.OPENROUTER_API_KEY ?? "";
     this.model = opts?.model ?? process.env.SITE_MAGIC_DESIGN_MODEL ?? "openai/gpt-4o-mini";
+    this.baseUrl =
+      opts?.baseUrl ??
+      process.env.SITE_MAGIC_API_BASE_URL ??
+      "https://openrouter.ai/api/v1";
     this.fetch = opts?.fetchImpl ?? global.fetch;
     this.fs = opts?.fs ?? createDefaultWorkspaceFs();
     this.pathValidator = new PathValidator(this.fs);
 
-    if (!this.apiKey) {
+    if (!this.apiKey && !this.baseUrl.includes("localhost")) {
       throw new CodexRuntimeNotConfiguredError("OPENROUTER_API_KEY not set");
     }
   }
@@ -384,7 +390,8 @@ Return ONLY the JSON object, nothing else.`;
   }
 
   private async callOpenRouter(model: string, prompt: string): Promise<string> {
-    const response = await this.fetch("https://openrouter.ai/api/v1/chat/completions", {
+    const endpoint = `${this.baseUrl}/chat/completions`;
+    const response = await this.fetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -393,14 +400,7 @@ Return ONLY the JSON object, nothing else.`;
       body: JSON.stringify({
         model,
         messages: [{ role: "user", content: prompt }],
-        response_format: {
-          type: "json_schema",
-          json_schema: {
-            name: "CodegenResponse",
-            strict: true,
-            schema: FILE_WRITE_SCHEMA,
-          },
-        },
+        stream: false,
       }),
     });
 
@@ -452,11 +452,14 @@ export async function callReadOnlyRole(opts: {
   fetch?: typeof global.fetch;
   apiKey?: string;
   model?: string;
+  baseUrl?: string;
 }): Promise<Record<string, unknown>> {
   const { role, instructions, workspaceContext = "" } = opts;
   const fetchImpl = opts.fetch ?? global.fetch;
   const apiKey = opts.apiKey ?? process.env.OPENROUTER_API_KEY ?? "";
   const model = opts.model ?? process.env.SITE_MAGIC_DESIGN_MODEL ?? "openai/gpt-4o-mini";
+  const baseUrl =
+    opts.baseUrl ?? process.env.SITE_MAGIC_API_BASE_URL ?? "https://openrouter.ai/api/v1";
 
   if (!apiKey) {
     throw new CodexRuntimeNotConfiguredError("OPENROUTER_API_KEY not set");
@@ -510,7 +513,8 @@ Return ONLY the JSON object, nothing else.`;
           },
         };
 
-  const response = await fetchImpl("https://openrouter.ai/api/v1/chat/completions", {
+  const endpoint = `${baseUrl}/chat/completions`;
+  const response = await fetchImpl(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -519,14 +523,7 @@ Return ONLY the JSON object, nothing else.`;
     body: JSON.stringify({
       model,
       messages: [{ role: "user", content: prompt }],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "AnalysisResponse",
-          strict: true,
-          schema: responseSchema,
-        },
-      },
+      stream: false,
     }),
   });
 
