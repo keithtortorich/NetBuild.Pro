@@ -316,27 +316,23 @@ def create_app(
     # internal /sites/{tenant_id}/web routing structure via Host header lookup.
     # Must run before CORS (and most other middleware) so path rewriting happens
     # before routing decisions are made.
-    # TEMPORARILY DISABLED for debugging POST request exceptions
-    # app.add_middleware(CustomDomainMiddleware)
+    app.add_middleware(CustomDomainMiddleware)
 
     # The widget is embedded on customer websites (arbitrary origins), so
     # /chat needs CORS enabled; the intake form (wherever it's hosted) needs
     # the same for /intake. Scoped to just those paths -- see
     # ScopedCORSMiddleware above -- rather than an app-wide wildcard, which
     # would also cover /book and /webhooks/ghl as an unintended side effect.
-    # TEMPORARILY DISABLED for debugging POST request exceptions
-    # app.add_middleware(
-    #     ScopedCORSMiddleware,
-    #     customer_allowed_origins=(
-    #         frozenset(customer_allowed_origins)
-    #         if customer_allowed_origins is not None
-    #         else _customer_allowed_origins_from_env()
-    #     ),
-    # )
-    # TEMPORARILY DISABLED for debugging POST request exceptions
-    # app.add_middleware(RequestBodyLimitMiddleware, max_bytes=max_request_body_bytes)
-    # TEMPORARILY DISABLED for debugging POST request exceptions
-    # app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(
+        ScopedCORSMiddleware,
+        customer_allowed_origins=(
+            frozenset(customer_allowed_origins)
+            if customer_allowed_origins is not None
+            else _customer_allowed_origins_from_env()
+        ),
+    )
+    app.add_middleware(RequestBodyLimitMiddleware, max_bytes=max_request_body_bytes)
+    app.add_middleware(SecurityHeadersMiddleware)
 
     @app.get("/health")
     def health() -> dict:
