@@ -9,14 +9,13 @@ Angel-specific per its existing docstring.
 from __future__ import annotations
 
 import logging
-import uuid
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from .attribution import TrackingNumberRepository
-from .db import DB_ERRORS, get_connection
+from .db import DB_ERRORS, StorageError, get_connection
 from .intake import (
     IntakeRepository,
     IntakeSubmission,
@@ -152,33 +151,37 @@ def submit_intake(req: IntakeRequest, request: Request) -> IntakeResponse:
                 detail="Too many setup requests. Please try again shortly.",
             ) from exc
 
-        tenant_id = generate_tenant_id(req.biz_name)
-        submission = IntakeSubmission.from_payload(tenant_id, data)
-        repo = IntakeRepository(conn)
-        repo.save(submission)
+        try:
+            tenant_id = generate_tenant_id(req.biz_name)
+            submission = IntakeSubmission.from_payload(tenant_id, data)
+            repo = IntakeRepository(conn)
+            repo.save(submission)
 
-        # Create customer user and tenant membership for the new tenant
-        user_id = str(uuid.uuid4())
-        conn.execute(
-            "INSERT INTO customer_users (user_id, status) VALUES (?, ?)",
-            (user_id, 'active')
-        )
-        conn.execute(
-            """
-            INSERT INTO tenant_memberships (tenant_id, user_id, role, status)
-            VALUES (?, ?, ?, ?)
-            """,
-            (tenant_id, user_id, 'owner', 'active')
-        )
-
-        # Every tenant gets a tracking number the moment they have a real
-        # site to point it at -- get_or_create() is idempotent, so a
-        # resubmission for the same tenant_id (there isn't one today, but
-        # nothing here assumes there never will be) can't create a second
-        # one. See attribution.py's module docstring for why this isn't a
-        # real phone number yet.
-        TrackingNumberRepository(conn).get_or_create(tenant_id)
-        conn.commit()
+            # Every tenant gets a tracking number the moment they have a real
+            # site to point it at -- get_or_create() is idempotent, so a
+            # resubmission for the same tenant_id (there isn't one today, but
+            # nothing here assumes there never will be) can't create a second
+            # one. See attribution.py's module docstring for why this isn't a
+            # real phone number yet.
+            TrackingNumberRepository(conn).get_or_create(tenant_id)
+            conn.commit()
+        except (DB_ERRORS + (StorageError,)) as exc:
+            # A persistence failure (e.g. a missing/partially-applied schema
+            # in production) must surface as a clean JSON error the browser
+            # can parse and show -- not an unhandled exception that leaks a
+            # 500 HTML page and makes the frontend's response.json() throw
+            # "Unexpected token 'I', \"Internal S\"...". Log the exception type
+            # only (never str(exc), which may embed connection details), then
+            # roll back and return 503 so the form shows a real message.
+            logger.error(
+                "intake_persist_failed error_type=%s",
+                type(exc).__name__,
+            )
+            conn.rollback()
+            raise HTTPException(
+                status_code=503,
+                detail="Intake temporarily unavailable. Please try again shortly.",
+            ) from exc
     finally:
         conn.close()
 

@@ -106,8 +106,10 @@
       submit.disabled = true; submit.textContent = 'Building your site...'; statusBox.className = ''; statusBox.textContent = '';
       try {
         const response = await fetch('/intake', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
-        const body = await response.json();
-        if (!response.ok) throw new Error(body.detail || 'We could not create your site.');
+        let body = {};
+        const text = await response.text();
+        try { body = text ? JSON.parse(text) : {}; } catch { /* response was not JSON; use generic message below */ }
+        if (!response.ok) throw new Error(body.detail || 'We could not create your site. Please try again shortly.');
         statusBox.className = 'success'; statusBox.textContent = 'Your site is live. Opening it now...';
         window.location.assign('/sites/' + encodeURIComponent(body.tenant_id) + '/web');
       } catch (error) {

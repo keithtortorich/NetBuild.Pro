@@ -65,6 +65,27 @@ class TestIntakeSubmission(IntakeTestCase):
         self.assertEqual(body["industry"], "Plumber")
         self.assertEqual(body["plan"], "office_staff")
 
+    def test_storage_failure_returns_json_503_not_html_500(self):
+        """A persistence error (e.g. a missing/partially-applied production
+        schema) must yield a JSON 503 the browser can parse, never an
+        unhandled 500 HTML page that makes response.json() throw
+        'Unexpected token I, \"Internal S\"...'."""
+        from webstaffr.intake import StorageError
+
+        with patch(
+            "webstaffr.intake_router.IntakeRepository.save",
+            side_effect=StorageError("simulated persist failure"),
+        ):
+            resp = self.client.post("/intake", json=_valid_payload())
+
+        self.assertEqual(resp.status_code, 503)
+        # Content-Type must be JSON so the frontend's response handler parses it.
+        self.assertIn("application/json", resp.headers.get("content-type", ""))
+        self.assertEqual(
+            resp.json()["detail"],
+            "Intake temporarily unavailable. Please try again shortly.",
+        )
+
     def test_submission_creates_tenant_row(self):
         resp = self.client.post("/intake", json=_valid_payload())
         tenant_id = resp.json()["tenant_id"]
