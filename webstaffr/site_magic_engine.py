@@ -81,6 +81,24 @@ def resolve_site_workdir(db_path: str) -> Path:
     return Path(db_path).resolve().parent / "generated_sites"
 
 
+def resolve_public_base_url() -> str:
+    """Origin for links in generated pages, or "" for origin-relative links.
+
+    This generator runs offline, with no ``Request`` to read a base URL from,
+    so it cannot use ``site_render_router._site_root()``. It must still emit
+    the same URL *space* that router serves (`/sites/{tenant_id}/web`) --
+    writing the on-disk path instead produced pages carrying
+    `href="/Users/.../generated_sites/<tenant>/web/services/repair"`, which is
+    broken everywhere it is served and leaks the build machine's directory
+    layout into public HTML, `<link rel="canonical">`, and `og:url`.
+
+    Unset means origin-relative, which is correct for internal navigation.
+    Set ``NETBUILD_PUBLIC_BASE_URL`` (e.g. https://netbuild.pro) to get the
+    absolute URLs that canonical and og:url tags really want.
+    """
+    return os.environ.get("NETBUILD_PUBLIC_BASE_URL", "").strip().rstrip("/")
+
+
 def generate_site_for_submission(
     submission: IntakeSubmission,
     workdir: Path,
@@ -112,9 +130,10 @@ def generate_site_for_submission(
 
     pages_written: list[str] = []
 
+    site_root = f"{resolve_public_base_url()}/sites/{submission.tenant_id}/web"
+
     for page_name, path_suffix, _service_name in pages_meta:
-        page_url = f"{web_dir.as_posix()}{path_suffix}"
-        site_root = f"{web_dir.as_posix()}"
+        page_url = f"{site_root}{path_suffix}"
         context = build_page_context(
             schema,
             site_root=site_root,
@@ -186,6 +205,20 @@ def _render_page_html(page_name: str, context: dict, schema: SiteSchema) -> str:
             + "</script>"
         )
 
+    # canonical and og:url are only meaningful as absolute URLs -- a relative
+    # canonical is invalid, and Lighthouse fails the `canonical` audit on one.
+    # This generator only knows an origin when NETBUILD_PUBLIC_BASE_URL is set,
+    # and tenant sites can also live on their own custom domains, so there is
+    # no origin worth hardcoding. Omit both tags rather than emit invalid ones;
+    # a missing canonical is not penalized, a wrong one is.
+    page_url = str(context.get("page_url", site_root))
+    absolute_tags = ""
+    if page_url.startswith("http://") or page_url.startswith("https://"):
+        absolute_tags = (
+            f"<link rel=\"canonical\" href=\"{_esc(page_url)}\">\n"
+            f"<meta property=\"og:url\" content=\"{_esc(page_url)}\">\n"
+        )
+
     return (
         "<!DOCTYPE html>\n"
         "<html lang=\"en\">\n"
@@ -194,11 +227,10 @@ def _render_page_html(page_name: str, context: dict, schema: SiteSchema) -> str:
         "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
         f"<title>{title}</title>\n"
         f"<meta name=\"description\" content=\"{meta}\">\n"
-        f"<link rel=\"canonical\" href=\"{_esc(context.get('page_url', site_root))}\">\n"
-        f"<meta property=\"og:title\" content=\"{title}\">\n"
+        + absolute_tags
+        + f"<meta property=\"og:title\" content=\"{title}\">\n"
         f"<meta property=\"og:description\" content=\"{meta}\">\n"
         "<meta property=\"og:type\" content=\"website\">\n"
-        f"<meta property=\"og:url\" content=\"{_esc(context.get('page_url', site_root))}\">\n"
         "<style>\n"
         f":root {_tokens_css_vars(context.get('design_tokens') or {})}\n"
         "</style>\n"

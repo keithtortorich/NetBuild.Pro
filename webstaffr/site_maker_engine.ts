@@ -1,7 +1,12 @@
 import { createHash } from "node:crypto";
 
-export const DESIGN_MODEL = "gpt-5.6-sol";
-export const IMAGE_MODEL = "gpt-image-2";
+// Aligned with the ADR-031 OpenRouter/OmniRoute codegen swap: these are
+// valid OpenRouter model slugs (resolve against openrouter.ai and any
+// OpenAI-compatible gateway). Previously hardcoded to OpenAI model names
+// (gpt-5.6-sol / gpt-image-2) that OpenRouter does not recognize as slugs,
+// so every engine run 404'd on the model after the runtime swap.
+export const DESIGN_MODEL = "openai/gpt-4o-mini";
+export const IMAGE_MODEL = "google/gemini-2.5-flash-image";
 export const MAX_REMEDIATION_ROUNDS = 2;
 export const MAX_REBUILDS = 1;
 export const IMAGE_GENERATION_MAX_ATTEMPTS = 3;

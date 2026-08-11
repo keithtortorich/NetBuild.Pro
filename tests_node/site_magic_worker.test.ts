@@ -271,3 +271,53 @@ test("webhook server accepts the right secret, responds 202, and runs the job as
     server.close();
   }
 });
+
+/** Regression guard for a production misconfiguration that was live on
+ * Railway: SITE_MAGIC_API_BASE_URL (this repo's control plane, set to
+ * https://netbuild.pro) was also what OpenRouterCodegenRuntime read for its
+ * LLM endpoint, so every codegen call would have gone to
+ * https://netbuild.pro/chat/completions. The two are now separate vars and
+ * must stay separate. */
+test("codegen endpoint comes from SITE_MAGIC_CODEGEN_BASE_URL, never from the control-plane SITE_MAGIC_API_BASE_URL", () => {
+  const keys = [
+    "OPENAI_API_KEY", "OPENROUTER_API_KEY", "SUPABASE_URL",
+    "SITE_MAGIC_STORAGE_SERVICE_KEY", "SITE_MAGIC_API_BASE_URL",
+    "SITE_MAGIC_INTERNAL_API_KEY", "SITE_MAGIC_CODEGEN_BASE_URL",
+    "SITE_MAGIC_DESIGN_MODEL", "SITE_MAGIC_USE_OMNIROUTE",
+  ];
+  const originals = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+  const restore = () => {
+    for (const [key, value] of Object.entries(originals)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  };
+  Object.assign(process.env, {
+    OPENAI_API_KEY: "test-key", OPENROUTER_API_KEY: "test-openrouter-key",
+    SUPABASE_URL: "https://example.supabase.co",
+    SITE_MAGIC_STORAGE_SERVICE_KEY: "test-service-key",
+    SITE_MAGIC_API_BASE_URL: "https://control-plane.internal",
+    SITE_MAGIC_INTERNAL_API_KEY: "test-internal-key",
+  });
+  delete process.env.SITE_MAGIC_CODEGEN_BASE_URL;
+  delete process.env.SITE_MAGIC_DESIGN_MODEL;
+  delete process.env.SITE_MAGIC_USE_OMNIROUTE;
+  try {
+    const codex = buildProductionDependencies("tenant-1").codex as unknown as {
+      baseUrl: string; apiKey: string;
+    };
+    assert.equal(codex.baseUrl, "https://openrouter.ai/api/v1");
+    assert.notEqual(codex.baseUrl, "https://control-plane.internal");
+    // The real key, not the "dummy" placeholder that only a local
+    // OmniRoute gateway accepts.
+    assert.equal(codex.apiKey, "test-openrouter-key");
+
+    process.env.SITE_MAGIC_CODEGEN_BASE_URL = "http://localhost:20128/v1";
+    const gateway = buildProductionDependencies("tenant-1").codex as unknown as {
+      baseUrl: string; apiKey: string;
+    };
+    assert.equal(gateway.baseUrl, "http://localhost:20128/v1");
+    assert.equal(gateway.apiKey, "dummy");
+  } finally {
+    restore();
+  }
+});

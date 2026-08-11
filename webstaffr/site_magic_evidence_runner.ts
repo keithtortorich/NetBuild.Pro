@@ -63,22 +63,63 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** Entry documents tried for `/`, in order. `index.html` is what the Site
+ * Magic builder role emits; `home.html` is what the offline Jinja generator
+ * (site_magic_engine.py) writes. Serving only `index.html` meant a workspace
+ * from the latter answered `/` with a 404, which Lighthouse then audited and
+ * scored 0 across every category -- an all-zeros report with no finding that
+ * says why, which reads as a catastrophically bad site rather than a missing
+ * entry file. */
+const ENTRY_CANDIDATES = ["index.html", "home.html"] as const;
+
+async function resolveEntryPath(rootNormalized: string): Promise<string> {
+  for (const candidate of ENTRY_CANDIDATES) {
+    const info = await stat(join(rootNormalized, candidate)).catch(() => null);
+    if (info?.isFile()) return `/${candidate}`;
+  }
+  return `/${ENTRY_CANDIDATES[0]}`;
+}
+
 /** Serves `root` over plain HTTP on an OS-assigned loopback port --
  * Playwright and Lighthouse both need a real URL, not a file:// path
- * (Lighthouse's network-dependent audits don't run against file://). */
-function startStaticServer(root: string): Promise<{ server: Server; baseUrl: string }> {
+ * (Lighthouse's network-dependent audits don't run against file://).
+ *
+ * `staticRoot`, when given, is mounted at `/static/`. Rendered pages
+ * reference `/static/site.css` and `/static/angel-widget.js`, which the
+ * FastAPI app serves from routes rather than from the workspace. Without the
+ * mount those are unreachable here, so a site that is perfectly fine when the
+ * app serves it still reported missing assets, console errors, and failed
+ * requests at every width -- enough to fail deterministicGatesPass on its
+ * own. The mount serves the same real files those routes read. */
+export function startStaticServer(
+  root: string,
+  staticRoot?: string
+): Promise<{ server: Server; baseUrl: string }> {
   const rootNormalized = normalize(root);
+  const staticNormalized = staticRoot ? normalize(staticRoot) : undefined;
   return new Promise((resolve) => {
     const server = createServer(async (req, res) => {
       try {
         const urlPath = decodeURIComponent((req.url ?? "/").split("?")[0]);
-        const resolved = normalize(join(rootNormalized, urlPath === "/" ? "/index.html" : urlPath));
-        if (resolved !== rootNormalized && !resolved.startsWith(rootNormalized + sep)) {
+
+        let base = rootNormalized;
+        let relative = urlPath;
+        if (staticNormalized && (urlPath === "/static" || urlPath.startsWith("/static/"))) {
+          base = staticNormalized;
+          relative = urlPath.slice("/static".length) || "/";
+        } else if (urlPath === "/") {
+          relative = await resolveEntryPath(rootNormalized);
+        }
+
+        const resolved = normalize(join(base, relative));
+        if (resolved !== base && !resolved.startsWith(base + sep)) {
           res.writeHead(403).end();
           return;
         }
         const info = await stat(resolved).catch(() => null);
-        const filePath = info?.isDirectory() ? join(resolved, "index.html") : resolved;
+        const filePath = info?.isDirectory()
+          ? join(resolved, (await resolveEntryPath(resolved)).slice(1))
+          : resolved;
         const body = await readFile(filePath);
         res.writeHead(200, { "content-type": CONTENT_TYPES[extname(filePath)] ?? "application/octet-stream" });
         res.end(body);
@@ -116,10 +157,12 @@ export function runImpeccableDetect(
 export class PlaywrightEvidenceRunner implements EvidenceRunner {
   private readonly tenantId: string;
   private readonly detectCliPath?: string;
+  private readonly staticRoot?: string;
 
-  constructor(options: { tenantId: string; detectCliPath?: string }) {
+  constructor(options: { tenantId: string; detectCliPath?: string; staticRoot?: string }) {
     this.tenantId = options.tenantId;
     this.detectCliPath = options.detectCliPath;
+    this.staticRoot = options.staticRoot;
   }
 
   async assess(args: { workspace: string; widths: readonly [390, 768, 1440] }): Promise<QualityReport> {
@@ -127,7 +170,7 @@ export class PlaywrightEvidenceRunner implements EvidenceRunner {
       ? runImpeccableDetect(args.workspace, this.detectCliPath)
       : runImpeccableDetect(args.workspace);
     const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf-8");
-    const { server, baseUrl } = await startStaticServer(args.workspace);
+    const { server, baseUrl } = await startStaticServer(args.workspace, this.staticRoot);
     const debugPort = 9200 + (process.pid % 300);
     let browser: Browser | undefined;
     try {

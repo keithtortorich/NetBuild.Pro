@@ -32,6 +32,17 @@ See `CREDENTIALS.md` for a complete list of required env vars:
 - `SUPABASE_URL` / `SUPABASE_PUBLISHABLE_KEY` / `CUSTOMER_ALLOWED_ORIGINS`
   (customer dashboard identity and exact private browser origins)
 - `NETBUILD_DB_PATH` or `DATABASE_URL` (database)
+- `SITE_MAGIC_WORKER_WEBHOOK_URL` + `SITE_MAGIC_WORKER_WEBHOOK_SECRET`
+  (app side: hand a queued Site Magic job to the Railway worker -- both
+  required, either alone leaves the queue on its Null default)
+- `SITE_MAGIC_API_BASE_URL` / `SITE_MAGIC_INTERNAL_API_KEY` /
+  `SITE_MAGIC_CODEGEN_BASE_URL` / `SITE_MAGIC_STORAGE_SERVICE_KEY`
+  (worker side: control-plane callbacks, LLM endpoint, artifact storage --
+  `SITE_MAGIC_CODEGEN_BASE_URL` is an LLM endpoint and is deliberately NOT
+  `SITE_MAGIC_API_BASE_URL`, see CREDENTIALS.md)
+- `NETBUILD_PUBLIC_BASE_URL` (optional, not a secret: public origin stamped
+  into offline-generated pages' links, canonical, and og:url; unset means
+  origin-relative `/sites/{tenant_id}/web/...`)
 
 ## Folder Structure
 

@@ -213,7 +213,10 @@ button:focus-visible,
 }
 .ws-footer-inner { max-width: 1100px; margin: 0 auto; padding: 26px 20px; }
 .ws-footer p { margin: 4px 0; }
-.ws-footer-attribution { opacity: .7; }
+/* No opacity here: .7 over white blended --ws-muted (#5a6672) down to an
+   effective #8c949c, which is 3.07:1 against the footer background and fails
+   WCAG AA's 4.5:1 for body text. The token's own value is 5.87:1. */
+.ws-footer-attribution { color: var(--ws-muted); }
 
 /* Enhancements for demo template rendering */
 

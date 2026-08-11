@@ -142,6 +142,22 @@
   that must be applied before this repo goes live against it.
 - **Security**: never commit. Same as above.
 
+### 9b. `NETBUILD_PUBLIC_BASE_URL` (optional, not a secret)
+- **Purpose**: the public origin that the offline site generator
+  (`site_magic_engine.generate_site_for_submission()`) stamps into generated
+  pages -- internal links, `<link rel="canonical">`, and `og:url`. That
+  generator runs with no `Request` to read a base URL from, so unlike
+  `site_render_router._site_root()` it cannot derive one.
+- **Behavior**: unset -> origin-relative links (`/sites/{tenant_id}/web/...`),
+  which are correct for navigation, and `<link rel="canonical">` / `og:url`
+  are **omitted entirely**. A relative canonical is invalid and Lighthouse
+  fails its `canonical` audit on one, so omitting beats emitting a wrong tag;
+  a missing canonical is not penalized. Set this (e.g. `https://netbuild.pro`)
+  to emit both as absolute URLs. Trailing slashes are trimmed.
+- **Not hardcoded on purpose**: tenant sites can live on their own custom
+  domains, so there is no single origin worth baking into the generator.
+- **Security**: not a credential; safe to set in plain config.
+
 ### 10. `KOKORO_TTS_URL` (optional)
 - **Purpose**: when set, `POST /v1/audio/speech` proxies OpenAI-compatible
   TTS requests to this external Kokoro backend instead of the route not
@@ -214,10 +230,28 @@
     the same secret as the app's `INTERNAL_API_KEY`, since that's what
     `internal_api_verifier_from_env()` checks incoming `X-API-Key` headers
     against. Two env var names, one shared secret.
+  - `SITE_MAGIC_CODEGEN_BASE_URL` (worker-side, optional) -- the
+    OpenAI-compatible LLM endpoint `OpenRouterCodegenRuntime`
+    (`webstaffr/site_magic_codegen_runtime.ts`) appends
+    `/chat/completions` to. Unset means `https://openrouter.ai/api/v1`
+    directly, authenticated with `OPENROUTER_API_KEY`; set it to a local
+    OmniRoute gateway (`http://localhost:20128/v1`, ADR-031) to route
+    through that instead, which supplies its own provider credentials and
+    so needs no real key from this side. **Do not point it at
+    `SITE_MAGIC_API_BASE_URL`'s value** -- that is this app's control
+    plane (`https://netbuild.pro` in production), not an LLM endpoint.
+    Until 2026-08-11 both readers shared the single
+    `SITE_MAGIC_API_BASE_URL` var, which sent production codegen calls to
+    `https://netbuild.pro/chat/completions`.
 - **Behavior**: `create_app()`'s `site_magic_queue` / `site_magic_artifact_storage`
   params default to `NullSiteMagicQueue` / `NullArtifactStorage`, which
   fail closed with `SiteMagicNotConfiguredError` (503 at the API, silently
-  skipped at intake auto-enqueue) -- safe default until these are wired.
+  skipped at intake auto-enqueue). `webstaffr/app.py`'s module-level `app`
+  fills them from env via `_site_magic_queue_from_env()` /
+  `_site_magic_artifact_storage_from_env()`: the queue needs BOTH
+  `SITE_MAGIC_WORKER_WEBHOOK_URL` and `SITE_MAGIC_WORKER_WEBHOOK_SECRET`,
+  storage needs BOTH `SUPABASE_URL` and `SITE_MAGIC_STORAGE_SERVICE_KEY`.
+  A half-set pair stays on the Null default rather than half-configuring.
 - **Security**: never commit. Worker gets only these scoped credentials,
   not full production secrets -- see `docs/STANDUP_2026-08-09_IMPECCABLE_PHASE_1.md`
   for current status.

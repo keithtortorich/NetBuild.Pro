@@ -220,9 +220,16 @@ export class OpenRouterCodegenRuntime {
   }) {
     this.apiKey = opts?.apiKey ?? process.env.OPENROUTER_API_KEY ?? "";
     this.model = opts?.model ?? process.env.SITE_MAGIC_DESIGN_MODEL ?? "openai/gpt-4o-mini";
+    // SITE_MAGIC_CODEGEN_BASE_URL, not SITE_MAGIC_API_BASE_URL: this is an
+    // OpenAI-compatible LLM endpoint (a `/chat/completions` gets appended),
+    // whereas SITE_MAGIC_API_BASE_URL is this repo's own control-plane URL
+    // that HTTPJobStateSink/fetchJobRecord append `/site-magic/internal/...`
+    // to. They were the same var until 2026-08-11, which meant the
+    // production worker (SITE_MAGIC_API_BASE_URL=https://netbuild.pro) would
+    // have sent every codegen call to https://netbuild.pro/chat/completions.
     this.baseUrl =
       opts?.baseUrl ??
-      process.env.SITE_MAGIC_API_BASE_URL ??
+      process.env.SITE_MAGIC_CODEGEN_BASE_URL ??
       "https://openrouter.ai/api/v1";
     this.fetch = opts?.fetchImpl ?? global.fetch;
     this.fs = opts?.fs ?? createDefaultWorkspaceFs();
@@ -459,7 +466,7 @@ export async function callReadOnlyRole(opts: {
   const apiKey = opts.apiKey ?? process.env.OPENROUTER_API_KEY ?? "";
   const model = opts.model ?? process.env.SITE_MAGIC_DESIGN_MODEL ?? "openai/gpt-4o-mini";
   const baseUrl =
-    opts.baseUrl ?? process.env.SITE_MAGIC_API_BASE_URL ?? "https://openrouter.ai/api/v1";
+    opts.baseUrl ?? process.env.SITE_MAGIC_CODEGEN_BASE_URL ?? "https://openrouter.ai/api/v1";
 
   if (!apiKey) {
     throw new CodexRuntimeNotConfiguredError("OPENROUTER_API_KEY not set");

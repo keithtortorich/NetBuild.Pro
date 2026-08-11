@@ -68,17 +68,36 @@ export type DependencyFactory = (tenantId: string) => WorkerDependencies;
  * unaffected by the swap. If OpenAI org access is later approved and a
  * switch back is wanted, this is the one line to change. */
 export function buildProductionDependencies(tenantId: string): WorkerDependencies {
-  // Use vendor-independent CodexRuntime via OmniRoute (ADR-031)
-  // OmniRoute provides 290 providers, auto-fallback, free tiers
-  // baseUrl can be overridden via SITE_MAGIC_API_BASE_URL (default: http://localhost:20128/v1)
+  // Vendor-independent CodexRuntime via OmniRoute (ADR-031): 290 providers,
+  // auto-fallback, free tiers. SITE_MAGIC_USE_OMNIROUTE=false falls back to
+  // OpenAI's Codex runtime.
+  //
+  // The endpoint comes from SITE_MAGIC_CODEGEN_BASE_URL, NOT
+  // SITE_MAGIC_API_BASE_URL -- the latter is this repo's own control plane
+  // (HTTPJobStateSink/fetchJobRecord post to it), and in production it is
+  // https://netbuild.pro, which is not an OpenAI-compatible LLM endpoint.
+  // Unset means openrouter.ai directly, authenticated with
+  // OPENROUTER_API_KEY. Point it at a local OmniRoute gateway
+  // (http://localhost:20128/v1) to route through that instead.
   const useOmniRoute = process.env.SITE_MAGIC_USE_OMNIROUTE !== "false";
+  const codegenBaseUrl = process.env.SITE_MAGIC_CODEGEN_BASE_URL;
+  const viaLocalGateway = Boolean(codegenBaseUrl?.includes("localhost"));
 
   const codexRuntime: CodexRuntime = useOmniRoute
-    ? new OpenRouterCodegenRuntime({
-        apiKey: "dummy",
-        model: process.env.SITE_MAGIC_DESIGN_MODEL ?? "auto/best-free",
-        baseUrl: process.env.SITE_MAGIC_API_BASE_URL ?? "http://localhost:20128/v1",
-      })
+    ? new OpenRouterCodegenRuntime(
+        // A local gateway holds the real provider credentials itself, so the
+        // client-side key is a placeholder there and "auto/best-free" is a
+        // model id only that gateway understands. Against a real provider,
+        // neither applies: the runtime resolves OPENROUTER_API_KEY and its
+        // own model default, and throws if the key is missing (fail-closed).
+        viaLocalGateway
+          ? {
+              apiKey: "dummy",
+              model: process.env.SITE_MAGIC_DESIGN_MODEL ?? "auto/best-free",
+              baseUrl: codegenBaseUrl,
+            }
+          : { baseUrl: codegenBaseUrl }
+      )
     : new OpenAICodexRuntime();
 
   return {

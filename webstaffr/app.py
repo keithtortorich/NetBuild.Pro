@@ -427,12 +427,67 @@ def _leo_outreach_enabled_from_env() -> bool:
     return _os.environ.get("LEO_OUTREACH_ENABLED", "").strip().lower() == "true"
 
 
+def _site_magic_queue_from_env() -> Optional[SiteMagicQueue]:
+    """HTTPWebhookSiteMagicQueue only when both webhook env vars are set --
+    otherwise None, so create_app() falls back to NullSiteMagicQueue.
+
+    Without this, SITE_MAGIC_WORKER_WEBHOOK_URL can be set in the
+    deployment environment and still do nothing: nothing else in the
+    process reads it, so an intake would create a `queued` job row that
+    no worker is ever told about (exactly what left job
+    550e8400-... sitting queued from 2026-08-10 to 2026-08-11).
+
+    SiteMagicNotConfiguredError is caught rather than allowed to
+    propagate: this runs at module import, and a partially-configured
+    environment must degrade the Site Magic hand-off, not break the
+    import of the entire app (which would take down /health and every
+    unrelated route on a serverless cold start).
+    """
+    from .site_magic import SiteMagicNotConfiguredError
+
+    if not (
+        _os.environ.get("SITE_MAGIC_WORKER_WEBHOOK_URL")
+        and _os.environ.get("SITE_MAGIC_WORKER_WEBHOOK_SECRET")
+    ):
+        return None
+    try:
+        from .site_magic_adapters import HTTPWebhookSiteMagicQueue
+        return HTTPWebhookSiteMagicQueue()
+    except SiteMagicNotConfiguredError:
+        return None
+
+
+def _site_magic_artifact_storage_from_env() -> Optional[ArtifactStorage]:
+    """SupabaseArtifactStorage only when both storage env vars are set --
+    otherwise None, so create_app() falls back to NullArtifactStorage.
+
+    SITE_MAGIC_STORAGE_SERVICE_KEY is the service-role key, deliberately
+    a different var from SUPABASE_PUBLISHABLE_KEY (used for customer
+    auth) -- see SupabaseArtifactStorage's docstring. Same
+    import-time-safety reasoning as _site_magic_queue_from_env().
+    """
+    from .site_magic import SiteMagicNotConfiguredError
+
+    if not (
+        _os.environ.get("SUPABASE_URL")
+        and _os.environ.get("SITE_MAGIC_STORAGE_SERVICE_KEY")
+    ):
+        return None
+    try:
+        from .site_magic_adapters import SupabaseArtifactStorage
+        return SupabaseArtifactStorage()
+    except SiteMagicNotConfiguredError:
+        return None
+
+
 # Default app instance for `uvicorn webstaffr.app:app` (local dev) and for
 # the Vercel entrypoint at /index.py (deployed). db_path and backends are
 # picked up from environment at process start -- set WEBSTAFFR_DB_PATH,
 # DATABASE_URL, GHL_API_KEY/GHL_LOCATION_ID, etc. as Vercel project
-# environment variables. No Dockerfile/docker-compose in this repo --
-# deployment is Vercel, not containers.
+# environment variables. This app itself is not containerized -- it
+# deploys to Vercel; the repo's Dockerfile builds the separate Site Magic
+# Node worker that runs on Railway (it needs a persistent process for
+# Playwright/Chromium, which serverless can't provide).
 _default_ghl_client = _ghl_client_from_env()
 
 app = create_app(
@@ -442,6 +497,8 @@ app = create_app(
     ghl_messaging_client=(
         _default_ghl_client if _leo_outreach_enabled_from_env() else None
     ),
+    site_magic_queue=_site_magic_queue_from_env(),
+    site_magic_artifact_storage=_site_magic_artifact_storage_from_env(),
     retell_verifier=None,  # resolved from RETELL_WEBHOOK_SECRET inside create_retell_router()
     ghl_webhook_verifier=None,  # resolved from GHL_WEBHOOK_SECRET inside create_angel_router()
     book_api_verifier=None,  # resolved from BOOK_API_KEY inside create_angel_router()
