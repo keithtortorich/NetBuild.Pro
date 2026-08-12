@@ -1,6 +1,17 @@
 import path from "path";
 import fs from "fs/promises";
 
+/** OpenRouter applies its own (undocumented, model-dependent) default
+ * completion cap when max_tokens is omitted. Reasoning-capable free-tier
+ * models spend a large, non-optional share of that budget on hidden
+ * chain-of-thought before ever emitting the requested JSON -- a real
+ * production "direction" role response was cut off mid-string
+ * (SyntaxError: Unterminated string in JSON) because reasoning tokens
+ * consumed most of an unset/small default before the multi-file JSON
+ * payload could finish. Set explicitly generous so both reasoning and a
+ * full multi-file response fit. */
+const MAX_COMPLETION_TOKENS = 16000;
+
 // ============================================================================
 // Types & Interfaces
 // ============================================================================
@@ -445,6 +456,7 @@ Return ONLY the JSON object, nothing else.`;
         model,
         messages: [{ role: "user", content: prompt }],
         stream: false,
+        max_tokens: MAX_COMPLETION_TOKENS,
       }),
     });
 
@@ -568,6 +580,7 @@ Return ONLY the JSON object, nothing else.`;
       model,
       messages: [{ role: "user", content: prompt }],
       stream: false,
+      max_tokens: MAX_COMPLETION_TOKENS,
     }),
   });
 

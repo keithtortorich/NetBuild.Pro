@@ -145,6 +145,35 @@ test("constructor: uses SITE_MAGIC_DESIGN_MODEL env var if set", async () => {
   }
 });
 
+test("callOpenRouter: sets an explicit generous max_tokens", async () => {
+  // Regression: a real production "direction" role response on a
+  // reasoning-capable free-tier model got cut off mid-string
+  // (SyntaxError: Unterminated string in JSON). Reasoning-capable models
+  // spend a large, non-optional share of the completion budget on hidden
+  // chain-of-thought before the requested JSON, and without max_tokens
+  // set, OpenRouter applies its own small/unpredictable default.
+  let capturedMaxTokens: number | undefined;
+  const mockFetch = async (url: string, opts: any) => {
+    capturedMaxTokens = JSON.parse(opts.body).max_tokens;
+    return {
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: JSON.stringify({ files: [], result: {} }) } }],
+      }),
+    };
+  };
+
+  const runtime = new OpenRouterCodegenRuntime({
+    apiKey: "test-key",
+    fetchImpl: mockFetch,
+    fs: createFakeFs(),
+  });
+
+  await runtime.run({ role: "product", workspace: "/tmp", instructions: "test" });
+
+  assert.ok(typeof capturedMaxTokens === "number" && capturedMaxTokens >= 8000);
+});
+
 test("constructor: accepts injected fetch and fs", () => {
   const mockFetch = async () => ({});
   const mockFs = createFakeFs();
@@ -765,6 +794,28 @@ test("workspace context: includes small files with full contents", async () => {
 // ============================================================================
 // Read-Only Role Tests
 // ============================================================================
+
+test("callReadOnlyRole: sets an explicit generous max_tokens", async () => {
+  let capturedMaxTokens: number | undefined;
+  const mockFetch = async (url: string, opts: any) => {
+    capturedMaxTokens = JSON.parse(opts.body).max_tokens;
+    return {
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: JSON.stringify({ designScore: 1, applicableMax: 1, findings: [] }) } }],
+      }),
+    };
+  };
+
+  await callReadOnlyRole({
+    role: "design_assessor",
+    instructions: "assess this design",
+    fetch: mockFetch,
+    apiKey: "test-key",
+  });
+
+  assert.ok(typeof capturedMaxTokens === "number" && capturedMaxTokens >= 8000);
+});
 
 test("readOnlyRole: design_assessor returns expected structure", async () => {
   const mockFetch = async () => ({
