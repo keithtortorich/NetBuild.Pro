@@ -4,6 +4,7 @@ repository tests against a real (temp-file) SQLite connection -- same
 posture as AttributionUnitTestCase in test_attribution.py."""
 
 import dataclasses
+import json
 import os
 import tempfile
 import unittest
@@ -11,6 +12,7 @@ from unittest.mock import patch
 
 from webstaffr.db import connect, migrate
 from webstaffr.site_magic import (
+    _json_column,
     ALLOWED_TRANSITIONS,
     ArtifactStorage,
     CodexRuntime,
@@ -558,3 +560,33 @@ class TestNullContractsFailClosed(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class JsonColumnPostgresParityTest(unittest.TestCase):
+    """psycopg2 decodes jsonb before we see it; sqlite3 hands back TEXT.
+
+    Regression for the 2026-08-12 production 500: the first real intake hit
+    `json.loads()` on an already-decoded dict, raising TypeError. That is
+    neither a DB_ERROR nor a SiteMagicNotConfiguredError, so it escaped every
+    handler in intake's enqueue path -- a bare 500 with no log line, while the
+    whole SQLite-backed suite stayed green.
+    """
+
+    def test_already_decoded_values_pass_through(self):
+        self.assertEqual(_json_column({"a": 1}), {"a": 1})
+        self.assertEqual(_json_column([1, 2]), [1, 2])
+
+    def test_text_values_are_parsed(self):
+        self.assertEqual(_json_column('{"a": 1}'), {"a": 1})
+
+    def test_bytes_values_are_parsed(self):
+        self.assertEqual(_json_column(b'{"a": 1}'), {"a": 1})
+
+    def test_none_stays_none(self):
+        self.assertIsNone(_json_column(None))
+
+    def test_both_backends_yield_the_same_python_value(self):
+        payload = {"intake_id": "15", "verified_facts": {"biz_name": "Acme"}}
+        sqlite_shape = json.dumps(payload, sort_keys=True)   # TEXT column
+        postgres_shape = payload                             # jsonb column
+        self.assertEqual(_json_column(sqlite_shape), _json_column(postgres_shape))

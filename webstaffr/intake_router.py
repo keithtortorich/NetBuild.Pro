@@ -248,7 +248,16 @@ def _enqueue_site_magic_job_if_configured(submission: IntakeSubmission, request:
     except SiteMagicNotConfiguredError:
         conn.rollback()
         logger.info("site_magic_enqueue_skipped tenant_id=%s reason=not_configured", submission.tenant_id)
-    except DB_ERRORS as exc:
+    except Exception as exc:
+        # Deliberately broad. This function's contract is that a Site Magic
+        # failure never fails the intake response, and the previous
+        # `except DB_ERRORS` did not honour it: on 2026-08-12 the first real
+        # production intake raised TypeError here (jsonb decoded to a dict,
+        # then json.loads() on it), which matched no handler and surfaced to
+        # the prospect as a bare 500 -- after their tenant, submission, and
+        # tracking number had already been committed. Narrowing this back to
+        # specific types re-opens that hole; the enqueue is best-effort and
+        # every failure mode belongs in the log, not in the response.
         conn.rollback()
         logger.error(
             "site_magic_enqueue_failed tenant_id=%s error_type=%s",

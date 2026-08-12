@@ -11,6 +11,25 @@ from typing import Any, Literal, Optional, Protocol
 
 from .db import DB_ERRORS
 
+
+def _json_column(value: Any) -> Any:
+    """Read a JSON column that is TEXT under SQLite and jsonb under Postgres.
+
+    psycopg2 parses jsonb for us, so the same column arrives as a `str` from
+    SQLite and as an already-decoded `dict`/`list` from Postgres. Calling
+    json.loads() on the decoded value raises TypeError -- which is neither a
+    DB_ERROR nor a SiteMagicNotConfiguredError, so it escaped every handler in
+    intake's enqueue path and surfaced as a bare 500 with no log line, while
+    every SQLite-backed test passed. Found 2026-08-12 by the first real
+    production intake.
+    """
+    if value is None or isinstance(value, (dict, list)):
+        return value
+    if isinstance(value, (bytes, bytearray)):
+        value = value.decode("utf-8")
+    return json.loads(value)
+
+
 logger = logging.getLogger("webstaffr.site_magic")
 
 JobStatus = Literal[
@@ -192,10 +211,10 @@ class SiteMagicRepository:
         return SiteMagicJob(
             job_id=str(row["job_id"]), tenant_id=row["tenant_id"],
             source_type=row["source_type"],
-            source_payload=json.loads(row["source_payload_json"]),
+            source_payload=_json_column(row["source_payload_json"]),
             status=row["status"],
             remediation_rounds=row["remediation_rounds"], rebuild_count=row["rebuild_count"],
-            quality_summary=(json.loads(row["quality_summary_json"]) if row["quality_summary_json"] else None),
+            quality_summary=_json_column(row["quality_summary_json"]),
             final_build_id=(str(row["final_build_id"]) if row["final_build_id"] else None),
             failure_code=row["failure_code"],
             current_event_sequence=row["current_event_sequence"],
@@ -338,7 +357,7 @@ class SiteMagicRepository:
             return None
         return SiteMagicBuild(
             build_id=str(row["build_id"]), job_id=str(row["job_id"]), tenant_id=row["tenant_id"],
-            artifact_manifest=json.loads(row["artifact_manifest_json"]),
+            artifact_manifest=_json_column(row["artifact_manifest_json"]),
             preview_locator=row["preview_locator"], published_url=row["published_url"],
             created_at=str(row["created_at"]),
         )
