@@ -85,6 +85,37 @@ function sanitizeJsonControlChars(text: string): string {
   return result;
 }
 
+/** Last-resort repair for a response truncated exactly at the boundary
+ * of its own structure -- a real production finish_reviewer response
+ * ended "...engines."}]}" (964 of 964 chars): the findings array and
+ * the "result" object both close correctly, but the outer
+ * {"files":[],"result":{...}} wrapper's own closing brace never
+ * arrived. max_tokens ran out one token short of a fully-formed
+ * response. Rather than chase an ever-higher token ceiling against an
+ * arbitrarily verbose model, walks the string tracking open {/[ (same
+ * quote/escape-aware approach as sanitizeJsonControlChars) and appends
+ * whatever closers are still outstanding at the end. Only ever adds
+ * characters, never removes or reorders any -- a no-op on JSON that was
+ * already balanced, so this is safe to always attempt as a fallback. */
+function closeUnbalancedJson(text: string): string {
+  const stack: string[] = [];
+  let inString = false;
+  let escaped = false;
+  for (const ch of text) {
+    if (inString) {
+      if (escaped) { escaped = false; continue; }
+      if (ch === "\\") { escaped = true; continue; }
+      if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') { inString = true; continue; }
+    if (ch === "{" || ch === "[") { stack.push(ch === "{" ? "}" : "]"); continue; }
+    if (ch === "}" || ch === "]") { stack.pop(); continue; }
+  }
+  if (stack.length === 0) return text;
+  return text + stack.reverse().join("");
+}
+
 /** V8's JSON.parse SyntaxError includes "at position N" for most failure
  * modes. A flat prefix snippet is useless when the malformation is deep
  * into a large multi-finding response -- a 300-char prefix missed the
@@ -378,16 +409,24 @@ export class OpenRouterCodegenRuntime {
     try {
       parsed = JSON.parse(stripped);
       this.validateCodegenResponse(parsed);
-    } catch (e) {
-      // Bound and redact -- this reaches the Railway container log via
-      // SiteMakerEngine's raw-error console.error, not the 64-char
-      // failure_code, so a future parse failure is diagnosable from a
-      // real response snippet instead of guessing blind again.
-      const snippet = redactSecrets(buildParseErrorSnippet(stripped, e));
-      throw new MalformedCodegenResponseError(
-        `Failed to parse or validate response: ${e instanceof Error ? e.message : String(e)} | response snippet: ${snippet}`,
-        e instanceof Error ? e : undefined
-      );
+    } catch (firstError) {
+      try {
+        parsed = JSON.parse(closeUnbalancedJson(stripped));
+        this.validateCodegenResponse(parsed);
+      } catch {
+        // Repair didn't help -- report the original error, which carries
+        // the real diagnostic snippet the repair attempt doesn't need.
+        const e = firstError;
+        // Bound and redact -- this reaches the Railway container log via
+        // SiteMakerEngine's raw-error console.error, not the 64-char
+        // failure_code, so a future parse failure is diagnosable from a
+        // real response snippet instead of guessing blind again.
+        const snippet = redactSecrets(buildParseErrorSnippet(stripped, e));
+        throw new MalformedCodegenResponseError(
+          `Failed to parse or validate response: ${e instanceof Error ? e.message : String(e)} | response snippet: ${snippet}`,
+          e instanceof Error ? e : undefined
+        );
+      }
     }
 
     // 5. Check read-only role constraint
@@ -659,7 +698,13 @@ Return ONLY the JSON object, nothing else.`;
   const strippedContent = stripJsonFence(content);
   try {
     return JSON.parse(strippedContent);
-  } catch (e) {
+  } catch (firstError) {
+    try {
+      return JSON.parse(closeUnbalancedJson(strippedContent));
+    } catch {
+      // Repair didn't help -- report the original error.
+    }
+    const e = firstError;
     const snippet = redactSecrets(buildParseErrorSnippet(strippedContent, e));
     throw new MalformedCodegenResponseError(
       `Invalid JSON in response: ${e instanceof Error ? e.message : String(e)} | response snippet: ${snippet}`

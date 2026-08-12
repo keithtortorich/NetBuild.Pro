@@ -564,6 +564,31 @@ test("response validation: error snippet windows around the actual parse-error p
   }
 });
 
+test("response validation: recovers a response truncated exactly at its own closing brace", async () => {
+  // Regression: a real production finish_reviewer response ended
+  // "...engines.\"}]}" -- the findings array and the "result" object
+  // both close correctly, but the outer {"files":[],"result":{...}}
+  // wrapper's own closing brace never arrived. max_tokens ran out one
+  // token short. closeUnbalancedJson should append exactly the missing
+  // closer and let this parse successfully instead of failing the job.
+  const truncated = `{"files":[],"result":{"designScore":30,"applicableMax":40,"findings":["ok"]}`; // missing final }
+  const mockFetch = async () => ({
+    ok: true,
+    json: async () => ({
+      choices: [{ message: { content: truncated } }],
+    }),
+  });
+
+  const runtime = new OpenRouterCodegenRuntime({
+    apiKey: "test-key",
+    fetchImpl: mockFetch,
+    fs: createFakeFs(),
+  });
+
+  const result = await runtime.run({ role: "design_assessor", workspace: "/tmp", instructions: "test" });
+  assert.deepEqual(result, { designScore: 30, applicableMax: 40, findings: ["ok"] });
+});
+
 test("response validation: rejects response missing 'files' key", async () => {
   const mockFetch = async () => ({
     ok: true,
