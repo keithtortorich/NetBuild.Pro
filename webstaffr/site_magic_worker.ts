@@ -273,7 +273,16 @@ if (isMainModule) {
     buildDeps: buildProductionDependencies,
     controlPlane: { baseUrl, apiKey },
     onJobSettled: (jobId, result) => {
+      // `settled { status: 'failed' }` on its own is unactionable -- it was
+      // all the worker said about the first real production job, which had
+      // died on an OpenRouter 401. The engine now puts a redacted reason in
+      // failure_code; surface it here too so the Railway log alone is enough.
       console.log(`[site-magic-worker] job ${jobId} settled`, result);
+      if (result?.status === "failed" || result?.status === "quarantined") {
+        console.error(
+          `[site-magic-worker] job ${jobId} did not ship: ${result.failureCode ?? "no reason recorded"}`
+        );
+      }
     },
   });
   console.log(`[site-magic-worker] listening on :${port}`);

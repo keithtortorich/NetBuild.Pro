@@ -5,6 +5,8 @@ import {
   mergeDesignAssessment, InvalidDesignAssessmentError,
   generateImagesWithBoundedRetry, IMAGE_GENERATION_MAX_ATTEMPTS,
   type QualityReport, type ImageGenerator,
+  describeFailure,
+  redactSecrets,
 } from "../webstaffr/site_maker_engine.ts";
 
 const passing = (): QualityReport => ({
@@ -211,4 +213,59 @@ test("adapter failure fails closed", async () => {
   });
   assert.equal(result.status, "failed");
   assert.equal(states.at(-1), "failed");
+});
+
+test("describeFailure carries the provider's reason, not just the class name", () => {
+  // Regression: the first real production job died on an OpenRouter 401 and
+  // recorded failure_code "Error" -- diagnosing it required probing the
+  // provider by hand.
+  const err = new Error("OpenRouter API error: 401 Unauthorized");
+  assert.equal(describeFailure(err), "Error: OpenRouter API error: 401 Unauthorized");
+});
+
+test("describeFailure falls back to the class name when there is no message", () => {
+  assert.equal(describeFailure(new Error("")), "Error");
+  assert.equal(describeFailure("not an error"), "UnknownError");
+});
+
+test("describeFailure bounds a runaway message", () => {
+  const described = describeFailure(new Error("x".repeat(5000)));
+  assert.ok(described.length < 200, `expected bounded, got ${described.length}`);
+  assert.ok(described.startsWith("Error: "));
+});
+
+test("describeFailure redacts credentials that a provider echoed back", () => {
+  const cases = [
+    "auth failed for sk-or-v1-abcdef0123456789abcdef0123456789",
+    "bad key sb_secret_Zfo5SHwPqUJlmpc3vnnb4w_6NalamsD",
+    "rejected Bearer sk-or-v1-deadbeefdeadbeefdeadbeef",
+    "token eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.abc123def456",
+  ];
+  for (const raw of cases) {
+    const described = describeFailure(new Error(raw));
+    assert.ok(!/sk-or-v1-[A-Za-z0-9]/.test(described), `leaked openrouter key: ${described}`);
+    assert.ok(!/sb_secret_[A-Za-z0-9]/.test(described), `leaked supabase key: ${described}`);
+    assert.ok(!/eyJ[A-Za-z0-9_-]{10,}\./.test(described), `leaked jwt: ${described}`);
+  }
+});
+
+test("a failed run returns the reason so the worker can log it", async () => {
+  const states: Array<{ state: string; metadata?: Record<string, unknown> }> = [];
+  const engine = new SiteMakerEngine({
+    states: { async transition(_j, _t, state, metadata) { states.push({ state, metadata }); } },
+    codex: { async run() { throw new Error("OpenRouter API error: 401 Unauthorized"); } },
+    images: { async generate() { return ["a", "b", "c"]; } },
+    evidence: { async assess() { throw new Error("unreachable"); } },
+    artifacts: { async sealPrivateImmutable() { throw new Error("unreachable"); } },
+  });
+
+  const result = await engine.run({
+    jobId: "job-1", tenantId: "tenant-1", workspace: "/tmp/nope",
+    source: { type: "intake", intakeId: "1", verifiedFacts: {} },
+  });
+
+  assert.equal(result.status, "failed");
+  assert.equal(result.failureCode, "Error: OpenRouter API error: 401 Unauthorized");
+  const failed = states.find((s) => s.state === "failed");
+  assert.equal(failed?.metadata?.errorType, "Error: OpenRouter API error: 401 Unauthorized");
 });

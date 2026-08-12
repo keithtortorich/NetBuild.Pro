@@ -133,6 +133,35 @@ export function deterministicGatesPass(report: QualityReport): boolean {
     && report.tenantIsolationPassed;
 }
 
+/** Redacts anything shaped like a credential before it can reach the job
+ * ledger. Provider error messages are usually safe, but they are third-party
+ * strings we do not control, and failure_code is readable by anyone who can
+ * read a job. Mirrors the Python side's "log the exception type, never
+ * str(exc)" rule without giving up the diagnosis entirely. */
+export function redactSecrets(text: string): string {
+  return text
+    .replace(/\b(sk-or-[A-Za-z0-9_-]+|sk-[A-Za-z0-9_-]{16,})/g, "[redacted-key]")
+    .replace(/\bsb_(secret|publishable)_[A-Za-z0-9_-]+/g, "[redacted-key]")
+    .replace(/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, "[redacted-jwt]")
+    .replace(/\b(Bearer|X-API-Key|apikey)\s*[:=]?\s*\S+/gi, "$1 [redacted]");
+}
+
+/** `failure_code` is the only failure field the control plane persists, and
+ * it was previously just the exception's class name -- a job that died on an
+ * OpenRouter 401 recorded the single word "Error", with no message anywhere
+ * in the ledger or the worker log. Diagnosing the first real production job
+ * took a manual probe of the provider. Widening this one string to carry a
+ * redacted, bounded message costs no schema change and makes the next
+ * failure self-explanatory. */
+export function describeFailure(error: unknown): string {
+  if (!(error instanceof Error)) return "UnknownError";
+  const name = error.constructor.name;
+  const message = redactSecrets(String(error.message ?? "")).trim();
+  if (!message) return name;
+  const bounded = message.length > 180 ? `${message.slice(0, 179)}…` : message;
+  return `${name}: ${bounded}`;
+}
+
 export class InvalidDesignAssessmentError extends Error {}
 
 export interface DesignAssessment {
@@ -243,7 +272,12 @@ export class SiteMakerEngine {
     this.deps = deps;
   }
 
-  async run(job: SiteMagicJobInput): Promise<{ status: "ready_for_review" | "failed" | "quarantined"; buildId?: string }> {
+  async run(job: SiteMagicJobInput): Promise<{
+    status: "ready_for_review" | "failed" | "quarantined";
+    buildId?: string;
+    /** Redacted, bounded reason -- present on failed/quarantined only. */
+    failureCode?: string;
+  }> {
     let remediationRounds = 0;
     let rebuilds = 0;
     try {
@@ -287,7 +321,7 @@ export class SiteMakerEngine {
         if (!deterministicGatesPass(report)) {
           if (remediationRounds >= MAX_REMEDIATION_ROUNDS) {
             await this.move(job, "quarantined", { reason: "remediation_limit" });
-            return { status: "quarantined" };
+            return { status: "quarantined", failureCode: "remediation_limit" };
           }
           remediationRounds += 1;
           await this.move(job, "remediating", { remediationRounds });
@@ -307,7 +341,7 @@ export class SiteMakerEngine {
         if (finish.verdict === "REBUILD") {
           if (rebuilds >= MAX_REBUILDS) {
             await this.move(job, "quarantined", { reason: "second_rebuild_directive" });
-            return { status: "quarantined" };
+            return { status: "quarantined", failureCode: "second_rebuild_directive" };
           }
           rebuilds += 1;
           await this.move(job, "building", { rebuilds });
@@ -320,7 +354,7 @@ export class SiteMakerEngine {
         if (!releaseGatesPass(report, finish)) {
           if (remediationRounds >= MAX_REMEDIATION_ROUNDS) {
             await this.move(job, "quarantined", { reason: "final_review_failed" });
-            return { status: "quarantined" };
+            return { status: "quarantined", failureCode: "final_review_failed" };
           }
           remediationRounds += 1;
           await this.move(job, "remediating", { remediationRounds });
@@ -343,8 +377,9 @@ export class SiteMakerEngine {
         return { status: "ready_for_review", buildId: sealed.buildId };
       }
     } catch (error) {
-      await this.move(job, "failed", { errorType: error instanceof Error ? error.constructor.name : "UnknownError" });
-      return { status: "failed" };
+      const failureCode = describeFailure(error);
+      await this.move(job, "failed", { errorType: failureCode });
+      return { status: "failed", failureCode };
     }
   }
 
