@@ -21,12 +21,26 @@ export interface CodegenResponse {
 }
 
 /** Models frequently wrap JSON replies in a ```json ... ``` fence even when
- * told to return raw JSON. Strips one matching fence pair; content that
- * isn't fenced passes through untouched. */
+ * told to return raw JSON. The first version of this only matched when the
+ * ENTIRE trimmed response was one closed fence -- a production remediation
+ * response (a large multi-file `builder` payload, more likely to brush a
+ * completion token limit) came back with the closing ``` never written,
+ * so the anchored regex didn't match and the raw fenced text reached
+ * JSON.parse unstripped. Now finds a fence anywhere in the text rather
+ * than requiring it to BE the whole text, and if no fence closes at all,
+ * falls back to slicing from the first '{' to the last '}' -- every
+ * CodegenResponse is a JSON object, so that boundary is always valid when
+ * present, closed-fence or not. */
 export function stripJsonFence(content: string): string {
   const trimmed = content.trim();
-  const match = trimmed.match(/^```(?:json)?\s*\n([\s\S]*?)\n?```$/);
-  return match ? match[1] : trimmed;
+  const fenced = trimmed.match(/```(?:json)?\s*\n?([\s\S]*?)```/);
+  if (fenced) return fenced[1].trim();
+
+  const start = trimmed.indexOf("{");
+  const end = trimmed.lastIndexOf("}");
+  if (start !== -1 && end > start) return trimmed.slice(start, end + 1);
+
+  return trimmed;
 }
 
 export interface WorkspaceFs {

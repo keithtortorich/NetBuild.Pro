@@ -442,6 +442,38 @@ test("response validation: strips a markdown code fence OpenRouter wraps JSON in
   assert.deepEqual(result, { custom: "data" });
 });
 
+test("response validation: recovers a JSON object from a fence that never closes", async () => {
+  // Regression: a real production remediation response (a large multi-file
+  // builder payload, more likely to brush a completion token limit) came
+  // back as "```json\n{...}" with no closing fence. The first stripJsonFence
+  // required the entire response to BE one closed fence, so this fell
+  // through unstripped and JSON.parse threw on the leading backticks.
+  const unclosed = "```json\n" + JSON.stringify({
+    files: [{ path: "index.html", contents: "hello" }],
+    result: { custom: "data" },
+  });
+  const mockFetch = async () => ({
+    ok: true,
+    json: async () => ({
+      choices: [{ message: { content: unclosed } }],
+    }),
+  });
+
+  const runtime = new OpenRouterCodegenRuntime({
+    apiKey: "test-key",
+    fetchImpl: mockFetch,
+    fs: createFakeFs(),
+  });
+
+  const result = await runtime.run({
+    role: "builder",
+    workspace: "/tmp",
+    instructions: "test",
+  });
+
+  assert.deepEqual(result, { custom: "data" });
+});
+
 test("response validation: rejects response missing 'files' key", async () => {
   const mockFetch = async () => ({
     ok: true,
