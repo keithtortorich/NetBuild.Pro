@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import {
   normalizedScore, orderWeaknesses, releaseGatesPass, SiteMakerEngine,
   mergeDesignAssessment, InvalidDesignAssessmentError,
@@ -213,6 +214,32 @@ test("adapter failure fails closed", async () => {
   });
   assert.equal(result.status, "failed");
   assert.equal(states.at(-1), "failed");
+});
+
+test("DESIGN_MODEL picks up SITE_MAGIC_DESIGN_MODEL, not just the runtime's own default", () => {
+  // Regression: DESIGN_MODEL was a hardcoded literal, and every codex.run()
+  // call in this file passes it explicitly as `model`, which overrides
+  // OpenRouterCodegenRuntime's own env-var-aware default entirely. Setting
+  // SITE_MAGIC_DESIGN_MODEL in production Railway env had zero effect on
+  // any real call -- discovered when a 402-driven free-tier-model swap
+  // still 402'd, because the constant never read the env var at all.
+  // Spawns a fresh process (mirrors a real container restart, where env
+  // vars are set before the process -- and this module -- ever starts).
+  const withEnv = execFileSync(
+    process.execPath,
+    ["--input-type=module", "-e", "import { DESIGN_MODEL } from './webstaffr/site_maker_engine.ts'; console.log(DESIGN_MODEL);"],
+    { encoding: "utf-8", env: { ...process.env, SITE_MAGIC_DESIGN_MODEL: "openai/gpt-oss-20b:free" } }
+  ).trim();
+  assert.equal(withEnv, "openai/gpt-oss-20b:free");
+
+  const envWithoutModel = { ...process.env };
+  delete envWithoutModel.SITE_MAGIC_DESIGN_MODEL;
+  const withoutEnv = execFileSync(
+    process.execPath,
+    ["--input-type=module", "-e", "import { DESIGN_MODEL } from './webstaffr/site_maker_engine.ts'; console.log(DESIGN_MODEL);"],
+    { encoding: "utf-8", env: envWithoutModel }
+  ).trim();
+  assert.equal(withoutEnv, "openai/gpt-4o-mini");
 });
 
 test("describeFailure carries the provider's reason, not just the class name", () => {

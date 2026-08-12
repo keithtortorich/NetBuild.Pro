@@ -5,7 +5,13 @@ import { createHash } from "node:crypto";
 // OpenAI-compatible gateway). Previously hardcoded to OpenAI model names
 // (gpt-5.6-sol / gpt-image-2) that OpenRouter does not recognize as slugs,
 // so every engine run 404'd on the model after the runtime swap.
-export const DESIGN_MODEL = "openai/gpt-4o-mini";
+// Every codex.run() call below passes DESIGN_MODEL explicitly as its
+// `model` argument, which overrides OpenRouterCodegenRuntime's own
+// env-var-aware default (SITE_MAGIC_DESIGN_MODEL) entirely -- this
+// constant was hardcoded, so setting that env var in production had no
+// effect on any actual call. Reads it the same way the runtime itself
+// does, so the two stay in sync.
+export const DESIGN_MODEL = process.env.SITE_MAGIC_DESIGN_MODEL ?? "openai/gpt-4o-mini";
 export const IMAGE_MODEL = "google/gemini-2.5-flash-image";
 export const MAX_REMEDIATION_ROUNDS = 2;
 export const MAX_REBUILDS = 1;
