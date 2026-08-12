@@ -166,16 +166,30 @@ class PathValidator {
       throw new WorkspacePathEscapeError(relativePath, "contains control characters");
     }
 
-    // 5. Resolve and check still inside workspace
+    // 5. Resolve and check still inside workspace. realpath requires its
+    // target to exist, but this validates paths for files codegen is about
+    // to *create* -- a brand-new file has never existed on disk, so
+    // realpath(fullPath) throws ENOENT before the escape check even runs.
+    // Walk up to the nearest existing ancestor instead (workspaceRoot is
+    // the guaranteed base case, created by mkdtemp before any write) and
+    // realpath that -- anything written under a workspace-contained
+    // ancestor is itself workspace-contained.
     const fullPath = path.join(workspaceRoot, relativePath);
-    const realPath = await this.fs.realpath(fullPath);
     const realWorkspace = await this.fs.realpath(workspaceRoot);
 
+    let ancestor = fullPath;
+    while (!(await this.fs.exists(ancestor))) {
+      const parent = path.dirname(ancestor);
+      if (parent === ancestor) break;
+      ancestor = parent;
+    }
+    const realAncestor = await this.fs.realpath(ancestor);
+
     const sep = path.sep;
-    if (!realPath.startsWith(realWorkspace + sep) && realPath !== realWorkspace) {
+    if (!realAncestor.startsWith(realWorkspace + sep) && realAncestor !== realWorkspace) {
       throw new WorkspacePathEscapeError(
         relativePath,
-        `symlink escapes workspace (${realPath})`
+        `symlink escapes workspace (${realAncestor})`
       );
     }
 

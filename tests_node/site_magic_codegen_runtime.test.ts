@@ -18,7 +18,13 @@ function createFakeFs(overrides?: any): any {
   const links = new Map<string, string>();
 
   const defaultFs: WorkspaceFs = {
-    exists: async (p: string) => files.has(p) || links.has(p),
+    exists: async (p: string) => {
+      if (files.has(p) || links.has(p)) return true;
+      // "/tmp" is every test's workspace root -- mkdtemp guarantees it
+      // exists in production before any write, same as a real directory.
+      if (p === "/tmp") return true;
+      return Array.from(files.keys()).some((key) => key.startsWith(p + "/"));
+    },
     readFile: async (p: string) => {
       if (files.has(p)) return files.get(p)!;
       throw new Error(`ENOENT: ${p}`);
@@ -31,7 +37,14 @@ function createFakeFs(overrides?: any): any {
       if (links.has(p)) {
         return links.get(p)!;
       }
-      return p;
+      // Real fs.realpath throws ENOENT for a target that doesn't exist --
+      // the earlier version of this mock always succeeded, which is
+      // exactly what let PathValidator's realpath-on-a-not-yet-written-file
+      // bug ship to production undetected by any test.
+      if (p === "/tmp" || files.has(p) || Array.from(files.keys()).some((k) => k.startsWith(p + "/"))) {
+        return p;
+      }
+      throw Object.assign(new Error(`ENOENT: no such file or directory, realpath '${p}'`), { code: "ENOENT" });
     },
     stat: async (p: string) => {
       const content = files.get(p);
@@ -180,6 +193,45 @@ test("path validation: accepts valid relative paths", async () => {
   });
 
   assert.equal(await fs.readFile("/tmp/index.html"), "ok");
+});
+
+test("path validation: accepts a brand-new file in a not-yet-existing subdirectory", async () => {
+  // Regression: the first real production codegen call wrote PRODUCT.md
+  // into a freshly mkdtemp'd, otherwise-empty workspace. validatePath
+  // called fs.realpath on that not-yet-written file directly, and
+  // realpath requires its target to exist -- every write of a genuinely
+  // new file threw ENOENT. Every local test passed because the old fake
+  // fs's realpath never threw for a nonexistent path.
+  const mockFetch = async () => ({
+    ok: true,
+    json: async () => ({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              files: [{ path: "docs/PRODUCT.md", contents: "# Product" }],
+              result: {},
+            }),
+          },
+        },
+      ],
+    }),
+  });
+
+  const fs = createFakeFs();
+  const runtime = new OpenRouterCodegenRuntime({
+    apiKey: "test-key",
+    fetchImpl: mockFetch,
+    fs,
+  });
+
+  await runtime.run({
+    role: "builder",
+    workspace: "/tmp",
+    instructions: "test",
+  });
+
+  assert.equal(await fs.readFile("/tmp/docs/PRODUCT.md"), "# Product");
 });
 
 test("path validation: rejects absolute paths", async () => {
