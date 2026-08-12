@@ -386,6 +386,12 @@ export class SiteMakerEngine {
         return { status: "ready_for_review", buildId: sealed.buildId };
       }
     } catch (error) {
+      // failure_code is redacted and bounded to 64 chars for the job ledger
+      // (readable via the control-plane API). The Railway container log has
+      // no such audience or length constraint, and is the only place a
+      // truncated failure_code like the one that shipped this job's first
+      // real failure can be fully diagnosed -- log the raw error here too.
+      console.error(`[site-maker-engine] job ${job.jobId} threw:`, error);
       const failureCode = describeFailure(error);
       await this.move(job, "failed", { errorType: failureCode });
       return { status: "failed", failureCode };
