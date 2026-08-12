@@ -535,6 +535,35 @@ test("response validation: recovers from a raw unescaped newline inside a string
   assert.equal(await fs.readFile("/tmp/index.html"), "line one\nline two");
 });
 
+test("response validation: error snippet windows around the actual parse-error position, not just a prefix", async () => {
+  // Regression: a real production failure had its malformation at
+  // JSON.parse position 894, but the snippet was a flat 0-300 prefix --
+  // useless, the actual bad content was never visible in the log. The
+  // snippet must center on wherever V8 reports the error, however deep.
+  const padding = "x".repeat(850);
+  const malformed = `{"files":[],"result":{"padding":"${padding}","bad": "ok" "trailing"}}`;
+  const mockFetch = async () => ({
+    ok: true,
+    json: async () => ({
+      choices: [{ message: { content: malformed } }],
+    }),
+  });
+
+  const runtime = new OpenRouterCodegenRuntime({
+    apiKey: "test-key",
+    fetchImpl: mockFetch,
+    fs: createFakeFs(),
+  });
+
+  try {
+    await runtime.run({ role: "builder", workspace: "/tmp", instructions: "test" });
+    assert.fail("expected MalformedCodegenResponseError");
+  } catch (e) {
+    assert.ok(e instanceof MalformedCodegenResponseError);
+    assert.ok((e as Error).message.includes("trailing"), `expected the actual malformed region in: ${(e as Error).message}`);
+  }
+});
+
 test("response validation: rejects response missing 'files' key", async () => {
   const mockFetch = async () => ({
     ok: true,

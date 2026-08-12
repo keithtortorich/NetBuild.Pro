@@ -85,6 +85,22 @@ function sanitizeJsonControlChars(text: string): string {
   return result;
 }
 
+/** V8's JSON.parse SyntaxError includes "at position N" for most failure
+ * modes. A flat prefix snippet is useless when the malformation is deep
+ * into a large multi-finding response -- a 300-char prefix missed the
+ * actual error entirely on a real production failure (error at position
+ * 894, snippet only covered 0-300). Centers a window on the reported
+ * position when available; falls back to a longer flat prefix otherwise. */
+function buildParseErrorSnippet(text: string, error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  const match = message.match(/position (\d+)/);
+  if (!match) return text.slice(0, 1000);
+  const pos = Number(match[1]);
+  const start = Math.max(0, pos - 200);
+  const end = Math.min(text.length, pos + 200);
+  return `[chars ${start}-${end} of ${text.length}] ${text.slice(start, end)}`;
+}
+
 export function stripJsonFence(content: string): string {
   const trimmed = content.trim();
   const fenced = trimmed.match(/```(?:json)?\s*\n?([\s\S]*?)```/);
@@ -357,16 +373,17 @@ export class OpenRouterCodegenRuntime {
     const response = await this.callOpenRouter(model, prompt);
 
     // 4. Validate response shape
+    const stripped = stripJsonFence(response);
     let parsed: CodegenResponse;
     try {
-      parsed = JSON.parse(stripJsonFence(response));
+      parsed = JSON.parse(stripped);
       this.validateCodegenResponse(parsed);
     } catch (e) {
       // Bound and redact -- this reaches the Railway container log via
       // SiteMakerEngine's raw-error console.error, not the 64-char
       // failure_code, so a future parse failure is diagnosable from a
       // real response snippet instead of guessing blind again.
-      const snippet = redactSecrets(response).slice(0, 300);
+      const snippet = redactSecrets(buildParseErrorSnippet(stripped, e));
       throw new MalformedCodegenResponseError(
         `Failed to parse or validate response: ${e instanceof Error ? e.message : String(e)} | response snippet: ${snippet}`,
         e instanceof Error ? e : undefined
@@ -639,10 +656,11 @@ Return ONLY the JSON object, nothing else.`;
   const data = (await response.json()) as any;
   const content = data.choices?.[0]?.message?.content ?? "";
 
+  const strippedContent = stripJsonFence(content);
   try {
-    return JSON.parse(stripJsonFence(content));
+    return JSON.parse(strippedContent);
   } catch (e) {
-    const snippet = redactSecrets(content).slice(0, 300);
+    const snippet = redactSecrets(buildParseErrorSnippet(strippedContent, e));
     throw new MalformedCodegenResponseError(
       `Invalid JSON in response: ${e instanceof Error ? e.message : String(e)} | response snippet: ${snippet}`
     );
