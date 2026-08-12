@@ -2,6 +2,62 @@
 
 ## ACTIVE NOW
 
+### 2026-08-12: Site Magic Ran End To End For The First Time — Session Standup
+
+**Headline:** the chain works. A real intake now creates a job, hands it to the Railway worker, the worker authenticates, calls back, and moves the job's state. That had never happened before today. The pipeline currently stops at the first codegen call because Railway's `OPENROUTER_API_KEY` is not a valid key — everything before that point is proven.
+
+**Proven working (observed, not inferred):**
+- `POST /intake` on netbuild.pro returns **200** with a real tenant, submission, and tracking number.
+- The job is created and transitions `queued → ingesting`. That single transition proves four things at once: the Vercel→Railway webhook fired, the shared `SITE_MAGIC_WORKER_WEBHOOK_SECRET` matches on both sides, the worker reached the control plane, and Vercel's `INTERNAL_API_KEY` equals Railway's `SITE_MAGIC_INTERNAL_API_KEY`.
+- Evidence Runner against a regenerated site: 0 axe violations, Lighthouse **100 / 100 / 100 / 100**, no broken links, missing assets, console errors, or failed requests.
+- Suites: Python **822**, Node **82**, health **14/14 HEALTHY**.
+
+**Never yet run:** codegen (the LLM that actually builds the site), artifact seal to Supabase Storage, and therefore `ready_for_review`. The first job to get past `ingesting` will be the first real test of all three.
+
+#### Committed and pushed
+- `fdd4492` — Site Magic chain wiring; generated-site URL fix; Evidence Runner entry-file + `staticRoot` fixes; footer contrast fix.
+- `be83b6b` — intake 500 fix (jsonb/TEXT parity + the over-narrow `except` on a path documented as never able to fail).
+
+#### Committed, NOT pushed — needs a push
+- **`ab0b47b` — "fix: record why a Site Magic job failed."** `describeFailure()` puts a redacted, bounded reason in `failure_code` instead of the bare class name `Error`, and the worker logs it. Until this is pushed, the next failed job is diagnosed the slow way (by hand, against the provider). Also carries `scripts/set_openrouter_key.sh`.
+
+#### Uncommitted working-tree changes
+- `scripts/setup_site_magic_env.sh` — later hardening after it was first committed: `cd` to the repo (the CLIs resolve their project link from the working directory, so running it from `~` hung on an invisible prompt), `--non-interactive` on `vercel env add` so a failure is loud, and clipboard-first key entry with an in-place retry loop.
+- `scripts/set_openrouter_key.sh` — same retry/clipboard hardening.
+- These are the fixes for two real incidents this session; they should be committed with the push above.
+
+#### Production config completed this session
+`SITE_MAGIC_WORKER_WEBHOOK_SECRET` and `SITE_MAGIC_STORAGE_SERVICE_KEY` on Vercel Production; `SUPABASE_URL`, `SITE_MAGIC_STORAGE_SERVICE_KEY` and a regenerated shared webhook secret on Railway; Supabase bucket `site-magic-builds` created **private** (signed-URL route per ADR-029 — the earlier "public-read" note in this file was wrong).
+
+#### The last blocker — CLEARED at end of session, not yet exercised
+Railway's `OPENROUTER_API_KEY` had been the literal placeholder string `"OPENROUTER_API_KEY"` (18 chars, confirmed inside Railway's own environment), which is why every job 401'd at the first codegen call. **A real key is now set** — verified as 73 chars with an `sk-or-` prefix — and the worker redeployed successfully (`SUCCESS`, 2026-08-12T11:24Z).
+
+**So the very next action is simply to submit one intake at netbuild.pro and watch `site_magic_jobs`.** Every known blocker is cleared; nothing else is pending on config. A job that reaches `ready_for_review` means codegen, image generation, evidence, and the Supabase artifact seal all work — none of which has ever executed. A job that fails will now, once `ab0b47b` is pushed, say why in its `failure_code`.
+
+#### Defects found by running it rather than reading it (all fixed)
+1. `site_magic_engine.py` built its link base from `web_dir.as_posix()`, so every generated page shipped `href="/Users/.../generated_sites/..."` in nav, `canonical`, and `og:url` — broken anywhere it is served, and it leaked the build machine's directory layout into public HTML and SEO tags.
+2. A relative `rel=canonical` is invalid and fails Lighthouse's `canonical` audit — the entire gap between SEO 91 and the gate's 95. Now emitted only when an absolute origin is configured, omitted otherwise; no origin is hardcoded because tenant sites can live on custom domains.
+3. Evidence Runner served only `index.html` at `/`, so a workspace whose entry is `home.html` had Lighthouse audit a 404 and score 0 everywhere, with no finding saying why.
+4. Evidence Runner knew nothing about the app's `/static/` mount, so a perfectly good site logged missing assets, console errors, and failed requests at every width — enough to fail the gates alone.
+5. `.ws-footer-attribution` used `opacity: .7` over `--ws-muted`, blending to an effective 3.07:1 on white and failing WCAG AA on every generated site.
+6. jsonb/TEXT parity in `site_magic.py` — the production 500.
+7. `failure_code` recorded only an exception class name, making the first real failure undiagnosable from the ledger or the logs.
+
+#### Also worth a decision
+- Railway is on trial credit — "30 days or $4.99 left". The worker goes offline when it runs out.
+- Two Railway projects exist under the same account: **melodious-elegance** (`c3dbdfb7-…`) runs the worker; **agile-perfection** (`76fd82a3-…`) is unrelated. The random names cost real time this session; worth renaming melodious-elegance to something obvious.
+- Two OpenRouter keys were exposed in chat during setup and were rotated/deleted. Root cause was tooling design, not user error: a script that exited to a shell prompt where the next paste landed, and instructions that told the founder to copy a command from chat while a script relied on the key being on his clipboard. Both are fixed in the uncommitted script changes above.
+
+#### Test data to clean up
+Production carries two test tenants from this session: `zz_pipeline_test_heating_and_air_eea8964a` and `zz_pipeline_test_two_heating_and_air_59805c89` (tenants, intake_submissions, tracking_numbers, and one `failed` site_magic_job). Safe to delete once a job has run through successfully.
+
+#### OmniRoute — answer to "can we change our user to OmniRoute"
+The code already supports it; no code change is needed to switch. `buildProductionDependencies()` ([site_magic_worker.ts:82](webstaffr/site_magic_worker.ts:82)) reads `SITE_MAGIC_USE_OMNIROUTE` (defaults to on) and routes codegen through `OpenRouterCodegenRuntime`, whose endpoint comes from `SITE_MAGIC_CODEGEN_BASE_URL`.
+
+The catch is where that endpoint points. Unset — today's state — it goes straight to openrouter.ai using `OPENROUTER_API_KEY`. The OmniRoute path expects a **gateway that holds the provider credentials itself**, and the only address wired for it is `http://localhost:20128/v1`. A Railway container has no localhost gateway, so pointing at that URL from production would fail every call. Switching genuinely means standing up an OmniRoute gateway on a public, authenticated address and setting `SITE_MAGIC_CODEGEN_BASE_URL` to it.
+
+That is a hosting-and-vendor decision (**D4**), not an engineering one: a new always-on service to run, pay for, and secure, in exchange for multi-provider fallback and free tiers. Recommendation: get one job through end to end on plain OpenRouter first. Right now nothing has ever exercised codegen, so switching routers would change two variables at once and make the next failure ambiguous.
+
 ### 2026-08-11: Site Magic Chain Was Not Actually Wired -- Three Breaks Found and Fixed (D2, Uncommitted)
 **Status:** Code fixed locally, tests green, health HEALTHY. Chain still cannot run until the config items below are set (approval gate).
 **Correction to the entry below:** the prior session's "form to site chain wired end to end" was wrong. The Railway worker is genuinely online and its auth path is genuinely proven, but nothing connected it to the app. Three separate breaks, each of which alone would have stopped the first real intake:

@@ -30,50 +30,95 @@ grn "railway: linked and authenticated"
 
 step "OpenRouter API key"
 cat <<'EOF'
-Get it from https://openrouter.ai/keys -- copy an existing key, or create one.
-It looks like: sk-or-v1-<long string>
+Just copy the key in your browser -- this reads it from your clipboard.
 
-IMPORTANT: paste it HERE, in this black terminal window. Never into a chat
-window. Nothing will appear as you type -- that is deliberate, not a freeze.
-Press Enter when done.
+  https://openrouter.ai/keys -> Create Key -> copy the value it shows once.
+
+Then run this script. There is nothing to type or paste here.
+
+(If the clipboard does not hold a key, you will get a hidden prompt as a
+fallback. That prompt is this terminal window -- never a chat window.)
 EOF
-printf "OpenRouter key: "
-read -rs OPENROUTER_KEY
-printf "\n"
 
-if [ -z "${OPENROUTER_KEY}" ]; then
-  red "Empty input. Nothing was changed."
-  exit 1
+# Retries rather than exiting on a bad key. Exiting dropped the user back at
+# a shell prompt, where the next paste landed in shell history as a failed
+# command instead of into this script -- exposing the key. Staying in the
+# read loop means there is never a shell prompt waiting to catch a paste.
+OPENROUTER_KEY=""
+
+# Clipboard first. Copying the key in the browser is a step the user has to
+# take anyway, so reading it from there removes the paste entirely -- and with
+# it every way a key can land in the wrong window or in shell history.
+CLIPBOARD=""
+if command -v pbpaste >/dev/null; then
+  CLIPBOARD="$(pbpaste 2>/dev/null | tr -d '[:space:]')"
 fi
-case "${OPENROUTER_KEY}" in
-  sk-or-*) ;;
-  *)
-    red "That does not look like an OpenRouter key (expected it to start 'sk-or-')."
-    red "Nothing was changed."
-    exit 1
-    ;;
-esac
 
-step "Validating against OpenRouter before writing anything"
-http_code="$(
-  curl -s -o /tmp/.or_check.$$ -w '%{http_code}' \
-    https://openrouter.ai/api/v1/chat/completions \
-    -H "Authorization: Bearer ${OPENROUTER_KEY}" \
-    -H "Content-Type: application/json" \
-    -d '{"model":"openai/gpt-4o-mini","messages":[{"role":"user","content":"reply with the single word ok"}]}' \
-    --max-time 60 || true
-)"
-if [ "${http_code}" != "200" ]; then
-  red "OpenRouter rejected this key (HTTP ${http_code}). Nothing was changed."
-  ylw "Response:"
-  head -c 300 "/tmp/.or_check.$$" 2>/dev/null || true
+attempt=0
+while [ ${attempt} -lt 3 ]; do
+  attempt=$((attempt + 1))
+
+  CANDIDATE=""
+  case "${CLIPBOARD}" in
+    sk-or-*)
+      grn "Found an OpenRouter key on your clipboard -- using it, nothing to paste."
+      CANDIDATE="${CLIPBOARD}"
+      CLIPBOARD=""   # only offer it once, so a retry re-prompts
+      ;;
+  esac
+
+  if [ -z "${CANDIDATE}" ]; then
+    printf "OpenRouter key (attempt %d of 3): " "${attempt}"
+    read -rs CANDIDATE
+    printf "\n"
+  fi
+
+  if [ -z "${CANDIDATE}" ]; then
+    ylw "Nothing was entered. Copy the key, then paste and press Enter."
+    continue
+  fi
+  case "${CANDIDATE}" in
+    sk-or-*) ;;
+    *)
+      ylw "That does not start with 'sk-or-', so it is not an OpenRouter key."
+      ylw "It may have been truncated -- copy the whole value and try again."
+      continue
+      ;;
+  esac
+
+  printf "  validating against OpenRouter... "
+  http_code="$(
+    curl -s -o "/tmp/.or_check.$$" -w '%{http_code}' \
+      https://openrouter.ai/api/v1/chat/completions \
+      -H "Authorization: Bearer ${CANDIDATE}" \
+      -H "Content-Type: application/json" \
+      -d '{"model":"openai/gpt-4o-mini","messages":[{"role":"user","content":"reply with the single word ok"}]}' \
+      --max-time 60 || true
+  )"
+  if [ "${http_code}" = "200" ]; then
+    rm -f "/tmp/.or_check.$$"
+    grn "accepted (HTTP 200)."
+    OPENROUTER_KEY="${CANDIDATE}"
+    break
+  fi
+
+  printf "\n"
+  red "  OpenRouter rejected it (HTTP ${http_code})."
+  head -c 200 "/tmp/.or_check.$$" 2>/dev/null || true
   printf "\n"
   rm -f "/tmp/.or_check.$$"
-  ylw "HTTP 401 = wrong or revoked key. HTTP 402 = no credit on the account."
+  case "${http_code}" in
+    401) ylw "  401 = wrong, revoked, or partially-copied key. Create a fresh one." ;;
+    402) ylw "  402 = the OpenRouter account has no credit. Add credit, then retry." ;;
+    *)   ylw "  Check the key and your connection, then retry." ;;
+  esac
+done
+
+if [ -z "${OPENROUTER_KEY}" ]; then
+  red "No valid key after 3 attempts. Nothing was changed."
+  ylw "Re-run this script when you have a freshly created key on your clipboard."
   exit 1
 fi
-rm -f "/tmp/.or_check.$$"
-grn "OpenRouter accepted the key (HTTP 200)."
 
 step "Setting it on the Railway worker"
 printf '%s' "${OPENROUTER_KEY}" \
