@@ -39,7 +39,7 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { readFile, stat } from "node:fs/promises";
 import { readFileSync } from "node:fs";
-import { join, extname, normalize, sep } from "node:path";
+import { join, extname, normalize, sep, dirname } from "node:path";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { chromium, type Browser } from "playwright";
@@ -134,17 +134,37 @@ export function startStaticServer(
   });
 }
 
-/** Shells out to Impeccable's real, deterministic `detect` CLI
- * (.claude/skills/impeccable/scripts/detector/cli/main.mjs) -- the only
- * part of Impeccable that's actually scriptable. Exit code 0 = clean,
+/** Resolves the real `impeccable` npm CLI's entrypoint. Its package.json
+ * declares an "exports" map covering only "." and "./browser", so
+ * require.resolve("impeccable/cli/bin/cli.js") is blocked outright --
+ * only the main entry ("impeccable" itself) is resolvable. Derive the
+ * package root from that and rebuild the known bin/cli.js path from
+ * there; this is the same relative layout `npm ci` installs and
+ * node_modules/.bin/impeccable itself points at. */
+function resolveImpeccableCliPath(): string {
+  const mainEntry = require.resolve("impeccable");
+  const pkgRoot = join(dirname(mainEntry), "..", "..");
+  return join(pkgRoot, "cli", "bin", "cli.js");
+}
+
+/** Shells out to Impeccable's real, deterministic `detect` CLI -- the
+ * only part of Impeccable that's actually scriptable (its critique/audit
+ * commands are Claude Code sub-agent workflows, not scriptable). This
+ * previously pointed at .claude/skills/impeccable/..., a Claude Code
+ * agent-skill path that is never part of the Docker build context (the
+ * Dockerfile only COPYs webstaffr/) and was untracked in git besides --
+ * every real production run threw MODULE_NOT_FOUND before any evidence
+ * ever got collected. `impeccable` is already a real npm devDependency
+ * installed by `npm ci --include=dev` (see Dockerfile), so this now
+ * shells out to that package's own CLI instead. Exit code 0 = clean,
  * 2 = findings; anything else means the scan itself didn't run, and
  * reporting 0 findings in that case would be a false pass, not a clean
  * result -- so this throws instead. */
 export function runImpeccableDetect(
   workspace: string,
-  cliPath: string = join(process.cwd(), ".claude/skills/impeccable/scripts/detector/cli/main.mjs")
+  cliPath: string = resolveImpeccableCliPath()
 ): number {
-  const result = spawnSync(process.execPath, [cliPath, "--json", workspace], { encoding: "utf-8" });
+  const result = spawnSync(process.execPath, [cliPath, "detect", "--json", workspace], { encoding: "utf-8" });
   if (result.status !== 0 && result.status !== 2) {
     throw new EvidenceRunnerError(
       `impeccable detect failed to run (exit ${result.status}): ${result.stderr || result.stdout}`

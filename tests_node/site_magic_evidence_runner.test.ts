@@ -58,8 +58,16 @@ test("runImpeccableDetect throws when the CLI can't run at all, instead of repor
   );
 });
 
-test("runImpeccableDetect returns a real finding count against the actual detector CLI", () => {
-  const count = runImpeccableDetect(process.cwd());
+test("runImpeccableDetect returns a real finding count against the actual detector CLI", async (t) => {
+  // Regression: this used to scan process.cwd() -- the entire monorepo.
+  // Production only ever scans a single generated site's small workspace
+  // (PlaywrightEvidenceRunner.assess), and the real CLI's stdout came back
+  // truncated mid-JSON on a tree that large. Scope this to a small fixture,
+  // matching the actual production shape, instead of chasing an unrelated
+  // large-scan limit in a dependency.
+  const dir = await writeFixture(CLEAN_HTML);
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const count = runImpeccableDetect(dir);
   assert.equal(typeof count, "number");
   assert.ok(count >= 0);
 });
