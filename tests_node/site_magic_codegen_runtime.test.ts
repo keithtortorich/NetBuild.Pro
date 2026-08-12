@@ -503,6 +503,38 @@ test("response validation: recovers a JSON object from a fence that never closes
   assert.deepEqual(result, { custom: "data" });
 });
 
+test("response validation: recovers from a raw unescaped newline inside a string value", async () => {
+  // Regression: a real production "direction" response died with
+  // "SyntaxError: Unterminated string in JSON" at a position far short of
+  // the 16000-token completion budget -- not a truncation, a genuinely
+  // malformed string. RFC 8259 requires a literal newline inside a JSON
+  // string to be escaped (\n), and models routinely emit a real line
+  // break instead when a string value carries multi-line content.
+  const rawContent = `{"files":[{"path":"index.html","contents":"line one\nline two"}],"result":{}}`;
+  const mockFetch = async () => ({
+    ok: true,
+    json: async () => ({
+      choices: [{ message: { content: rawContent } }],
+    }),
+  });
+
+  const fs = createFakeFs();
+  const runtime = new OpenRouterCodegenRuntime({
+    apiKey: "test-key",
+    fetchImpl: mockFetch,
+    fs,
+  });
+
+  const result = await runtime.run({
+    role: "builder",
+    workspace: "/tmp",
+    instructions: "test",
+  });
+
+  assert.deepEqual(result, {});
+  assert.equal(await fs.readFile("/tmp/index.html"), "line one\nline two");
+});
+
 test("response validation: rejects response missing 'files' key", async () => {
   const mockFetch = async () => ({
     ok: true,

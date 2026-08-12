@@ -1,5 +1,6 @@
 import path from "path";
 import fs from "fs/promises";
+import { redactSecrets } from "./site_maker_engine.ts";
 
 /** OpenRouter applies its own (undocumented, model-dependent) default
  * completion cap when max_tokens is omitted. Reasoning-capable free-tier
@@ -42,16 +43,58 @@ export interface CodegenResponse {
  * falls back to slicing from the first '{' to the last '}' -- every
  * CodegenResponse is a JSON object, so that boundary is always valid when
  * present, closed-fence or not. */
+/** RFC 8259 requires literal control characters (raw newlines, tabs,
+ * carriage returns) inside a JSON string to be escaped -- \n not a real
+ * line break. Models routinely violate this when a string value contains
+ * multi-line HTML/text content: the raw newline ends the string early as
+ * far as a strict parser is concerned, and JSON.parse reports it as
+ * "Unterminated string" (the closing quote it expected never arrives on
+ * that same logical line). This is a no-op on already-valid JSON --
+ * valid JSON never contains a raw control character inside a string in
+ * the first place -- so it only ever helps, never corrupts. */
+function sanitizeJsonControlChars(text: string): string {
+  let result = "";
+  let inString = false;
+  let escaped = false;
+  for (const ch of text) {
+    if (!inString) {
+      result += ch;
+      if (ch === '"') inString = true;
+      continue;
+    }
+    if (escaped) {
+      result += ch;
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\") {
+      result += ch;
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = false;
+      result += ch;
+      continue;
+    }
+    if (ch === "\n") { result += "\\n"; continue; }
+    if (ch === "\r") { result += "\\r"; continue; }
+    if (ch === "\t") { result += "\\t"; continue; }
+    result += ch;
+  }
+  return result;
+}
+
 export function stripJsonFence(content: string): string {
   const trimmed = content.trim();
   const fenced = trimmed.match(/```(?:json)?\s*\n?([\s\S]*?)```/);
-  if (fenced) return fenced[1].trim();
+  if (fenced) return sanitizeJsonControlChars(fenced[1].trim());
 
   const start = trimmed.indexOf("{");
   const end = trimmed.lastIndexOf("}");
-  if (start !== -1 && end > start) return trimmed.slice(start, end + 1);
+  if (start !== -1 && end > start) return sanitizeJsonControlChars(trimmed.slice(start, end + 1));
 
-  return trimmed;
+  return sanitizeJsonControlChars(trimmed);
 }
 
 export interface WorkspaceFs {
@@ -319,8 +362,13 @@ export class OpenRouterCodegenRuntime {
       parsed = JSON.parse(stripJsonFence(response));
       this.validateCodegenResponse(parsed);
     } catch (e) {
+      // Bound and redact -- this reaches the Railway container log via
+      // SiteMakerEngine's raw-error console.error, not the 64-char
+      // failure_code, so a future parse failure is diagnosable from a
+      // real response snippet instead of guessing blind again.
+      const snippet = redactSecrets(response).slice(0, 300);
       throw new MalformedCodegenResponseError(
-        `Failed to parse or validate response: ${e instanceof Error ? e.message : String(e)}`,
+        `Failed to parse or validate response: ${e instanceof Error ? e.message : String(e)} | response snippet: ${snippet}`,
         e instanceof Error ? e : undefined
       );
     }
@@ -593,7 +641,10 @@ Return ONLY the JSON object, nothing else.`;
 
   try {
     return JSON.parse(stripJsonFence(content));
-  } catch {
-    throw new MalformedCodegenResponseError(`Invalid JSON in response: ${content}`);
+  } catch (e) {
+    const snippet = redactSecrets(content).slice(0, 300);
+    throw new MalformedCodegenResponseError(
+      `Invalid JSON in response: ${e instanceof Error ? e.message : String(e)} | response snippet: ${snippet}`
+    );
   }
 }
