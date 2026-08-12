@@ -2,6 +2,34 @@
 
 ## ACTIVE NOW
 
+### 2026-08-13: Site Magic — Ten Real Bugs Found By Actually Running It, Model Reliability Now The Blocker — Session Standup
+
+**Headline:** the OpenRouter 402 from last session was a red herring on top of a real one — this OpenRouter account has never had a payment method added (`is_free_tier: true`, confirmed via the key-info endpoint), so every paid-model call was always going to 402. Swapped to `openai/gpt-oss-20b:free`. That swap alone didn't work either, because `DESIGN_MODEL` turned out to be a hardcoded literal that silently ignored the env var meant to control it. Once both were actually fixed, the pipeline ran further than it ever had — full remediation cycles, real evidence checks, real codegen writing real files — and surfaced nine more genuine defects, one after another, each found by firing a real intake and reading the real failure, not by guessing. `ready_for_review` still hasn't happened. The last failure of the day was an empty API response, not a parseable malformation — the free model's mandatory reasoning is eating its entire `max_tokens` budget on verbose remediation rounds, leaving nothing for content. That's a model-capacity ceiling, not a code defect, and it's where the day stopped.
+
+**Ten real bugs fixed today, in the order they were found (each one only visible by running the pipeline against production, never from reading the code):**
+1. **`c0acf7f`** — Codegen JSON arrived wrapped in a ` ```json ` fence; `JSON.parse` choked on it outright. `stripJsonFence()` added.
+2. **`4754660`** — The worker's own log only ever echoed the same 64-char redacted `failure_code` back at itself. Added a raw, unredacted `console.error` in `SiteMakerEngine`'s catch so the Railway container log carries more than the ledger does.
+3. **`1dac17a`** — `PathValidator.validatePath` called `fs.realpath()` directly on the file being written, but `realpath` requires the target to already exist — every write of a brand-new file threw `ENOENT` before anything was ever written. Fixed to realpath the nearest *existing* ancestor instead. The test double's `realpath` never modeled ENOENT for a nonexistent path, so no test caught this — same shape as last session's jsonb/TEXT gap.
+4. **`0237997`** — `runImpeccableDetect`'s default CLI path pointed at `.claude/skills/impeccable/...`, a Claude Code agent-skill path never shipped in the Docker image (and untracked in git besides). Repointed at the real `impeccable` npm package's own CLI, resolved through its `exports` map since direct subpath resolution is blocked.
+5. **`74c8e33`** — `stripJsonFence`'s regex required the *entire* response to be one closed fence; a fence that never closed (more likely on a large remediation payload) fell through unstripped. Made non-anchored with a brace-slice fallback.
+6. **`a8a0c78`** — `DESIGN_MODEL` was a hardcoded `"openai/gpt-4o-mini"` literal despite an env-var-aware default existing one layer down — every `codex.run()` call passed the hardcoded value explicitly, so setting `SITE_MAGIC_DESIGN_MODEL` in Railway had zero effect. This was the real reason the free-model swap didn't take on the first attempt.
+7. **`e2a48fc`** — Neither OpenRouter call set `max_tokens` at all. `gpt-oss-20b:free`'s reasoning is mandatory (confirmed by testing `reasoning: {enabled: false}` directly — OpenRouter rejects it) and eats a large, non-optional share of whatever budget applies, so an unset default truncated a real multi-page `direction` response mid-string. Set to 16000 explicitly.
+8. **`19283a1`** — RFC 8259 requires literal control characters inside a JSON string to be escaped; the model routinely emits a raw newline instead when a string value carries multi-line content, and V8 reports that as "Unterminated string." Added `sanitizeJsonControlChars()`, a quote/escape-aware state machine — a no-op on already-valid JSON, so always safe to apply.
+9. **`20cec59`** — The diagnostic snippet added in #8 was a flat 0–300 char prefix; a real failure's malformation was at position 894, so the log showed 300 characters of nothing wrong. `buildParseErrorSnippet()` now centers a window on whatever position V8's `SyntaxError` reports.
+10. **`6ef2ede`** — With the windowed snippet actually working, the next failure showed a response truncated by exactly one character — every bracket closes except the outermost wrapper's. Added `closeUnbalancedJson()`: walks the string tracking open `{`/`[` and appends whatever's still outstanding. Only ever appends, never reorders or removes, so it's a no-op on balanced JSON — tried as a fallback before giving up.
+
+**Furthest reached:** a job ran the full pipeline twice through — both remediation rounds (`MAX_REMEDIATION_ROUNDS = 2`), multiple real evidence-runner passes, real codegen writing real files to a real workspace. That's the first time any of codegen, evidence, or remediation has ever actually executed. `ready_for_review` has still never happened.
+
+**Where it stopped:** the final failure of the day was `SyntaxError: Unexpected end of JSON input` with an **empty** response snippet — not a malformation any of the ten fixes above address, because there was no content to repair. Most likely explanation: on the second remediation round, reasoning tokens consumed the entire 16000-token budget before any actual JSON content was emitted. That's a capacity ceiling on this specific free model, not a code defect — every parseable malformation found today was found and fixed; this one has nothing to parse.
+
+**Recommendation:** the pipeline is very likely code-correct at this point — everything that could be diagnosed from a real failure has been. The remaining blocker is model choice: `openai/gpt-oss-20b:free`'s reasoning overhead doesn't leave enough room for its own verbose output on multi-round remediation. Two paths: try a different free-tier model with lower reasoning overhead (or optional reasoning), or add real OpenRouter credit so a reliable paid model can carry the remediation/finish-review roles. Founder's call (D4 — vendor/model choice with a real cost tradeoff).
+
+**Tests:** Node grew from 82 to 92 over the day (+10, one regression per real defect found). Health 14/14 HEALTHY throughout — never broken.
+
+**Not done:** production still carries the test tenants from today's ~11 fired intakes (`zz_test_hvac_retry*_0812_*`) — safe to delete once a job finally succeeds or the founder decides to stop testing against production data.
+
+---
+
 ### 2026-08-12: Site Magic Ran End To End For The First Time — Session Standup
 
 **Headline:** the chain works. A real intake now creates a job, hands it to the Railway worker, the worker authenticates, calls back, and moves the job's state. That had never happened before today. The pipeline currently stops at the first codegen call because Railway's `OPENROUTER_API_KEY` is not a valid key — everything before that point is proven.
