@@ -153,13 +153,22 @@ export function redactSecrets(text: string): string {
  * took a manual probe of the provider. Widening this one string to carry a
  * redacted, bounded message costs no schema change and makes the next
  * failure self-explanatory. */
+/** The control plane's `failure_code` field caps at 64 characters
+ * (site_magic_router.py's Pydantic model) -- a bound discovered the hard
+ * way when a 130-character message made the state-transition write itself
+ * 422 (with no other write ever attempting to mark the job failed at all,
+ * leaving it stuck at its last successful state). The full name+message is
+ * truncated to that limit, not just the message. */
+const FAILURE_CODE_MAX_LENGTH = 64;
+
 export function describeFailure(error: unknown): string {
   if (!(error instanceof Error)) return "UnknownError";
   const name = error.constructor.name;
   const message = redactSecrets(String(error.message ?? "")).trim();
-  if (!message) return name;
-  const bounded = message.length > 180 ? `${message.slice(0, 179)}…` : message;
-  return `${name}: ${bounded}`;
+  const full = message ? `${name}: ${message}` : name;
+  return full.length > FAILURE_CODE_MAX_LENGTH
+    ? `${full.slice(0, FAILURE_CODE_MAX_LENGTH - 1)}…`
+    : full;
 }
 
 export class InvalidDesignAssessmentError extends Error {}

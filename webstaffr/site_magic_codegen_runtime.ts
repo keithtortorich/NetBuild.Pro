@@ -20,6 +20,15 @@ export interface CodegenResponse {
   result: Record<string, unknown>;
 }
 
+/** Models frequently wrap JSON replies in a ```json ... ``` fence even when
+ * told to return raw JSON. Strips one matching fence pair; content that
+ * isn't fenced passes through untouched. */
+export function stripJsonFence(content: string): string {
+  const trimmed = content.trim();
+  const match = trimmed.match(/^```(?:json)?\s*\n([\s\S]*?)\n?```$/);
+  return match ? match[1] : trimmed;
+}
+
 export interface WorkspaceFs {
   exists: (path: string) => Promise<boolean>;
   readFile: (path: string) => Promise<string>;
@@ -268,7 +277,7 @@ export class OpenRouterCodegenRuntime {
     // 4. Validate response shape
     let parsed: CodegenResponse;
     try {
-      parsed = JSON.parse(response);
+      parsed = JSON.parse(stripJsonFence(response));
       this.validateCodegenResponse(parsed);
     } catch (e) {
       throw new MalformedCodegenResponseError(
@@ -542,7 +551,7 @@ Return ONLY the JSON object, nothing else.`;
   const content = data.choices?.[0]?.message?.content ?? "";
 
   try {
-    return JSON.parse(content);
+    return JSON.parse(stripJsonFence(content));
   } catch {
     throw new MalformedCodegenResponseError(`Invalid JSON in response: ${content}`);
   }

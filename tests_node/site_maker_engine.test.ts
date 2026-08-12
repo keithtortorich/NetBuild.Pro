@@ -228,9 +228,12 @@ test("describeFailure falls back to the class name when there is no message", ()
   assert.equal(describeFailure("not an error"), "UnknownError");
 });
 
-test("describeFailure bounds a runaway message", () => {
+test("describeFailure bounds a runaway message to the control plane's 64-char failure_code limit", () => {
+  // Regression: a 130-char message made describeFailure return a string
+  // over the API's max_length=64, so the state-transition write recording
+  // the failure itself 422'd -- the job never got marked failed at all.
   const described = describeFailure(new Error("x".repeat(5000)));
-  assert.ok(described.length < 200, `expected bounded, got ${described.length}`);
+  assert.ok(described.length <= 64, `expected <=64 chars, got ${described.length}`);
   assert.ok(described.startsWith("Error: "));
 });
 

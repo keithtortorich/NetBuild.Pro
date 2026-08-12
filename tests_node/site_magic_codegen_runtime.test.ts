@@ -359,6 +359,37 @@ test("response validation: accepts valid CodegenResponse", async () => {
   assert.deepEqual(result, { custom: "data" });
 });
 
+test("response validation: strips a markdown code fence OpenRouter wraps JSON in", async () => {
+  // Regression: the first real production codegen call returned
+  // "```json\n{...}\n```" instead of raw JSON, and JSON.parse threw on the
+  // fence -- MalformedCodegenResponseError with no code path that ever
+  // handled it.
+  const fenced = "```json\n" + JSON.stringify({
+    files: [{ path: "index.html", contents: "hello" }],
+    result: { custom: "data" },
+  }) + "\n```";
+  const mockFetch = async () => ({
+    ok: true,
+    json: async () => ({
+      choices: [{ message: { content: fenced } }],
+    }),
+  });
+
+  const runtime = new OpenRouterCodegenRuntime({
+    apiKey: "test-key",
+    fetchImpl: mockFetch,
+    fs: createFakeFs(),
+  });
+
+  const result = await runtime.run({
+    role: "builder",
+    workspace: "/tmp",
+    instructions: "test",
+  });
+
+  assert.deepEqual(result, { custom: "data" });
+});
+
 test("response validation: rejects response missing 'files' key", async () => {
   const mockFetch = async () => ({
     ok: true,
@@ -680,6 +711,33 @@ test("readOnlyRole: design_assessor returns expected structure", async () => {
     designScore: 85,
     applicableMax: 100,
     findings: ["Missing alt text", "Low contrast"],
+  });
+});
+
+test("readOnlyRole: strips a markdown code fence OpenRouter wraps JSON in", async () => {
+  const fenced = "```json\n" + JSON.stringify({
+    designScore: 85,
+    applicableMax: 100,
+    findings: ["Missing alt text"],
+  }) + "\n```";
+  const mockFetch = async () => ({
+    ok: true,
+    json: async () => ({
+      choices: [{ message: { content: fenced } }],
+    }),
+  });
+
+  const result = await callReadOnlyRole({
+    role: "design_assessor",
+    instructions: "assess this design",
+    fetch: mockFetch,
+    apiKey: "test-key",
+  });
+
+  assert.deepEqual(result, {
+    designScore: 85,
+    applicableMax: 100,
+    findings: ["Missing alt text"],
   });
 });
 
