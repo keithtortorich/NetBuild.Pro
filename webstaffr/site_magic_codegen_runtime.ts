@@ -320,7 +320,15 @@ function createDefaultWorkspaceFs(): WorkspaceFs {
   return {
     exists: (p: string) => fs.access(p).then(() => true).catch(() => false),
     readFile: (p: string) => fs.readFile(p, "utf-8"),
-    writeFile: (p: string, contents: string) => fs.writeFile(p, contents, "utf-8"),
+    writeFile: async (p: string, contents: string) => {
+      // Models routinely emit nested paths (e.g. images/hero.jpg) for a
+      // fresh workspace where that subdirectory doesn't exist yet --
+      // fs.writeFile doesn't create parent dirs, so this threw ENOENT on
+      // every such write. Found 2026-08-14 once gpt-4o started producing
+      // paths that gpt-4o-mini's outputs happened never to use.
+      await fs.mkdir(path.dirname(p), { recursive: true });
+      await fs.writeFile(p, contents, "utf-8");
+    },
     isSymlink: async (p: string) => {
       const stat = await fs.lstat(p);
       return stat.isSymbolicLink();
