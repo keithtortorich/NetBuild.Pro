@@ -59,7 +59,12 @@ class TransitionJobRequest(BaseModel):
     # instead of re-applying or 409ing. Omit for the plain, non-idempotent
     # path (existing callers/tests keep working unchanged).
     event_id: Optional[str] = Field(default=None, min_length=1, max_length=128)
-    remediation_rounds: Optional[int] = Field(default=None, ge=0, le=2)
+    # Keep in sync with MAX_REMEDIATION_ROUNDS (site_maker_engine.ts) -- the
+    # worker posts remediation_rounds up to that constant on every
+    # evaluating->remediating transition, and a lower ceiling here 422s the
+    # transition rather than remediating (found 2026-08-14: worker bumped to
+    # 4, this stayed at 2, third round failed the job instead of quarantining).
+    remediation_rounds: Optional[int] = Field(default=None, ge=0, le=4)
     rebuild_count: Optional[int] = Field(default=None, ge=0, le=1)
     quality_summary: Optional[dict[str, Any]] = None
     failure_code: Optional[str] = Field(default=None, max_length=64)
