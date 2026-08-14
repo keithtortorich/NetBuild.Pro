@@ -111,6 +111,31 @@ export function orderWeaknesses(findings: Finding[]): Finding[] {
   return [...findings].sort((a, b) => rank[a.priority] - rank[b.priority] || a.id.localeCompare(b.id));
 }
 
+/**
+ * `deterministicGatesPass` reads axe/Lighthouse/missing-assets/console-error/
+ * responsive-check fields off `QualityReport`, but the remediator prompt was
+ * only ever built from `designAssessment`/`ledger` -- the design_assessor's
+ * subjective findings. Those deterministic fields never reached the
+ * remediator, so a job stuck on e.g. missingAssets/consoleErrors had no way
+ * to converge: nothing ever told the model those issues existed. This is
+ * the piece that closes that gap.
+ */
+export function summarizeDeterministicEvidence(report: QualityReport): Record<string, unknown> {
+  return {
+    detectorFindings: report.detectorFindings,
+    axeViolations: report.axeViolations,
+    lighthouse: report.lighthouse,
+    brokenLinks: report.brokenLinks,
+    missingAssets: report.missingAssets,
+    consoleErrors: report.consoleErrors,
+    failedRequests: report.failedRequests,
+    responsiveChecksPassed: report.responsiveChecksPassed,
+    functionalChecksPassed: report.functionalChecksPassed,
+    contentIntegrityPassed: report.contentIntegrityPassed,
+    tenantIsolationPassed: report.tenantIsolationPassed,
+  };
+}
+
 export function releaseGatesPass(report: QualityReport, finish: Record<string, unknown>): boolean {
   return deterministicGatesPass(report)
     && finish.verdict === "PASS"
@@ -342,9 +367,10 @@ export class SiteMakerEngine {
           remediationRounds += 1;
           await this.move(job, "remediating", { remediationRounds });
           const ledger = orderWeaknesses(report.findings);
+          const deterministicEvidence = summarizeDeterministicEvidence(report);
           await this.deps.codex.run({
             role: "remediator", model: DESIGN_MODEL, workspace: job.workspace,
-            instructions: `Address this weakness ledger one item at a time, then render once. Design assessment: ${JSON.stringify(designAssessment)} Ledger: ${JSON.stringify(ledger)}`,
+            instructions: `Address this weakness ledger one item at a time, then render once. Design assessment: ${JSON.stringify(designAssessment)} Ledger: ${JSON.stringify(ledger)} Deterministic evidence (must all clear -- missingAssets/consoleErrors/broken links/axe violations/lighthouse scores/responsive checks): ${JSON.stringify(deterministicEvidence)}`,
           });
           continue;
         }
@@ -376,7 +402,7 @@ export class SiteMakerEngine {
           await this.move(job, "remediating", { remediationRounds });
           await this.deps.codex.run({
             role: "remediator", model: DESIGN_MODEL, workspace: job.workspace,
-            instructions: `Resolve final material findings one by one, then render once: ${JSON.stringify(finish.materialFindings ?? [])}`,
+            instructions: `Resolve final material findings one by one, then render once: ${JSON.stringify(finish.materialFindings ?? [])} Deterministic evidence (must all clear -- missingAssets/consoleErrors/broken links/axe violations/lighthouse scores/responsive checks): ${JSON.stringify(summarizeDeterministicEvidence(report))}`,
           });
           continue;
         }

@@ -6,6 +6,7 @@ import {
   mergeDesignAssessment, InvalidDesignAssessmentError,
   generateImagesWithBoundedRetry, IMAGE_GENERATION_MAX_ATTEMPTS,
   MAX_REMEDIATION_ROUNDS,
+  summarizeDeterministicEvidence,
   type QualityReport, type ImageGenerator,
   describeFailure,
   redactSecrets,
@@ -87,6 +88,46 @@ test("quarantines after MAX_REMEDIATION_ROUNDS unsuccessful remediation rounds",
   assert.equal(result.status, "quarantined");
   assert.equal(remediations, MAX_REMEDIATION_ROUNDS);
   assert.equal(states.at(-1), "quarantined");
+});
+
+test("remediator instructions carry deterministic gate evidence, not just the design assessor's subjective findings", async () => {
+  const failing: QualityReport = {
+    ...passing(), designScore: 20, applicableMax: 40,
+    missingAssets: 3, consoleErrors: 3, responsiveChecksPassed: false,
+  };
+  const remediatorInstructions: string[] = [];
+  const engine = new SiteMakerEngine({
+    states: { async transition() {} },
+    codex: { async run(args) {
+      if (args.role === "remediator") remediatorInstructions.push(args.instructions);
+      if (args.role === "design_assessor") return { designScore: 20, applicableMax: 40, findings: [] };
+      return {};
+    } },
+    images: { async generate() { return ["one", "two", "three"]; } },
+    evidence: { async assess() { return failing; } },
+    artifacts: { async sealPrivateImmutable() { throw new Error("must not seal"); } },
+  });
+  await engine.run({
+    jobId: "job-det-evidence", tenantId: "tenant-1", workspace: "/private/job-det-evidence",
+    source: { type: "url", url: "https://example.com/", ownershipAttested: true },
+  });
+  assert.ok(remediatorInstructions.length > 0);
+  for (const instructions of remediatorInstructions) {
+    assert.match(instructions, /"missingAssets":3/);
+    assert.match(instructions, /"consoleErrors":3/);
+    assert.match(instructions, /"responsiveChecksPassed":false/);
+  }
+});
+
+test("summarizeDeterministicEvidence surfaces every deterministicGatesPass field", () => {
+  const evidence = summarizeDeterministicEvidence(passing());
+  assert.deepEqual(evidence, {
+    detectorFindings: 0, axeViolations: 0,
+    lighthouse: { accessibility: 100, performance: 90, bestPractices: 95, seo: 95 },
+    brokenLinks: 0, missingAssets: 0, consoleErrors: 0, failedRequests: 0,
+    responsiveChecksPassed: true, functionalChecksPassed: true,
+    contentIntegrityPassed: true, tenantIsolationPassed: true,
+  });
 });
 
 test("mergeDesignAssessment splices designScore/applicableMax/findings from the design_assessor role", () => {
