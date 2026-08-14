@@ -13,7 +13,7 @@ import { createHash } from "node:crypto";
 // does, so the two stay in sync.
 export const DESIGN_MODEL = process.env.SITE_MAGIC_DESIGN_MODEL ?? "openai/gpt-4o-mini";
 export const IMAGE_MODEL = "google/gemini-2.5-flash-image";
-export const MAX_REMEDIATION_ROUNDS = 2;
+export const MAX_REMEDIATION_ROUNDS = 4;
 export const MAX_REBUILDS = 1;
 export const IMAGE_GENERATION_MAX_ATTEMPTS = 3;
 export const IMAGE_GENERATION_RETRY_BASE_MS = 500;

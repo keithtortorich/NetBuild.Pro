@@ -5,6 +5,7 @@ import {
   normalizedScore, orderWeaknesses, releaseGatesPass, SiteMakerEngine,
   mergeDesignAssessment, InvalidDesignAssessmentError,
   generateImagesWithBoundedRetry, IMAGE_GENERATION_MAX_ATTEMPTS,
+  MAX_REMEDIATION_ROUNDS,
   type QualityReport, type ImageGenerator,
   describeFailure,
   redactSecrets,
@@ -64,7 +65,7 @@ test("happy path reveals only a sealed final build", async () => {
   assert.deepEqual(roles, ["product", "direction", "builder", "design_assessor", "finish_reviewer", "documenter"]);
 });
 
-test("quarantines after two unsuccessful remediation rounds", async () => {
+test("quarantines after MAX_REMEDIATION_ROUNDS unsuccessful remediation rounds", async () => {
   const states: string[] = [];
   let remediations = 0;
   const codexFinding = [{ id: "p1", priority: "P1" as const, summary: "weak" }];
@@ -84,7 +85,7 @@ test("quarantines after two unsuccessful remediation rounds", async () => {
     source: { type: "url", url: "https://example.com/", ownershipAttested: true },
   });
   assert.equal(result.status, "quarantined");
-  assert.equal(remediations, 2);
+  assert.equal(remediations, MAX_REMEDIATION_ROUNDS);
   assert.equal(states.at(-1), "quarantined");
 });
 
