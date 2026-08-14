@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import type { AddressInfo } from "node:net";
 import type { EvidenceRunner, QualityReport } from "../webstaffr/site_maker_engine.ts";
 import {
@@ -72,6 +74,38 @@ test("buildProductionDependencies wires a real PlaywrightEvidenceRunner, not a N
   try {
     const deps = buildProductionDependencies("tenant-1");
     assert.ok(deps.evidence instanceof PlaywrightEvidenceRunner);
+  } finally {
+    for (const [key, value] of Object.entries(originals)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
+});
+
+test("buildProductionDependencies wires staticRoot so app-served /static assets don't count as missing -- regression for the 2026-08-11 bug where 6 assets/errors were reported on every real job", () => {
+  const originals = {
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+    SUPABASE_URL: process.env.SUPABASE_URL,
+    SITE_MAGIC_STORAGE_SERVICE_KEY: process.env.SITE_MAGIC_STORAGE_SERVICE_KEY,
+    SITE_MAGIC_API_BASE_URL: process.env.SITE_MAGIC_API_BASE_URL,
+    SITE_MAGIC_INTERNAL_API_KEY: process.env.SITE_MAGIC_INTERNAL_API_KEY,
+  };
+  Object.assign(process.env, {
+    OPENAI_API_KEY: "test-key", OPENROUTER_API_KEY: "test-openrouter-key",
+    SUPABASE_URL: "https://example.supabase.co",
+    SITE_MAGIC_STORAGE_SERVICE_KEY: "test-service-key",
+    SITE_MAGIC_API_BASE_URL: "https://control-plane.internal",
+    SITE_MAGIC_INTERNAL_API_KEY: "test-internal-key",
+  });
+  try {
+    const deps = buildProductionDependencies("tenant-1");
+    const evidence = deps.evidence as unknown as { staticRoot?: string };
+    assert.ok(evidence.staticRoot, "staticRoot must be wired, not left undefined");
+    assert.ok(evidence.staticRoot!.endsWith("templates/site/static"));
+    assert.ok(
+      existsSync(join(evidence.staticRoot!, "site.css")),
+      "wired staticRoot must actually resolve to the real static directory"
+    );
   } finally {
     for (const [key, value] of Object.entries(originals)) {
       if (value === undefined) delete process.env[key]; else process.env[key] = value;

@@ -44,6 +44,13 @@ import {
 } from "./site_magic_codegen_runtime.ts";
 import { PlaywrightEvidenceRunner } from "./site_magic_evidence_runner.ts";
 
+/** Rendered pages reference /static/site.css and /static/angel-widget.js,
+ * served by site_render_router.py from this same directory (dedicated
+ * routes, not a StaticFiles mount -- see that file's module docstring).
+ * Without this, PlaywrightEvidenceRunner's standalone workspace server
+ * knows nothing about /static/ and every job reports those assets missing. */
+const APP_STATIC_ROOT = join(fileURLToPath(new URL(".", import.meta.url)), "templates", "site", "static");
+
 export class WorkerNotConfiguredError extends Error {}
 export class UnresolvableSourceError extends Error {}
 
@@ -104,7 +111,7 @@ export function buildProductionDependencies(tenantId: string): WorkerDependencie
     states: new HTTPJobStateSink(),
     codex: codexRuntime,
     images: new OpenRouterImageGenerator(),
-    evidence: new PlaywrightEvidenceRunner({ tenantId }),
+    evidence: new PlaywrightEvidenceRunner({ tenantId, staticRoot: APP_STATIC_ROOT }),
     artifacts: new SupabaseArtifactStore(),
   };
 }
