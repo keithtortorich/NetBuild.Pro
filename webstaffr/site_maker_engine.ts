@@ -335,6 +335,7 @@ export class SiteMakerEngine {
 
         if (!deterministicGatesPass(report)) {
           if (remediationRounds >= MAX_REMEDIATION_ROUNDS) {
+            console.error(`[site-maker-engine] job ${job.jobId} hit remediation_limit, final report:`, report);
             await this.move(job, "quarantined", { reason: "remediation_limit" });
             return { status: "quarantined", failureCode: "remediation_limit" };
           }
