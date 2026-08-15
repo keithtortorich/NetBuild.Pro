@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 // Aligned with the ADR-031 OpenRouter/OmniRoute codegen swap: these are
@@ -92,6 +92,8 @@ export interface ArtifactStore {
 export interface WorkspaceWriter {
   mkdir(dirPath: string): Promise<void>;
   writeFile(filePath: string, contents: Buffer): Promise<void>;
+  /** Returns file contents as utf-8, or null if the file doesn't exist. */
+  readFile(filePath: string): Promise<string | null>;
 }
 
 export class NodeWorkspaceWriter implements WorkspaceWriter {
@@ -100,6 +102,14 @@ export class NodeWorkspaceWriter implements WorkspaceWriter {
   }
   async writeFile(filePath: string, contents: Buffer): Promise<void> {
     await writeFile(filePath, contents);
+  }
+  async readFile(filePath: string): Promise<string | null> {
+    try {
+      return await readFile(filePath, "utf-8");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+      throw error;
+    }
   }
 }
 
@@ -340,6 +350,68 @@ async function writeImageComps(
   return relativePaths;
 }
 
+/** Mirrors PlaywrightEvidenceRunner's own ENTRY_CANDIDATES
+ * (site_magic_evidence_runner.ts) -- only this one file is ever served
+ * and audited, so it's the only file this needs to check. Duplicated as
+ * a literal rather than imported for the same reason the evidence
+ * runner duplicates the gate thresholds: this is a deterministic
+ * safety net, not a dependency the two files need to stay wired
+ * together on. */
+const ENTRY_CANDIDATES = ["index.html", "home.html"] as const;
+
+/**
+ * Guarantees every generated image comp is actually referenced on the
+ * one HTML file Evidence Runner audits, instead of trusting the builder
+ * LLM to have followed its instructions. Telling the model the exact
+ * paths (writeImageComps' compPaths, passed into the builder's
+ * instructions) was necessary but not sufficient -- confirmed against
+ * three real jobs on 2026-08-15: two came back with missingAssets: 0,
+ * a third reverted to missingAssets: 9 (the same 3-comps-x-3-widths
+ * shape as the original bug) with no code change in between, meaning
+ * the model simply didn't comply that round. Prompt compliance is
+ * probabilistic; this makes the outcome deterministic instead.
+ *
+ * Appends a visible `<section>` before `</body>` for any comp not
+ * already referenced anywhere in the entry file's markup -- a real,
+ * rendered image, not a hidden preload that would pass the gate
+ * without actually improving the page (this repo's no-fabrication
+ * ethos extends to not gaming its own quality gates). If neither
+ * entry candidate exists yet, this is a no-op: it patches what the
+ * builder wrote, it doesn't invent a page.
+ */
+export async function ensureImageCompsRendered(
+  writer: WorkspaceWriter, workspace: string, compPaths: string[]
+): Promise<void> {
+  if (compPaths.length === 0) return;
+
+  let entryPath: string | null = null;
+  let html: string | null = null;
+  for (const candidate of ENTRY_CANDIDATES) {
+    const candidatePath = path.join(workspace, candidate);
+    const contents = await writer.readFile(candidatePath);
+    if (contents !== null) {
+      entryPath = candidatePath;
+      html = contents;
+      break;
+    }
+  }
+  if (entryPath === null || html === null) return;
+
+  const missing = compPaths.filter((compPath) => !html!.includes(compPath));
+  if (missing.length === 0) return;
+
+  const gallery = [
+    '<section class="ws-comp-gallery" aria-label="Photos">',
+    ...missing.map((compPath) => `  <img src="${compPath}" alt="" loading="lazy">`),
+    "</section>",
+  ].join("\n");
+  const patched = html.includes("</body>")
+    ? html.replace("</body>", `${gallery}\n</body>`)
+    : `${html}\n${gallery}`;
+
+  await writer.writeFile(entryPath, Buffer.from(patched, "utf-8"));
+}
+
 function hostileSourceEnvelope(source: SiteSource): string {
   const serialized = JSON.stringify(source);
   return [
@@ -421,6 +493,7 @@ export class SiteMakerEngine {
       });
 
       while (true) {
+        await ensureImageCompsRendered(this.deps.workspaceWriter, job.workspace, compPaths);
         await this.move(job, "evaluating");
         const designAssessment = await this.deps.codex.run({
           role: "design_assessor", model: DESIGN_MODEL, workspace: job.workspace,

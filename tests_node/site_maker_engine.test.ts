@@ -7,6 +7,7 @@ import {
   generateImagesWithBoundedRetry, IMAGE_GENERATION_MAX_ATTEMPTS,
   MAX_REMEDIATION_ROUNDS,
   summarizeDeterministicEvidence,
+  ensureImageCompsRendered,
   type QualityReport, type ImageGenerator, type WorkspaceWriter,
   describeFailure,
   redactSecrets,
@@ -19,13 +20,23 @@ const fakeComps = () => [
 ];
 
 // Mirrors CodexRuntime's own fs-injection seam: a fake so tests don't need
-// a real writable workspace directory on disk.
-const fakeWorkspaceWriter = (): WorkspaceWriter & { written: Map<string, Buffer> } => {
+// a real writable workspace directory on disk. Pre-seed `files` to
+// simulate an entry HTML file the builder already wrote.
+const fakeWorkspaceWriter = (
+  files: Record<string, string> = {}
+): WorkspaceWriter & { written: Map<string, Buffer> } => {
   const written = new Map<string, Buffer>();
+  for (const [filePath, contents] of Object.entries(files)) {
+    written.set(filePath, Buffer.from(contents, "utf-8"));
+  }
   return {
     written,
     async mkdir() {},
     async writeFile(filePath, contents) { written.set(filePath, contents); },
+    async readFile(filePath) {
+      const contents = written.get(filePath);
+      return contents === undefined ? null : contents.toString("utf-8");
+    },
   };
 };
 
@@ -313,6 +324,77 @@ test("generated image comps are written to the workspace and the builder is told
   );
   assert.match(builderInstructions[0], /images\/comp-1\.png, images\/comp-2\.png, images\/comp-3\.png/);
   assert.match(builderInstructions[0], /do not invent, rename, or leave placeholders/);
+});
+
+test("ensureImageCompsRendered injects any comp the entry file doesn't already reference", async () => {
+  // Regression for 2026-08-15: telling the builder the exact paths was
+  // necessary but not sufficient -- confirmed against a real job that
+  // reverted to missingAssets: 9 with no code change from a run that had
+  // scored 0. Prompt compliance is probabilistic; this makes it
+  // deterministic by patching the audited entry file directly.
+  const writer = fakeWorkspaceWriter({
+    "/ws/index.html": "<html><body><h1>Hi</h1><img src=\"images/comp-2.png\"></body></html>",
+  });
+  await ensureImageCompsRendered(writer, "/ws", ["images/comp-1.png", "images/comp-2.png", "images/comp-3.png"]);
+
+  const patched = (await writer.readFile("/ws/index.html"))!;
+  assert.match(patched, /<img src="images\/comp-1\.png"/);
+  assert.match(patched, /<img src="images\/comp-3\.png"/);
+  // already-referenced comp is untouched, not duplicated
+  assert.equal(patched.match(/comp-2\.png/g)?.length, 1);
+  // injected before the closing tag, not after it
+  assert.ok(patched.indexOf("comp-1.png") < patched.indexOf("</body>"));
+});
+
+test("ensureImageCompsRendered is a no-op when every comp is already referenced", async () => {
+  const html = "<html><body><img src=\"images/comp-1.png\"></body></html>";
+  const writer = fakeWorkspaceWriter({ "/ws/index.html": html });
+  await ensureImageCompsRendered(writer, "/ws", ["images/comp-1.png"]);
+  assert.equal(await writer.readFile("/ws/index.html"), html);
+});
+
+test("ensureImageCompsRendered is a no-op when no entry file exists yet", async () => {
+  const writer = fakeWorkspaceWriter();
+  await ensureImageCompsRendered(writer, "/ws", ["images/comp-1.png"]);
+  assert.equal(writer.written.size, 0);
+});
+
+test("ensureImageCompsRendered falls back to home.html when index.html doesn't exist", async () => {
+  const writer = fakeWorkspaceWriter({ "/ws/home.html": "<html><body></body></html>" });
+  await ensureImageCompsRendered(writer, "/ws", ["images/comp-1.png"]);
+  assert.match((await writer.readFile("/ws/home.html"))!, /comp-1\.png/);
+});
+
+test("a builder that ignores the image-path instructions still ends up with every comp on the audited page", async () => {
+  const writer = fakeWorkspaceWriter();
+  const engine = new SiteMakerEngine({
+    states: { async transition() {} },
+    codex: {
+      async run(args) {
+        if (args.role === "builder") {
+          // simulates a non-compliant builder: writes an entry file with
+          // no reference to any of the given comp paths
+          writer.written.set("/private/job-noncompliant/index.html", Buffer.from("<html><body></body></html>", "utf-8"));
+        }
+        if (args.role === "finish_reviewer") return { verdict: "PASS", authoredNotInterchangeable: true, materialFindings: [] };
+        if (args.role === "design_assessor") return { designScore: 36, applicableMax: 40, findings: [] };
+        return {};
+      },
+    },
+    images: { async generate() { return fakeComps(); } },
+    evidence: { async assess() { return passing(); } },
+    artifacts: { async sealPrivateImmutable() { return { buildId: "build-1" }; } },
+    workspaceWriter: writer,
+  });
+  const result = await engine.run({
+    jobId: "job-noncompliant", tenantId: "tenant-1", workspace: "/private/job-noncompliant",
+    source: { type: "intake", intakeId: "intake-1", verifiedFacts: { company: "Acme" } },
+  });
+  assert.deepEqual(result, { status: "ready_for_review", buildId: "build-1" });
+  const entry = (await writer.readFile("/private/job-noncompliant/index.html"))!;
+  assert.match(entry, /comp-1\.png/);
+  assert.match(entry, /comp-2\.png/);
+  assert.match(entry, /comp-3\.png/);
 });
 
 test("adapter failure fails closed", async () => {
