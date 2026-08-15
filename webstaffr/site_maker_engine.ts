@@ -50,6 +50,8 @@ export interface QualityReport {
   applicableMax: number;
   findings: Finding[];
   detectorFindings: number;
+  imageCompositionPassed: boolean;
+  imageDiagnostics?: Array<{ role: string; issue: string }>;
   detectorDiagnostics?: Array<{
     antipattern: string;
     name: string;
@@ -93,15 +95,24 @@ export interface CodexRuntime {
     model: string;
     workspace: string;
     instructions: string;
+    imageDataUrls?: string[];
   }): Promise<Record<string, unknown>>;
 }
 
+export interface ImageBrief {
+  role: "hero" | "proof" | "service";
+  aspectRatio: "16:9" | "4:3";
+  prompt: string;
+  altText: string;
+}
+
 export interface ImageGenerator {
-  generate(args: { model: string; brief: string; count: 3 }): Promise<string[]>;
+  generate(args: { model: string; brief: string; count: 3; briefs?: readonly ImageBrief[] }): Promise<string[]>;
 }
 
 export interface EvidenceRunner {
   assess(args: { workspace: string; widths: readonly [390, 768, 1440] }): Promise<QualityReport>;
+  getVisualEvidence?(): ReadonlyArray<{ width: number; dataUrl: string }>;
 }
 
 export interface ArtifactStore {
@@ -177,6 +188,8 @@ export function summarizeDeterministicEvidence(report: QualityReport): Record<st
   return {
     detectorFindings: report.detectorFindings,
     detectorDiagnostics: report.detectorDiagnostics ?? [],
+    imageCompositionPassed: report.imageCompositionPassed,
+    imageDiagnostics: report.imageDiagnostics ?? [],
     axeViolations: report.axeViolations,
     axeDiagnostics: report.axeDiagnostics ?? [],
     lighthouse: report.lighthouse,
@@ -204,6 +217,7 @@ export function deterministicGatesPass(report: QualityReport): boolean {
   return normalizedScore(report) >= 0.9
     && material.length === 0
     && report.detectorFindings === 0
+    && report.imageCompositionPassed
     && report.axeViolations === 0
     && report.lighthouse.accessibility === 100
     && report.lighthouse.performance >= 90
@@ -359,6 +373,8 @@ export async function generateImagesWithBoundedRetry(
  */
 export interface ImageComp {
   relativePath: string;
+  role: ImageBrief["role"];
+  altText: string;
   /** 0 when the format isn't recognized (readImageDimensions returned
    * null) -- ensureImageCompsRendered omits width/height in that case
    * rather than emitting a bogus 0x0 attribute. */
@@ -408,7 +424,7 @@ export function readImageDimensions(buf: Buffer, subtype: string): { width: numb
 }
 
 async function writeImageComps(
-  writer: WorkspaceWriter, workspace: string, comps: string[]
+  writer: WorkspaceWriter, workspace: string, comps: string[], briefs: readonly ImageBrief[]
 ): Promise<ImageComp[]> {
   await writer.mkdir(path.join(workspace, "images"));
   const result: ImageComp[] = [];
@@ -426,7 +442,13 @@ async function writeImageComps(
       .webp({ quality: 80, effort: 5 })
       .toBuffer({ resolveWithObject: true });
     await writer.writeFile(path.join(workspace, relativePath), optimized.data);
-    result.push({ relativePath, width: optimized.info.width, height: optimized.info.height });
+    result.push({
+      relativePath,
+      role: briefs[i]?.role ?? (i === 0 ? "hero" : i === 1 ? "proof" : "service"),
+      altText: briefs[i]?.altText ?? "",
+      width: optimized.info.width,
+      height: optimized.info.height,
+    });
   }
   return result;
 }
@@ -491,6 +513,12 @@ export async function ensureImageCompsRendered(
     const imageTag = new RegExp(`<img\\b[^>]*\\bsrc=["']${escapedPath}["'][^>]*>`, "gi");
     html = html.replace(imageTag, (tag) => {
       let hardened = tag;
+      if (!/\bdata-image-role\s*=/i.test(hardened)) {
+        hardened = hardened.replace(/\s*\/?\s*>$/, ` data-image-role="${comp.role}"$&`);
+      }
+      if (!/\balt\s*=/i.test(hardened)) {
+        hardened = hardened.replace(/\s*\/?\s*>$/, ` alt="${escapeHtmlAttribute(comp.altText)}"$&`);
+      }
       if (comp.width > 0 && comp.height > 0) {
         if (!/\bwidth\s*=/i.test(hardened)) hardened = hardened.replace(/\s*\/?\s*>$/, ` width="${comp.width}"$&`);
         if (!/\bheight\s*=/i.test(hardened)) hardened = hardened.replace(/\s*\/?\s*>$/, ` height="${comp.height}"$&`);
@@ -520,7 +548,7 @@ export async function ensureImageCompsRendered(
     '<section class="ws-comp-gallery" aria-label="Photos">',
     ...missing.map((comp) => {
       const dims = comp.width > 0 && comp.height > 0 ? ` width="${comp.width}" height="${comp.height}"` : "";
-      return `  <img src="${comp.relativePath}"${dims} alt="" loading="lazy">`;
+      return `  <img src="${comp.relativePath}"${dims} alt="${escapeHtmlAttribute(comp.altText)}" data-image-role="${comp.role}" loading="lazy">`;
     }),
     "</section>",
   ].join("\n");
@@ -663,6 +691,40 @@ function hostileSourceEnvelope(source: SiteSource): string {
   ].join("\n");
 }
 
+export function buildEditorialImageBriefs(
+  source: SiteSource,
+  direction: Record<string, unknown>
+): readonly ImageBrief[] {
+  const facts = source.type === "intake" ? source.verifiedFacts : {};
+  const business = String(facts.biz_name ?? "the business");
+  const industry = String(facts.industry ?? "local service business");
+  const area = String(facts.service_area ?? "its verified service area");
+  const services = Array.isArray(facts.services) ? facts.services.map(String) : [];
+  const service = services[0] ?? industry;
+  const context = `Verified context: ${business}; ${industry}; ${area}; submitted services: ${services.join(", ") || "none listed"}. Visual direction: ${JSON.stringify(direction)}.`;
+  const safety = "Create editorial marketing photography without text, logos, badges, uniforms with branding, customer faces, identifiable properties, credentials, ratings, awards, or claims about a real completed job. Do not depict an emergency, hazard, or dramatic failure unless explicitly verified.";
+  return [
+    {
+      role: "hero",
+      aspectRatio: "16:9",
+      prompt: `Wide cinematic hero photograph for a premium ${industry} website in ${area}. Show a credible trade-specific environment, equipment, or material detail with strong natural lighting and intentional negative space for headline copy. Avoid generic office scenes and abstract graphics. ${safety} ${context}`,
+      altText: `${industry} service environment in ${area}`,
+    },
+    {
+      role: "proof",
+      aspectRatio: "4:3",
+      prompt: `Editorial close-up proof photograph for ${business}: precise tools, materials, diagnostics, or process details appropriate to ${industry}. Make it tactile, specific, and believable without showing an identifiable worker or claiming this is a real customer job. ${safety} ${context}`,
+      altText: `${industry} tools and process detail`,
+    },
+    {
+      role: "service",
+      aspectRatio: "4:3",
+      prompt: `Editorial service-context photograph representing ${service} for a premium local ${industry} website serving ${area}. Favor a useful environmental or equipment detail over a posed stock-photo scene. ${safety} ${context}`,
+      altText: `${service} service context`,
+    },
+  ];
+}
+
 function manifestHash(job: SiteMagicJobInput, report: QualityReport): string {
   return createHash("sha256").update(JSON.stringify({
     jobId: job.jobId,
@@ -713,9 +775,10 @@ export class SiteMakerEngine {
         role: "direction", model: DESIGN_MODEL, workspace: job.workspace,
         instructions: `Create DESIGN.md and a surface brief from product truth. Produce a distinctive, authored, award-caliber visual direction while preserving every verified fact and functional requirement from the renderer baseline. Product: ${JSON.stringify(product)}`,
       });
+      const imageBriefs = buildEditorialImageBriefs(job.source, direction);
       const comps = await generateImagesWithBoundedRetry(
         this.deps.images,
-        { model: IMAGE_MODEL, brief: JSON.stringify(direction), count: 3 }
+        { model: IMAGE_MODEL, brief: JSON.stringify(direction), count: 3, briefs: imageBriefs }
       );
       const imagesMissing = comps === null;
       if (!imagesMissing && comps.length !== 3) {
@@ -723,14 +786,14 @@ export class SiteMakerEngine {
       }
       const compPaths = imagesMissing
         ? []
-        : await writeImageComps(this.deps.workspaceWriter, job.workspace, comps);
+        : await writeImageComps(this.deps.workspaceWriter, job.workspace, comps, imageBriefs);
 
       await this.move(job, "building", imagesMissing ? { imagesMissing: true } : undefined);
       await this.deps.codex.run({
         role: "builder", model: DESIGN_MODEL, workspace: job.workspace,
         instructions: imagesMissing
           ? `Build the complete responsive production site in index.html using the selected direction. Start from the renderer baseline when present: preserve its verified content, navigation, forms, calls to action, and page coverage, then replace its presentation with the authored direction. ${DESIGN_DETECTOR_CONSTRAINTS} No image comps are available -- image generation failed after ${IMAGE_GENERATION_MAX_ATTEMPTS} attempts. Build using typography, color, layout, and iconography only. Never fabricate, reference, or leave placeholders for missing images. Never fabricate business facts. Directions: ${JSON.stringify(direction)}`
-          : `Build the complete responsive production site in index.html using the selected direction. Start from the renderer baseline when present: preserve its verified content, navigation, forms, calls to action, and page coverage, then replace its presentation with the authored direction. ${DESIGN_DETECTOR_CONSTRAINTS} Three pre-generated image comps already exist in the workspace at these exact relative paths -- reference them verbatim in <img src> (or CSS background-image) wherever imagery fits the direction, and do not invent, rename, or leave placeholders for any other image path: ${compPaths.map((c) => c.relativePath).join(", ")}. Never fabricate business facts. Directions: ${JSON.stringify(direction)}`,
+          : `Build the complete responsive production site in index.html using the selected direction. Start from the renderer baseline when present: preserve its verified content, navigation, forms, calls to action, and page coverage, then replace its presentation with the authored direction. ${DESIGN_DETECTOR_CONSTRAINTS} Three pre-generated editorial images exist and are mandatory compositional assets: ${compPaths.map((c) => `${c.role}=${c.relativePath} (alt: ${c.altText})`).join("; ")}. Place the hero image prominently above the fold with intentional copy space; place proof and service images in semantically relevant sections at meaningful size. Use <img> elements with the supplied alt text and data-image-role attributes. A hidden image, tiny thumbnail, CSS preload, or appended fallback gallery does not satisfy the image gate. Do not invent, rename, or reference any other image path. Never fabricate business facts. Directions: ${JSON.stringify(direction)}`,
       });
 
       while (true) {
@@ -738,11 +801,13 @@ export class SiteMakerEngine {
         await ensureMetaDescriptionPresent(this.deps.workspaceWriter, job.workspace);
         await ensureStableResponsiveLayout(this.deps.workspaceWriter, job.workspace);
         await this.move(job, "evaluating");
+        let report = await this.deps.evidence.assess({ workspace: job.workspace, widths: [390, 768, 1440] });
+        const visualEvidence = this.deps.evidence.getVisualEvidence?.() ?? [];
         const designAssessment = await this.deps.codex.run({
           role: "design_assessor", model: DESIGN_MODEL, workspace: job.workspace,
-          instructions: `Independently assess specificity, hierarchy, persuasion, emotional journey, mobile experience, and Nielsen heuristics. ${imagesMissing ? "Image generation was unavailable after bounded retries, so assess this as an intentional typography, color, layout, and iconography direction. Do not create a finding merely for lacking photography or testimonials that are not present in verified facts." : "Assess whether the supplied imagery is used specifically and effectively."} Score every APPLICABLE heuristic 0-4 (skip ones that don't apply to this surface) and sum earned points as designScore against applicableMax (the sum of possible points for only the applicable heuristics). List every issue worth fixing as a P0-P3 finding with a stable id and a one-line summary. Return exactly {\"designScore\": number, \"applicableMax\": number, \"findings\": [{\"id\": string, \"priority\": \"P0\"|\"P1\"|\"P2\"|\"P3\", \"summary\": string}]}. Do not modify files.`,
+          instructions: `The attached screenshots are the primary design evidence, ordered mobile 390px, tablet 768px, and desktop 1440px. Judge what a visitor actually sees, not whether the source sounds sophisticated. Independently assess composition, hierarchy, persuasion, emotional journey, typography and spacing rhythm, cross-breakpoint consistency, mobile conversion clarity, image relevance/crop/art direction, distinctiveness versus templates and AI-default styling, factual integrity, and Nielsen heuristics. ${imagesMissing ? "Image generation was unavailable, which fails the mandatory image composition requirement; record that as a material finding." : "All three editorial image roles must visibly contribute to the composition; a hidden, tiny, generic, or fallback-gallery image is a material failure."} Do not demand fabricated testimonials, awards, ratings, or customer claims. Score every APPLICABLE heuristic 0-4 (skip ones that don't apply) and sum earned points as designScore against applicableMax. List every issue worth fixing as a P0-P3 finding with a stable id and one-line summary. Return exactly {\"designScore\": number, \"applicableMax\": number, \"findings\": [{\"id\": string, \"priority\": \"P0\"|\"P1\"|\"P2\"|\"P3\", \"summary\": string}]}. Do not modify files.`,
+          imageDataUrls: visualEvidence.map((item) => item.dataUrl),
         });
-        let report = await this.deps.evidence.assess({ workspace: job.workspace, widths: [390, 768, 1440] });
         report = mergeDesignAssessment(report, designAssessment);
 
         if (!deterministicGatesPass(report)) {

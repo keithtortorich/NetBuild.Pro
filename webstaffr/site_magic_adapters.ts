@@ -11,18 +11,9 @@
  * docs/STANDUP_2026-08-09_IMPECCABLE_PHASE_1.md). They're unit-tested
  * against fakes only.
  *
- * OpenRouterImageGenerator exists as a second real ImageGenerator so
- * comps aren't blocked on GPT Image org approval -- same OPENROUTER_API_KEY
- * this repo already uses in design_critique/client.py, no new vendor
- * account needed. It is NOT yet run against live credentials either
- * (unit-tested against fakes only): OpenRouter has no dedicated
- * images-generate endpoint, so this goes through chat-completions against
- * an image-output-capable model and reads image parts back out of the
- * response message -- a different response shape than OpenAI's
- * b64_json-per-item Images API, unverified against a real OpenRouter
- * response until a key is set. Swap ImageGenerator's real implementation
- * in buildProductionDependencies() (site_magic_worker.ts) once one path
- * is confirmed working.
+ * OpenRouterImageGenerator uses OpenRouter's dedicated Image API with the
+ * existing OPENROUTER_API_KEY. Each editorial role can request its own
+ * aspect ratio and prompt; the response is the stable b64_json image shape.
  */
 
 import { randomUUID } from "node:crypto";
@@ -32,6 +23,7 @@ import type {
   ArtifactStore,
   CodexRuntime,
   ImageGenerator,
+  ImageBrief,
   JobState,
   JobStateSink,
 } from "./site_maker_engine.ts";
@@ -66,6 +58,7 @@ export class OpenAICodexRuntime implements CodexRuntime {
     model: string;
     workspace: string;
     instructions: string;
+    imageDataUrls?: string[];
   }): Promise<Record<string, unknown>> {
     const thread = this.codex.startThread({
       model: args.model,
@@ -104,7 +97,7 @@ export class OpenAIImageGenerator implements ImageGenerator {
     this.client = new OpenAI({ apiKey: key, fetch: fetchImpl });
   }
 
-  async generate(args: { model: string; brief: string; count: 3 }): Promise<string[]> {
+  async generate(args: { model: string; brief: string; count: 3; briefs?: readonly ImageBrief[] }): Promise<string[]> {
     const response = await this.client.images.generate({
       model: args.model,
       prompt: args.brief,
@@ -127,32 +120,18 @@ export class OpenAIImageGenerator implements ImageGenerator {
 }
 
 /**
- * Wraps OpenRouter's OpenAI-compatible chat-completions endpoint for
- * image-output-capable models (e.g. google/gemini-2.5-flash-image).
+ * Wraps OpenRouter's dedicated Image API for image-output-capable models.
  * Same OPENROUTER_API_KEY as design_critique/client.py -- no separate
  * vendor account, and unblocked by OpenAI's GPT Image org-approval gate.
  *
- * OpenRouter has no images-generate endpoint of its own: an
- * image-output model returns image parts inline in the assistant
- * message (as data: URIs already, per OpenRouter's documented
- * multimodal-output shape), not as a separate b64_json array the way
- * OpenAI's Images API does. That's the only shape difference from
- * OpenAIImageGenerator above -- the return contract (string[] of data:
- * URIs) is identical, so SiteMakerEngine and its callers don't need to
- * know which ImageGenerator is wired in.
- *
- * Not yet run against a live OpenRouter response (no key set at time of
- * writing) -- unit-tested against fakes only, same caveat as this
- * file's other adapters. Verify the actual response shape against a
- * real call before relying on this in production; OpenRouter's
- * multimodal-output format has changed before and providers vary in
- * how many image parts they return per call.
+ * The model supports n=1, so the adapter issues one request per editorial
+ * role. SiteMakerEngine normalizes each returned raster to bounded WebP.
  */
 export class OpenRouterImageGenerator implements ImageGenerator {
   private readonly apiKey: string;
   private readonly fetchImpl: typeof fetch;
 
-  static readonly API_URL = "https://openrouter.ai/api/v1/chat/completions";
+  static readonly API_URL = "https://openrouter.ai/api/v1/images";
 
   constructor(apiKey?: string, fetchImpl?: typeof fetch) {
     const key = apiKey ?? process.env.OPENROUTER_API_KEY;
@@ -165,14 +144,16 @@ export class OpenRouterImageGenerator implements ImageGenerator {
     this.fetchImpl = fetchImpl ?? fetch;
   }
 
-  async generate(args: { model: string; brief: string; count: 3 }): Promise<string[]> {
+  async generate(args: { model: string; brief: string; count: 3; briefs?: readonly ImageBrief[] }): Promise<string[]> {
     const images: string[] = [];
-    // OpenRouter's chat-completions shape returns (at most, per provider
-    // behavior) one image-bearing response per call -- there is no `n`
-    // parameter like OpenAI's Images API. To satisfy ImageGenerator's
-    // fixed count of 3 comps, issue `count` independent calls rather than
-    // assuming a provider will honor a batch request it doesn't support.
+    const briefs = args.briefs ?? Array.from({ length: args.count }, (_, index) => ({
+      role: index === 0 ? "hero" : index === 1 ? "proof" : "service",
+      aspectRatio: index === 0 ? "16:9" : "4:3",
+      prompt: args.brief,
+      altText: "",
+    }));
     for (let i = 0; i < args.count; i += 1) {
+      const brief = briefs[i];
       const response = await this.fetchImpl(OpenRouterImageGenerator.API_URL, {
         method: "POST",
         headers: {
@@ -183,16 +164,9 @@ export class OpenRouterImageGenerator implements ImageGenerator {
         },
         body: JSON.stringify({
           model: args.model,
-          messages: [{ role: "user", content: args.brief }],
-          modalities: ["image", "text"],
-          // Real quarantined jobs on 2026-08-15 failed largest-contentful-paint
-          // at 16.7s (gate wants ~2.5s) -- almost certainly the model's
-          // default resolution producing multi-MB comps. 512x512 is a
-          // deliberate quality-for-speed tradeoff (founder decision,
-          // 2026-08-15): still a real photo, just fewer pixels to
-          // download. OpenRouter's documented image_config shape for
-          // Gemini image-output models.
-          image_config: { size: "512x512" },
+          prompt: brief.prompt,
+          n: 1,
+          aspect_ratio: brief.aspectRatio,
         }),
       });
       if (!response.ok) {
@@ -200,18 +174,14 @@ export class OpenRouterImageGenerator implements ImageGenerator {
           `OpenRouter image call ${i + 1}/${args.count} failed: ${response.status} ${await response.text()}`
         );
       }
-      const data = (await response.json()) as {
-        choices?: Array<{
-          message?: { images?: Array<{ image_url?: { url?: string } }> };
-        }>;
-      };
-      const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-      if (!imageUrl) {
+      const data = (await response.json()) as { data?: Array<{ b64_json?: string; media_type?: string }> };
+      const image = data.data?.[0];
+      if (!image?.b64_json) {
         throw new Error(
-          `OpenRouter image call ${i + 1}/${args.count} for ${args.model} returned no image part`
+          `OpenRouter image call ${i + 1}/${args.count} for ${args.model} returned no b64_json image`
         );
       }
-      images.push(imageUrl);
+      images.push(`data:${image.media_type ?? "image/png"};base64,${image.b64_json}`);
     }
     return images;
   }

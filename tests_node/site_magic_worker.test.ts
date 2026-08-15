@@ -24,6 +24,7 @@ class FakeEvidenceRunner implements EvidenceRunner {
   async assess(): Promise<QualityReport> {
     return {
       designScore: 36, applicableMax: 40, findings: [], detectorFindings: 0,
+      imageCompositionPassed: true,
       axeViolations: 0,
       lighthouse: { accessibility: 100, performance: 90, bestPractices: 95, seo: 95 },
       brokenLinks: 0, missingAssets: 0, consoleErrors: 0, failedRequests: 0,

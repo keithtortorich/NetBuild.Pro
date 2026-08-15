@@ -87,9 +87,7 @@ test("OpenRouterImageGenerator.generate returns exactly the requested count as d
     calls += 1;
     return new Response(
       JSON.stringify({
-        choices: [
-          { message: { images: [{ image_url: { url: `data:image/png;base64,COMP${calls}` } }] } },
-        ],
+        data: [{ b64_json: `COMP${calls}` }],
       }),
       { status: 200, headers: { "content-type": "application/json" } }
     );
@@ -107,32 +105,34 @@ test("OpenRouterImageGenerator.generate returns exactly the requested count as d
   }
 });
 
-test("OpenRouterImageGenerator.generate requests a smaller image size to control page weight", async () => {
-  // Regression: real quarantined jobs failed largest-contentful-paint at
-  // 16.7s (gate wants ~2.5s) -- the model's default resolution was
-  // producing multi-MB comps. 2026-08-15 founder decision: request
-  // smaller images rather than add an image-compression dependency.
+test("OpenRouterImageGenerator.generate uses the dedicated Image API and editorial aspect ratios", async () => {
   const bodies: string[] = [];
   const stubFetch = (async (_url: string, init: RequestInit) => {
     bodies.push(init.body as string);
     return new Response(
-      JSON.stringify({ choices: [{ message: { images: [{ image_url: { url: "data:image/png;base64,X" } }] } }] }),
+      JSON.stringify({ data: [{ b64_json: "X" }] }),
       { status: 200, headers: { "content-type": "application/json" } }
     );
   }) as typeof fetch;
   const generator = new OpenRouterImageGenerator("test-key", stubFetch);
-  await generator.generate({ model: "google/gemini-2.5-flash-image", brief: "a plumbing brand", count: 3 });
+  await generator.generate({
+    model: "google/gemini-2.5-flash-image", brief: "a plumbing brand", count: 3,
+    briefs: [
+      { role: "hero", aspectRatio: "16:9", prompt: "wide hero", altText: "hero" },
+      { role: "proof", aspectRatio: "4:3", prompt: "proof detail", altText: "proof" },
+      { role: "service", aspectRatio: "4:3", prompt: "service detail", altText: "service" },
+    ],
+  });
 
-  for (const raw of bodies) {
-    const body = JSON.parse(raw);
-    assert.equal(body.image_config?.size, "512x512");
-  }
+  assert.deepEqual(bodies.map((raw) => JSON.parse(raw).aspect_ratio), ["16:9", "4:3", "4:3"]);
+  assert.deepEqual(bodies.map((raw) => JSON.parse(raw).prompt), ["wide hero", "proof detail", "service detail"]);
+  assert.ok(bodies.every((raw) => JSON.parse(raw).n === 1));
 });
 
 test("OpenRouterImageGenerator.generate rejects when a response has no image part", async () => {
   const stubFetch = (async () =>
     new Response(
-      JSON.stringify({ choices: [{ message: {} }] }),
+      JSON.stringify({ data: [{}] }),
       { status: 200, headers: { "content-type": "application/json" } }
     )) as typeof fetch;
   const generator = new OpenRouterImageGenerator("test-key", stubFetch);

@@ -200,6 +200,33 @@ test("callOpenRouter: enforces JSON output at the provider", async () => {
   assert.deepEqual(capturedResponseFormat, { type: "json_object" });
 });
 
+test("callOpenRouter: sends responsive screenshots as multimodal image inputs", async () => {
+  let capturedContent: any;
+  const mockFetch = async (_url: string, opts: any) => {
+    capturedContent = JSON.parse(opts.body).messages[0].content;
+    return {
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: JSON.stringify({ files: [], result: {} }) } }],
+      }),
+    };
+  };
+  const runtime = new OpenRouterCodegenRuntime({
+    apiKey: "test-key", fetchImpl: mockFetch, fs: createFakeFs(),
+  });
+
+  await runtime.run({
+    role: "design_assessor", workspace: "/tmp", instructions: "judge screenshots",
+    imageDataUrls: ["data:image/jpeg;base64,MOBILE", "data:image/jpeg;base64,DESKTOP"],
+  });
+
+  assert.equal(capturedContent[0].type, "text");
+  assert.deepEqual(capturedContent.slice(1), [
+    { type: "image_url", image_url: { url: "data:image/jpeg;base64,MOBILE" } },
+    { type: "image_url", image_url: { url: "data:image/jpeg;base64,DESKTOP" } },
+  ]);
+});
+
 test("constructor: accepts injected fetch and fs", () => {
   const mockFetch = async () => ({});
   const mockFs = createFakeFs();

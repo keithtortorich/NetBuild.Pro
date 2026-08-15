@@ -13,6 +13,7 @@ import {
   type QualityReport, type ImageGenerator, type WorkspaceWriter, type ImageComp,
   describeFailure,
   redactSecrets,
+  buildEditorialImageBriefs,
 } from "../webstaffr/site_maker_engine.ts";
 
 // Real comps are `data:` URIs (see OpenAIImageGenerator/OpenRouterImageGenerator
@@ -43,6 +44,7 @@ const fakeWorkspaceWriter = (
 
 const passing = (): QualityReport => ({
   designScore: 36, applicableMax: 40, findings: [], detectorFindings: 0,
+  imageCompositionPassed: true,
   axeViolations: 0,
   lighthouse: { accessibility: 100, performance: 90, bestPractices: 95, seo: 95 },
   brokenLinks: 0, missingAssets: 0, consoleErrors: 0, failedRequests: 0,
@@ -53,6 +55,24 @@ const passing = (): QualityReport => ({
 test("normalizes applicable heuristic maxima", () => {
   assert.equal(normalizedScore({ ...passing(), designScore: 29, applicableMax: 32 }), 29 / 32);
   assert.equal(normalizedScore({ ...passing(), designScore: 0, applicableMax: 0 }), 0);
+});
+
+test("buildEditorialImageBriefs creates distinct factual editorial roles", () => {
+  const briefs = buildEditorialImageBriefs(
+    {
+      type: "intake", intakeId: "1",
+      verifiedFacts: {
+        biz_name: "Acme Climate", industry: "HVAC Contractor",
+        service_area: "Washington, DC", services: ["AC Repair", "Maintenance"],
+      },
+    },
+    { visualDirection: "documentary editorial" }
+  );
+  assert.deepEqual(briefs.map((brief) => brief.role), ["hero", "proof", "service"]);
+  assert.deepEqual(briefs.map((brief) => brief.aspectRatio), ["16:9", "4:3", "4:3"]);
+  assert.ok(briefs.every((brief) => brief.prompt.includes("Washington, DC")));
+  assert.match(briefs[2].prompt, /AC Repair/);
+  assert.ok(briefs.every((brief) => !/testimonial|award-winning/i.test(brief.prompt)));
 });
 
 test("orders the weakness ledger by priority then stable id", () => {
@@ -68,22 +88,28 @@ test("enforces every deterministic release gate", () => {
   const finish = { verdict: "PASS", authoredNotInterchangeable: true, materialFindings: [] };
   assert.equal(releaseGatesPass(passing(), finish), true);
   assert.equal(releaseGatesPass({ ...passing(), axeViolations: 1 }, finish), false);
+  assert.equal(releaseGatesPass({ ...passing(), imageCompositionPassed: false }, finish), false);
   assert.equal(releaseGatesPass({ ...passing(), designScore: 28 }, finish), false);
 });
 
 test("happy path reveals only a sealed final build", async () => {
   const states: string[] = [];
   const roles: string[] = [];
+  let assessorImages: string[] | undefined;
   const engine = new SiteMakerEngine({
     states: { async transition(_job, _tenant, state) { states.push(state); } },
     codex: { async run(args) {
       roles.push(args.role);
+      if (args.role === "design_assessor") assessorImages = args.imageDataUrls;
       if (args.role === "finish_reviewer") return { verdict: "PASS", authoredNotInterchangeable: true, materialFindings: [] };
       if (args.role === "design_assessor") return { designScore: 36, applicableMax: 40, findings: [] };
       return {};
     } },
     images: { async generate() { return fakeComps(); } },
-    evidence: { async assess() { return passing(); } },
+    evidence: {
+      async assess() { return passing(); },
+      getVisualEvidence() { return [{ width: 390, dataUrl: "data:image/jpeg;base64,MOBILE" }]; },
+    },
     artifacts: { async sealPrivateImmutable() { return { buildId: "build-1" }; } },
     workspaceWriter: fakeWorkspaceWriter(),
   });
@@ -94,6 +120,7 @@ test("happy path reveals only a sealed final build", async () => {
   assert.deepEqual(result, { status: "ready_for_review", buildId: "build-1" });
   assert.equal(states.at(-1), "ready_for_review");
   assert.deepEqual(roles, ["product", "direction", "builder", "design_assessor", "finish_reviewer", "documenter"]);
+  assert.deepEqual(assessorImages, ["data:image/jpeg;base64,MOBILE"]);
 });
 
 test("quarantines after MAX_REMEDIATION_ROUNDS unsuccessful remediation rounds", async () => {
@@ -171,7 +198,7 @@ test("remediator instructions carry deterministic gate evidence, not just the de
 test("summarizeDeterministicEvidence surfaces every deterministicGatesPass field", () => {
   const evidence = summarizeDeterministicEvidence(passing());
   assert.deepEqual(evidence, {
-    detectorFindings: 0, detectorDiagnostics: [], axeViolations: 0, axeDiagnostics: [],
+    detectorFindings: 0, detectorDiagnostics: [], imageCompositionPassed: true, imageDiagnostics: [], axeViolations: 0, axeDiagnostics: [],
     lighthouse: { accessibility: 100, performance: 90, bestPractices: 95, seo: 95 },
     brokenLinks: 0, missingAssets: 0, consoleErrors: 0, failedRequests: 0,
     responsiveChecksPassed: true, functionalChecksPassed: true,
@@ -259,7 +286,7 @@ test("generateImagesWithBoundedRetry returns null (not a throw) after exhausting
   assert.equal(slept.length, IMAGE_GENERATION_MAX_ATTEMPTS - 1);
 });
 
-test("a persistently failing image generator does not fail the job -- build finishes with images marked missing, never fabricated", async () => {
+test("a persistently failing image generator quarantines the build without fabricating imagery", async () => {
   const states: Array<{ state: string; metadata?: Record<string, unknown> }> = [];
   const builderInstructions: string[] = [];
   const engine = new SiteMakerEngine({
@@ -273,16 +300,17 @@ test("a persistently failing image generator does not fail the job -- build fini
       },
     },
     images: { async generate() { throw new Error("image vendor outage"); } },
-    evidence: { async assess() { return passing(); } },
+    evidence: { async assess() { return {
+      ...passing(), imageCompositionPassed: false,
+      imageDiagnostics: ["required editorial imagery is missing"],
+    }; } },
     artifacts: { async sealPrivateImmutable() { return { buildId: "build-missing-images" }; } },
   });
   const result = await engine.run({
     jobId: "job-images-missing", tenantId: "tenant-1", workspace: "/private/job-images-missing",
     source: { type: "intake", intakeId: "intake-1", verifiedFacts: { company: "Acme" } },
   });
-  // the job still ships -- an image-vendor outage is not a reason to
-  // quarantine or fail a build that is otherwise sound
-  assert.deepEqual(result, { status: "ready_for_review", buildId: "build-missing-images" });
+  assert.equal(result.status, "quarantined");
   const buildingTransition = states.find((entry) => entry.state === "building");
   assert.equal(buildingTransition?.metadata?.imagesMissing, true);
   // the builder role is told images are unavailable and must not fabricate
@@ -291,7 +319,7 @@ test("a persistently failing image generator does not fail the job -- build fini
   assert.match(builderInstructions[0], /Never fabricate, reference, or leave placeholders for missing images/);
 });
 
-test("a no-image fallback is assessed without demanding unavailable imagery or fabricated testimonials", async () => {
+test("a no-image fallback is assessed as a material visual failure without inviting fabricated claims", async () => {
   const calls: Array<{ role: string; instructions: string }> = [];
   const engine = new SiteMakerEngine({
     states: { async transition() {} },
@@ -311,7 +339,8 @@ test("a no-image fallback is assessed without demanding unavailable imagery or f
     source: { type: "intake", intakeId: "1", verifiedFacts: {} },
   });
   const assessment = calls.find((call) => call.role === "design_assessor");
-  assert.match(String(assessment?.instructions), /Do not create a finding merely for lacking photography or testimonials/);
+  assert.match(String(assessment?.instructions), /fails the mandatory image composition requirement; record that as a material finding/);
+  assert.match(String(assessment?.instructions), /Do not demand fabricated testimonials, awards, ratings, or customer claims/);
 });
 
 test("generated image comps are written to the workspace and the builder is told their exact paths", async () => {
@@ -351,14 +380,19 @@ test("generated image comps are written to the workspace and the builder is told
       "/private/job-images-present/images/comp-3.webp",
     ]
   );
-  assert.match(builderInstructions[0], /images\/comp-1\.webp, images\/comp-2\.webp, images\/comp-3\.webp/);
-  assert.match(builderInstructions[0], /do not invent, rename, or leave placeholders/);
+  assert.match(builderInstructions[0], /hero=images\/comp-1\.webp/);
+  assert.match(builderInstructions[0], /proof=images\/comp-2\.webp/);
+  assert.match(builderInstructions[0], /service=images\/comp-3\.webp/);
+  assert.match(builderInstructions[0], /hero image prominently above the fold/);
+  assert.match(builderInstructions[0], /Do not invent, rename, or reference any other image path/);
   assert.equal(writer.written.get("/private/job-images-present/images/comp-1.webp")?.subarray(0, 4).toString("ascii"), "RIFF");
 });
 
 // width/height 0 means "unknown" -- ensureImageCompsRendered omits the
 // attributes rather than emitting a bogus 0x0.
-const comp = (relativePath: string, width = 0, height = 0): ImageComp => ({ relativePath, width, height });
+const comp = (relativePath: string, width = 0, height = 0): ImageComp => ({
+  relativePath, role: "hero", altText: "HVAC service environment", width, height,
+});
 
 test("ensureImageCompsRendered injects any comp the entry file doesn't already reference", async () => {
   // Regression for 2026-08-15: telling the builder the exact paths was
@@ -395,7 +429,7 @@ test("ensureImageCompsRendered omits width/height when dimensions are unknown", 
   const writer = fakeWorkspaceWriter({ "/ws/index.html": "<html><body></body></html>" });
   await ensureImageCompsRendered(writer, "/ws", [comp("images/comp-1.png")]);
   const patched = (await writer.readFile("/ws/index.html"))!;
-  assert.match(patched, /<img src="images\/comp-1\.png" alt=""/);
+  assert.match(patched, /<img src="images\/comp-1\.png" alt="HVAC service environment" data-image-role="hero"/);
   assert.doesNotMatch(patched, /width=/);
 });
 

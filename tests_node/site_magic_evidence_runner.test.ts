@@ -26,9 +26,12 @@ const CLEAN_HTML = `<!doctype html>
 <title>Acme HVAC</title></head>
 <body>
   <main>
+    <img data-image-role="hero" alt="HVAC service environment" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='500'%3E%3Crect width='1200' height='500' fill='%23123456'/%3E%3C/svg%3E" style="display:block;width:100%;height:320px">
     <h1>Acme HVAC</h1>
     <p>Licensed heating and cooling in the metro area.</p>
     <a href="/sites/acme-hvac/web/contact">Contact us</a>
+    <img data-image-role="proof" alt="HVAC diagnostic tools" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='400'%3E%3Crect width='800' height='400' fill='%23345678'/%3E%3C/svg%3E" style="display:block;width:100%;height:240px">
+    <img data-image-role="service" alt="Heating service equipment" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='400'%3E%3Crect width='800' height='400' fill='%2356789a'/%3E%3C/svg%3E" style="display:block;width:100%;height:240px">
   </main>
 </body></html>`;
 
@@ -109,6 +112,10 @@ test("PlaywrightEvidenceRunner reports a clean site as passing its deterministic
   assert.equal(report.applicableMax, 0);
   assert.deepEqual(report.findings, []);
   assert.equal(report.axeViolations, 0);
+  assert.equal(report.imageCompositionPassed, true);
+  assert.equal(runner.getVisualEvidence().length, 3);
+  assert.deepEqual(runner.getVisualEvidence().map((item) => item.width), [...WIDTHS]);
+  assert.ok(runner.getVisualEvidence().every((item) => item.dataUrl.startsWith("data:image/jpeg;base64,")));
   assert.equal(report.missingAssets, 0);
   assert.equal(report.consoleErrors, 0);
   assert.equal(report.responsiveChecksPassed, true);
@@ -161,6 +168,8 @@ test("PlaywrightEvidenceRunner catches a broken/overflowing/placeholder-riddled 
   assert.ok(report.consoleErrors > 0, "console.error() should be counted");
   assert.equal(report.responsiveChecksPassed, false, "3000px div should overflow every width");
   assert.equal(report.contentIntegrityPassed, false, "Lorem ipsum should trip the placeholder check");
+  assert.equal(report.imageCompositionPassed, false);
+  assert.ok(report.imageDiagnostics?.some((item) => item.role === "hero"));
 });
 
 test("PlaywrightEvidenceRunner flags a hardcoded reference to another tenant's site path", async (t) => {

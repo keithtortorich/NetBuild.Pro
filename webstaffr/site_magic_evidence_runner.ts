@@ -211,6 +211,7 @@ export class PlaywrightEvidenceRunner implements EvidenceRunner {
   private readonly tenantId: string;
   private readonly detectCliPath?: string;
   private readonly staticRoot?: string;
+  private lastVisualEvidence: Array<{ width: number; dataUrl: string }> = [];
 
   constructor(options: { tenantId: string; detectCliPath?: string; staticRoot?: string }) {
     this.tenantId = options.tenantId;
@@ -218,7 +219,12 @@ export class PlaywrightEvidenceRunner implements EvidenceRunner {
     this.staticRoot = options.staticRoot;
   }
 
+  getVisualEvidence(): ReadonlyArray<{ width: number; dataUrl: string }> {
+    return this.lastVisualEvidence;
+  }
+
   async assess(args: { workspace: string; widths: readonly [390, 768, 1440] }): Promise<QualityReport> {
+    this.lastVisualEvidence = [];
     const detectorDiagnostics = this.detectCliPath
       ? collectImpeccableFindings(args.workspace, this.detectCliPath)
       : collectImpeccableFindings(args.workspace);
@@ -239,6 +245,7 @@ export class PlaywrightEvidenceRunner implements EvidenceRunner {
       let bodyText = "";
       const axeViolationIds = new Set<string>();
       const axeDiagnosticMap = new Map<string, { impact: string | null; targets: Set<string> }>();
+      const imageDiagnosticMap = new Map<string, { role: string; issue: string }>();
 
       for (const width of args.widths) {
         const page = await browser.newPage({ viewport: { width, height: 900 } });
@@ -253,6 +260,36 @@ export class PlaywrightEvidenceRunner implements EvidenceRunner {
         });
 
         await page.goto(baseUrl, { waitUntil: "networkidle" });
+
+        const screenshot = await page.screenshot({ fullPage: true, type: "jpeg", quality: 68 });
+        this.lastVisualEvidence.push({
+          width,
+          dataUrl: `data:image/jpeg;base64,${screenshot.toString("base64")}`,
+        });
+
+        const imageChecks = await page.evaluate((viewportWidth) => {
+          const roles = ["hero", "proof", "service"];
+          return roles.map((role) => {
+            const image = document.querySelector(`img[data-image-role="${role}"]`) as HTMLImageElement | null;
+            if (!image) return { role, issue: "missing from rendered page" };
+            const rect = image.getBoundingClientRect();
+            const style = getComputedStyle(image);
+            if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) === 0 || rect.width < 1 || rect.height < 1) {
+              return { role, issue: "hidden or zero-sized" };
+            }
+            if (image.closest(".ws-comp-gallery")) return { role, issue: "only present in fallback gallery" };
+            if (role === "hero" && (rect.top >= 900 || rect.width * rect.height < viewportWidth * 180)) {
+              return { role, issue: "hero is not a prominent above-the-fold composition element" };
+            }
+            if (role !== "hero" && rect.width * rect.height < viewportWidth * 100) {
+              return { role, issue: "supporting image is too small to contribute to composition" };
+            }
+            return { role, issue: "" };
+          });
+        }, width);
+        for (const check of imageChecks) {
+          if (check.issue) imageDiagnosticMap.set(`${check.role}:${check.issue}`, check);
+        }
 
         const overflowing = await page.evaluate(
           (w) => document.documentElement.scrollWidth > w + 1,
@@ -330,12 +367,15 @@ export class PlaywrightEvidenceRunner implements EvidenceRunner {
       const contentIntegrityPassed = !PLACEHOLDER_PATTERNS.some((pattern) => pattern.test(bodyText));
       const otherTenantLeak = new RegExp(`/sites/(?!${escapeRegExp(this.tenantId)}/)[^/"'\\s]+/`);
       const tenantIsolationPassed = !otherTenantLeak.test(bodyText);
+      const imageDiagnostics = [...imageDiagnosticMap.values()];
 
       return {
         designScore: 0, applicableMax: 0, findings: [],
         detectorFindings,
         ...(detectorDiagnostics.length > 0 ? { detectorDiagnostics: detectorDiagnostics.slice(0, 50) } : {}),
         axeViolations: axeViolationIds.size,
+        imageCompositionPassed: imageDiagnostics.length === 0,
+        ...(imageDiagnostics.length > 0 ? { imageDiagnostics } : {}),
         ...(axeDiagnosticMap.size > 0 ? { axeDiagnostics: [...axeDiagnosticMap.entries()].map(([id, value]) => ({
           id, impact: value.impact, targets: [...value.targets].slice(0, 12),
         })) } : {}),

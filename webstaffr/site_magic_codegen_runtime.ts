@@ -428,6 +428,7 @@ export class OpenRouterCodegenRuntime {
     workspace: string;
     instructions: string;
     model?: string;
+    imageDataUrls?: string[];
   }): Promise<Record<string, unknown>> {
     const { role, workspace, instructions } = args;
     const model = args.model ?? this.model;
@@ -446,7 +447,7 @@ export class OpenRouterCodegenRuntime {
     const prompt = this.buildPrompt(role, instructions, workspaceContext);
 
     // 3. Call OpenRouter
-    const response = await this.callOpenRouter(model, prompt);
+    const response = await this.callOpenRouter(model, prompt, args.imageDataUrls ?? []);
 
     // 4. Validate response shape
     const stripped = stripJsonFence(response);
@@ -607,8 +608,14 @@ Return ONLY the JSON object, nothing else.`;
     return prompt.trim();
   }
 
-  private async callOpenRouter(model: string, prompt: string): Promise<string> {
+  private async callOpenRouter(model: string, prompt: string, imageDataUrls: string[]): Promise<string> {
     const endpoint = `${this.baseUrl}/chat/completions`;
+    const content = imageDataUrls.length === 0
+      ? prompt
+      : [
+          { type: "text", text: prompt },
+          ...imageDataUrls.map((url) => ({ type: "image_url", image_url: { url } })),
+        ];
     const response = await this.fetch(endpoint, {
       method: "POST",
       headers: {
@@ -617,7 +624,7 @@ Return ONLY the JSON object, nothing else.`;
       },
       body: JSON.stringify({
         model,
-        messages: [{ role: "user", content: prompt }],
+        messages: [{ role: "user", content }],
         // Prompt-only JSON instructions are not sufficient for newer
         // reasoning models: Terra returned an ASCII wireframe in production
         // even though the prompt said "ONLY JSON". OpenRouter's OpenAI-
