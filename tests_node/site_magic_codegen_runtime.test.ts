@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   OpenRouterCodegenRuntime,
   callReadOnlyRole,
+  stripJsonFence,
   WorkspacePathEscapeError,
   ReadOnlyRoleFileModificationError,
   MalformedCodegenResponseError,
@@ -174,11 +175,14 @@ test("callOpenRouter: sets an explicit generous max_tokens", async () => {
   assert.ok(typeof capturedMaxTokens === "number" && capturedMaxTokens >= 8000);
 });
 
-test("callOpenRouter: enforces JSON output at the provider", async () => {
-  // Regression: Terra obeyed the design task but returned an ASCII wireframe
-  // instead of the CodegenResponse envelope when JSON was requested only in
-  // prompt prose, aborting the production form-to-site pipeline.
-  let capturedResponseFormat: unknown;
+test("callOpenRouter: enforces schema-constrained JSON output at the provider", async () => {
+  // Regression: `json_object` mode only nudges the model to emit valid JSON
+  // and still produced a structural `Expected ',' or '}'` error mid-payload
+  // in production. Schema-constrained mode constrains the decoder to
+  // FILE_WRITE_SCHEMA at the source, which is what ends the JSON-repair
+  // tail-chase. strict:false keeps the role-specific `result` object
+  // flexible while hard-constraining the `files` array.
+  let capturedResponseFormat: any;
   const mockFetch = async (_url: string, opts: any) => {
     capturedResponseFormat = JSON.parse(opts.body).response_format;
     return {
@@ -197,7 +201,28 @@ test("callOpenRouter: enforces JSON output at the provider", async () => {
 
   await runtime.run({ role: "product", workspace: "/tmp", instructions: "test" });
 
-  assert.deepEqual(capturedResponseFormat, { type: "json_object" });
+  assert.equal(capturedResponseFormat?.type, "json_schema");
+  assert.equal(capturedResponseFormat?.json_schema?.strict, false);
+  assert.equal(capturedResponseFormat?.json_schema?.name, "site_magic_product");
+  assert.ok(capturedResponseFormat?.json_schema?.schema?.properties?.files);
+  assert.ok(capturedResponseFormat?.json_schema?.schema?.properties?.result);
+});
+
+test("stripJsonFence: returns valid JSON verbatim (non-destructive)", () => {
+  // Regression: an earlier version ran sanitizeJsonControlChars on every
+  // input, which *unescapes* the model's own valid escapes (\\n -> n) and
+  // can corrupt already-valid JSON. stripJsonFence must now return valid
+  // JSON unchanged so the parser never "repairs" something that wasn't
+  // broken -- which previously sent it down a tier that invented the very
+  // malformation it was trying to fix.
+  const valid = JSON.stringify({ files: [{ path: "a.html", contents: "line1\nline2" }], result: { score: 1 } });
+  assert.equal(stripJsonFence(valid), valid);
+});
+
+test("stripJsonFence: still extracts a fenced payload when present", () => {
+  const fenced = "```json\n" + JSON.stringify({ files: [], result: {} }) + "\n```";
+  const parsed = JSON.parse(stripJsonFence(fenced));
+  assert.deepEqual(parsed, { files: [], result: {} });
 });
 
 test("callOpenRouter: sends responsive screenshots as multimodal image inputs", async () => {

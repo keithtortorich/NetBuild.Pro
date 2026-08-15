@@ -259,6 +259,20 @@ function buildParseErrorSnippet(text: string, error: unknown): string {
 
 export function stripJsonFence(content: string): string {
   const trimmed = content.trim();
+
+  // Non-destructive fast path: if the trimmed response is already valid
+  // JSON, return it verbatim. sanitizeJsonControlChars *unescapes* the
+  // model's own valid escapes (\\n -> n), which corrupts good responses, so
+  // we must not run it on content that already parses. Earlier versions
+  // did, which could mangle otherwise-valid JSON and send the parser down a
+  // repair tier that invented the very malformation we were trying to fix.
+  try {
+    JSON.parse(trimmed);
+    return trimmed;
+  } catch {
+    // fall through to sanitized extraction
+  }
+
   const fenced = trimmed.match(/```(?:json)?\s*\n?([\s\S]*?)```/);
   if (fenced) return sanitizeJsonControlChars(fenced[1].trim());
 
@@ -535,7 +549,7 @@ export class OpenRouterCodegenRuntime {
     const prompt = this.buildPrompt(role, instructions, workspaceContext);
 
     // 3. Call OpenRouter
-    const response = await this.callOpenRouter(model, prompt, args.imageDataUrls ?? []);
+    const response = await this.callOpenRouter(model, role, prompt, args.imageDataUrls ?? []);
 
     // 4. Validate response shape
     const stripped = stripJsonFence(response);
@@ -720,7 +734,7 @@ Return ONLY the JSON object, nothing else.`;
     return prompt.trim();
   }
 
-  private async callOpenRouter(model: string, prompt: string, imageDataUrls: string[]): Promise<string> {
+  private async callOpenRouter(model: string, role: string, prompt: string, imageDataUrls: string[]): Promise<string> {
     const endpoint = `${this.baseUrl}/chat/completions`;
     const content = imageDataUrls.length === 0
       ? prompt
@@ -737,13 +751,26 @@ Return ONLY the JSON object, nothing else.`;
       body: JSON.stringify({
         model,
         messages: [{ role: "user", content }],
-        // Prompt-only JSON instructions are not sufficient for newer
-        // reasoning models: Terra returned an ASCII wireframe in production
-        // even though the prompt said "ONLY JSON". OpenRouter's OpenAI-
-        // compatible JSON mode constrains the provider response at decoding
-        // time while preserving the role-specific, intentionally flexible
-        // `result` object.
-        response_format: { type: "json_object" },
+        // Schema-constrained output at the provider. `json_object` mode only
+        // nudges the model to *emit* valid JSON; it does not guarantee it, and
+        // Terra in particular still produced a structural delimiter error
+        // (`Expected ',' or '}'`) mid-payload under json_object. OpenRouter's
+        // json_schema mode constrains the decoder to the FILE_WRITE_SCHEMA, so
+        // the wrapper `files` array and `result` object are guaranteed
+        // well-formed at the source -- which is what ends the tail-chase of
+        // post-hoc JSON repair tiers. `strict: false` keeps the
+        // role-specific `result` object flexible (it is intentionally
+        // open-ended and consumed only as Record<string, unknown>), while the
+        // `files` array is still hard-constrained so file writes are always
+        // `{ path, contents }`. The repair engine remains as a fallback.
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: `site_magic_${role}`,
+            strict: false,
+            schema: FILE_WRITE_SCHEMA,
+          },
+        },
         stream: false,
         max_tokens: MAX_COMPLETION_TOKENS,
       }),
