@@ -125,7 +125,7 @@ test("OpenRouterImageGenerator.generate requests a smaller image size to control
 
   for (const raw of bodies) {
     const body = JSON.parse(raw);
-    assert.equal(body.image_config?.size, "1024x1024");
+    assert.equal(body.image_config?.size, "512x512");
   }
 });
 

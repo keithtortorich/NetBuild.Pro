@@ -394,11 +394,16 @@ test("ensureImageCompsRendered omits width/height when dimensions are unknown", 
   assert.doesNotMatch(patched, /width=/);
 });
 
-test("ensureImageCompsRendered is a no-op when every comp is already referenced", async () => {
-  const html = "<html><body><img src=\"images/comp-1.png\"></body></html>";
+test("ensureImageCompsRendered hardens a referenced hero for LCP and layout stability", async () => {
+  const html = "<html><body><img src=\"images/comp-1.png\" loading=\"lazy\"></body></html>";
   const writer = fakeWorkspaceWriter({ "/ws/index.html": html });
-  await ensureImageCompsRendered(writer, "/ws", [comp("images/comp-1.png")]);
-  assert.equal(await writer.readFile("/ws/index.html"), html);
+  await ensureImageCompsRendered(writer, "/ws", [comp("images/comp-1.png", 512, 512)]);
+  const patched = (await writer.readFile("/ws/index.html"))!;
+  assert.match(patched, /width="512"/);
+  assert.match(patched, /height="512"/);
+  assert.match(patched, /loading="eager"/);
+  assert.match(patched, /fetchpriority="high"/);
+  assert.doesNotMatch(patched, /loading="lazy"/);
 });
 
 test("ensureImageCompsRendered is a no-op when no entry file exists yet", async () => {

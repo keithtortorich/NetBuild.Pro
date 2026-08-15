@@ -460,10 +460,38 @@ export async function ensureImageCompsRendered(
 
   const entry = await findEntryFile(writer, workspace);
   if (entry === null) return;
-  const { path: entryPath, html } = entry;
+  const { path: entryPath } = entry;
+  let html = entry.html;
+
+  // Builder output sometimes references comps but omits intrinsic dimensions
+  // or marks the hero lazy. That produced real CLS > 0.5 and an 18s LCP even
+  // though every asset resolved. Harden every generated comp reference, not
+  // only the fallback gallery we own.
+  let promotedHero = false;
+  for (const comp of comps) {
+    const escapedPath = comp.relativePath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const imageTag = new RegExp(`<img\\b[^>]*\\bsrc=["']${escapedPath}["'][^>]*>`, "gi");
+    html = html.replace(imageTag, (tag) => {
+      let hardened = tag;
+      if (comp.width > 0 && comp.height > 0) {
+        if (!/\bwidth\s*=/i.test(hardened)) hardened = hardened.replace(/\s*\/?\s*>$/, ` width="${comp.width}"$&`);
+        if (!/\bheight\s*=/i.test(hardened)) hardened = hardened.replace(/\s*\/?\s*>$/, ` height="${comp.height}"$&`);
+      }
+      if (!promotedHero) {
+        hardened = hardened.replace(/\sloading=["']lazy["']/i, "");
+        if (!/\bloading\s*=/i.test(hardened)) hardened = hardened.replace(/\s*\/?\s*>$/, ` loading="eager"$&`);
+        if (!/\bfetchpriority\s*=/i.test(hardened)) hardened = hardened.replace(/\s*\/?\s*>$/, ` fetchpriority="high"$&`);
+        promotedHero = true;
+      }
+      return hardened;
+    });
+  }
 
   const missing = comps.filter((comp) => !html.includes(comp.relativePath));
-  if (missing.length === 0) return;
+  if (missing.length === 0) {
+    if (html !== entry.html) await writer.writeFile(entryPath, Buffer.from(html, "utf-8"));
+    return;
+  }
 
   // Explicit width/height (when known) reserve the image's layout space
   // before it loads -- omitting them was a real cause of the
