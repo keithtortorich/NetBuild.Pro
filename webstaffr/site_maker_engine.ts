@@ -21,7 +21,7 @@ export const MAX_REBUILDS = 1;
 export const IMAGE_GENERATION_MAX_ATTEMPTS = 3;
 export const IMAGE_GENERATION_RETRY_BASE_MS = 500;
 
-const DESIGN_DETECTOR_CONSTRAINTS = `The deterministic Impeccable detector is a blocking release gate. Do not use AI-default visual tropes: no thick one-sided accent borders (side tabs), no tiny tracked uppercase eyebrow or kicker above headings, no decorative radial-gradient halo, no long all-caps body copy, no text flush against colored/bordered containers (use at least 12px inset), and no overflow-hidden/clip ancestor around positioned interactive layers. Apply the visual system consistently to every generated HTML page.`;
+const DESIGN_DETECTOR_CONSTRAINTS = `The deterministic Impeccable detector is a blocking release gate. Do not use AI-default visual tropes: no thick one-sided accent borders (side tabs), no tiny tracked uppercase eyebrow or kicker above headings, no decorative radial-gradient halo, no long all-caps body copy, no text flush against colored/bordered containers (use at least 16px inset), no overflow-hidden/clip ancestor around positioned interactive layers, no cream/beige default page palette, no Inter/Roboto/Fraunces/Geist/Plus Jakarta Sans/Space Grotesk, and no letter-spacing tighter than -0.03em. Every normal-size text/background pair must exceed 4.5:1 contrast with margin, not barely meet it. Keep the verified primary phone action visually dominant on mobile; when emergency service is a verified fact, pair that status directly with the real tel: action without inventing response times. Decorative imagery and contour graphics must never compete with contact/navigation, overflow mobile, or be necessary to understand the content. Apply the visual system consistently to every generated HTML page.`;
 
 export type JobState =
   | "queued" | "ingesting" | "directing" | "building" | "evaluating"
@@ -607,7 +607,10 @@ export async function ensureStableResponsiveLayout(
   const css = `<style data-site-magic-stability>
 *,*::before,*::after{box-sizing:border-box}
 html,body{max-width:100%;overflow-x:hidden}
+body{width:100%}
+body>*{min-width:0;max-width:100%}
 img,video,svg,canvas{max-width:100%;height:auto}
+[class*="contour"],[class*="artwork"],[class*="ambient"]{max-width:100%!important;overflow:hidden!important}
 .ws-comp-gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,18rem),1fr));gap:1rem;width:100%;overflow:hidden}
 .ws-comp-gallery img{display:block;width:100%;height:auto;object-fit:cover}
 body *{opacity:1!important;visibility:visible!important}

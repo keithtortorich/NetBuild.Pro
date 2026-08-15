@@ -493,6 +493,8 @@ test("ensureStableResponsiveLayout injects deterministic mobile and load-stabili
   const html = (await writer.readFile("/ws/index.html"))!;
   assert.match(html, /data-site-magic-stability/);
   assert.match(html, /overflow-x:hidden/);
+  assert.match(html, /body>\*\{min-width:0;max-width:100%\}/);
+  assert.match(html, /class\*="contour"/);
   assert.match(html, /animation:none!important/);
   assert.match(html, /opacity:1!important/);
   assert.match(html, /<main><img/);
