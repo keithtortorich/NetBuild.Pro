@@ -2,7 +2,31 @@
 
 ## ACTIVE NOW
 
-### 2026-08-15: Image Comps Never Wired To Builder — Fixed (Root Cause Of The Path/Wiring Bug Below), Plus Untracked-Sprawl Audit
+### 2026-08-15 (session standup): Four Real Site Magic Defects Found And Fixed By Actually Running It — Session Ended On OpenRouter Credits, Cumulative Verification Job Left Mid-Flight
+
+**Headline:** founder asked "does a form fillout produce a full site now?" The honest answer was no — the fallback Python renderer ships instantly, but the Codex-built "award-winning" pipeline had never once cleared its own quality gate. This session chased that down to four real, independent, fixed defects, each confirmed against real production jobs (not local guesses) via a live intake → job → SQL read loop repeated ~8 times today.
+
+**1. Image comps never wired to the builder** (earlier today, `4ba5ecf`/`5e374d8`) — comps were generated but the builder LLM had no idea they existed, so it invented image paths that 404'd (`missingAssets: 9` = 3 comps x 3 widths). Fixed in two layers: tell the builder the real paths (necessary but not sufficient — a later job reverted to 9 with zero code change, proving LLM compliance is probabilistic), then `ensureImageCompsRendered()` deterministically guarantees every comp lands on the audited page regardless of builder compliance. Held clean across 3 straight confirmation jobs after the deterministic fix.
+
+**2. `quality_summary_json` never got written on quarantine** (`fd5ca7c`) — the DB column and API both accepted it; nothing mapped a metadata field to it. Every quarantined job's real failure reason was invisible except by archaeology through Railway's log UI, which elides multi-line console.error array output unpredictably. Fixed by threading the full `QualityReport` through the quarantine transition. This single fix is what made the next two defects findable at all.
+
+**3. Cumulative layout shift (0.578 against a 0.1 gate)** — the fallback image gallery from fix #1 had no `width`/`height` on its `<img>` tags. Fixed (`27a4b8f`): `writeImageComps` now parses real pixel dimensions straight from PNG/JPEG header bytes (no new dependency) and threads them through.
+
+**4. Largest Contentful Paint (16.7s against a ~2.5s gate)** — AI-generated comps at the model's default resolution were almost certainly multi-MB. Founder decision (chose "request smaller images" over "add an image-compression dependency like sharp"): OpenRouter's documented `image_config.size` set to `1024x1024` on every Gemini image call (`b028798`). **Confirmed live: performance jumped from 53 to 100, zero remaining lighthouseDiagnostics for that category.**
+
+**5. SEO stuck at 91-across every job that failed it** — traced via the new `lighthouseDiagnostics` field to one specific Lighthouse audit, `meta-description: "Document does not have a meta description"`, confirmed on 3 separate production jobs. A run where the builder happened to include one scored SEO 100 — same probabilistic-compliance shape as defect #1. Fixed (`b49ef35`) the same way: `ensureMetaDescriptionPresent()` deterministically injects one if missing, derived from the page's own already-rendered body text (never invented copy — no-fabrication rule holds).
+
+**Verification methodology this session, worth repeating:** fire a real `zz_test_hvac_*` intake against production after each deploy, poll `site_magic_jobs` via Supabase SQL until settled, read the real `quality_summary_json`. Caught a probabilistic-compliance regression (`missingAssets` reverting from 0 to 9 with zero code change) that a single clean test run would have missed entirely.
+
+**Not resolved — session ended on OpenRouter credits running out:** a fifth test job (tenant `zz_test_hvac_cumulative_0815_1786778505_e6437314`, job `e072aad2-72ea-4dc5-871b-3972270e178c`) was fired to check whether all four fixes together are enough for a job to actually reach `ready_for_review` for the first time ever. Last checked mid-`building` state, not settled — **next session's first move should be checking this job's final status before firing anything new.** If it's still stuck in `building`/`queued`, that's the credits outage, not a code defect — check OpenRouter balance before assuming a regression.
+
+**Design score itself was climbing across sessions even before these fixes** (16/24 → 18/28 → 22/28 → 22/28) — the remediation loop's subjective side is working; the deterministic side was the actual blocker. Whether a real material P0/P1 UX finding (e.g. "emergency contact not prominent enough") still blocks `releaseGatesPass` even after all four deterministic fixes is exactly what the pending job would have told us.
+
+**Test tenants accumulated this session, none cleaned up:** `zz_test_hvac_imgfix3`, `qsjson`, `imgfinal`, `seodiag`, `lcpfix`, `cumulative` (plus earlier `imgfix2`/`detfix`/`gpt4o2` from prior sessions). Deleting requires cascading DB deletes (`intake_submissions`/`tracking_numbers` don't cascade off `tenants`, everything `site_magic_*` does) — flagged, not executed, pending founder confirmation per this repo's production-DB-write approval rule.
+
+**Also this session, unrelated:** cleaned up untracked repo sprawl (`aa24061`) — gitignored `generated_sites/`/`supabase/.temp/`, moved a logo source image to `docs/assets/`, deleted two orphaned scratch files.
+
+**Tests:** Node suite grew from 96 to 116 across this session's fixes, full suite green at every commit. Python suite untouched (823/823, unaffected by any of today's changes — all TypeScript/worker-side).
 
 **Root cause of the "real cause narrowed to a path/wiring bug" note below, confirmed:** `site_maker_engine.ts` generated 3 image comps but never wrote them to the job workspace or told the builder role they existed — the builder invented `<img src>` paths blind, all 404ing. Confirmed live against quarantined job `fb8798e6` (missingAssets: 9, consoleErrors: 9 — exactly 3 comps x 3 widths) by pulling Railway deploy logs directly. Fixed: comps now decode to `{workspace}/images/comp-N.{ext}` before the builder step, and the builder's instructions list the exact paths. `WorkspaceWriter` added as an injected seam (mirrors `CodexRuntime.fs`) so tests don't need a real disk. Also fixed a second, unrelated bug in the same session: `site_magic_engine.py`'s inline `:root` CSS block was an f-string missing its literal braces, so the whole style block was invalid and silently dropped by browsers — every generated site shipped with zero brand-color styling applied. Tests: Python 823/823, Node 96/96. Pushed `4ba5ecf`.
 
