@@ -2,6 +2,14 @@
 
 ## ACTIVE NOW
 
+### 2026-08-15: Site Renderer Now Feeds Site Magic (Local, Verified, Pending Push/Deploy)
+
+Form submission no longer launches the deterministic renderer and Site Magic as unrelated side effects. A successful renderer result is recorded in the Site Magic intake source as a tenant-scoped baseline route plus page manifest. The worker fetches that rendered baseline from the control plane into its isolated workspace before product, direction, and builder roles run. Prompts now require Site Magic to preserve verified content, navigation, forms, calls to action, and page coverage while replacing the fallback presentation with a distinctive authored direction. Existing design, accessibility, responsive, functional, tenant-isolation, asset, Lighthouse, and final-review release gates remain mandatory before `ready_for_review`.
+
+Also fixed the URL-source validation test seam: DNS resolution is now selected at call time, so deterministic resolver replacement works and URL job creation no longer performs accidental live DNS during tests.
+
+Verification: Python 823/823 passing; Node Site Magic 117/117 passing; health check HEALTHY (14/14). Local only, not committed, pushed, or deployed.
+
 ### 2026-08-15 (session standup): Four Real Site Magic Defects Found And Fixed By Actually Running It — Session Ended On OpenRouter Credits, Cumulative Verification Job Left Mid-Flight
 
 **Headline:** founder asked "does a form fillout produce a full site now?" The honest answer was no — the fallback Python renderer ships instantly, but the Codex-built "award-winning" pipeline had never once cleared its own quality gate. This session chased that down to four real, independent, fixed defects, each confirmed against real production jobs (not local guesses) via a live intake → job → SQL read loop repeated ~8 times today.

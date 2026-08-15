@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AddressInfo } from "node:net";
 import type { EvidenceRunner, QualityReport } from "../webstaffr/site_maker_engine.ts";
@@ -251,6 +251,44 @@ test("dry run: full circuit from control-plane job record to a sealed build, no 
 
   assert.deepEqual(result, { status: "ready_for_review", buildId: "dry-run-build-1" });
   assert.equal(states.at(-1), "ready_for_review");
+});
+
+test("intake circuit materializes the Site Renderer baseline before Site Magic runs", async () => {
+  const { deps, states } = fakeDependencies();
+  let productWorkspace = "";
+  const originalRun = deps.codex.run.bind(deps.codex);
+  deps.codex.run = async (args) => {
+    if (args.role === "product") productWorkspace = args.workspace;
+    return originalRun(args);
+  };
+  const stubFetch = (async (url: string | URL) => {
+    if (url.toString().includes("/site-magic/internal/jobs/")) {
+      return new Response(JSON.stringify({
+        job_id: "job-intake", tenant_id: "tenant-1", source_type: "intake", status: "queued",
+        source_payload: {
+          intake_id: "intake-1", verified_facts: { biz_name: "Acme HVAC" },
+          renderer_baseline: { path: "/sites/tenant-1/web", pages: ["home", "about", "contact"] },
+        },
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    assert.equal(url.toString(), "https://control-plane.internal/sites/tenant-1/web");
+    return new Response("<html><body>Acme HVAC baseline</body></html>", { status: 200 });
+  }) as typeof fetch;
+
+  const result = await processJob("job-intake", "tenant-1", () => deps, {
+    baseUrl: "https://control-plane.internal", apiKey: "internal-key", fetchImpl: stubFetch,
+  });
+
+  assert.equal(result.status, "ready_for_review");
+  assert.equal(states.at(-1), "ready_for_review");
+  assert.match(
+    readFileSync(join(productWorkspace, "renderer-baseline", "index.html"), "utf8"),
+    /Acme HVAC baseline/,
+  );
+  assert.deepEqual(
+    JSON.parse(readFileSync(join(productWorkspace, "renderer-baseline", "manifest.json"), "utf8")).pages,
+    ["home", "about", "contact"],
+  );
 });
 
 test("webhook server rejects a wrong shared secret", async () => {

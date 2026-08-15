@@ -1,3 +1,4 @@
+import json
 import os
 import sqlite3
 import tempfile
@@ -195,7 +196,7 @@ class TestIntakeAutoEnqueuesSiteMagic(unittest.TestCase):
         conn.row_factory = sqlite3.Row
         try:
             row = conn.execute(
-                "SELECT tenant_id, source_type, status FROM site_magic_jobs WHERE job_id = ?",
+                "SELECT tenant_id, source_type, source_payload_json, status FROM site_magic_jobs WHERE job_id = ?",
                 (job_id,),
             ).fetchone()
         finally:
@@ -204,6 +205,9 @@ class TestIntakeAutoEnqueuesSiteMagic(unittest.TestCase):
         self.assertEqual(row["tenant_id"], tenant_id)
         self.assertEqual(row["source_type"], "intake")
         self.assertEqual(row["status"], "queued")
+        source_payload = json.loads(row["source_payload_json"])
+        self.assertEqual(source_payload["renderer_baseline"]["path"], f"/sites/{tenant_id}/web")
+        self.assertIn("home", source_payload["renderer_baseline"]["pages"])
 
     def test_rate_limited_submission_does_not_enqueue(self):
         with patch(

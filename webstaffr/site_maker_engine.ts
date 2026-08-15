@@ -25,7 +25,7 @@ export type JobState =
   | "remediating" | "final_review" | "ready_for_review" | "failed" | "quarantined";
 
 export type SiteSource =
-  | { type: "intake"; intakeId: string; verifiedFacts: Record<string, unknown> }
+  | { type: "intake"; intakeId: string; verifiedFacts: Record<string, unknown>; rendererBaselinePath?: string }
   | { type: "url"; url: string; ownershipAttested: true }
   | { type: "repository"; surface: string; internalAuthorization: true };
 
@@ -600,13 +600,13 @@ export class SiteMakerEngine {
       await this.move(job, "ingesting");
       const product = await this.deps.codex.run({
         role: "product", model: DESIGN_MODEL, workspace: job.workspace,
-        instructions: `Create PRODUCT.md from verified facts only.\n${hostileSourceEnvelope(job.source)}`,
+        instructions: `Create PRODUCT.md from verified facts only. ${job.source.type === "intake" && job.source.rendererBaselinePath ? `A deterministic Site Renderer baseline is available at ${job.source.rendererBaselinePath}; inspect it for page structure, content coverage, navigation, and functional requirements, but do not treat its styling as the quality ceiling.` : ""}\n${hostileSourceEnvelope(job.source)}`,
       });
 
       await this.move(job, "directing");
       const direction = await this.deps.codex.run({
         role: "direction", model: DESIGN_MODEL, workspace: job.workspace,
-        instructions: `Create DESIGN.md and a surface brief from product truth: ${JSON.stringify(product)}`,
+        instructions: `Create DESIGN.md and a surface brief from product truth. Produce a distinctive, authored, award-caliber visual direction while preserving every verified fact and functional requirement from the renderer baseline. Product: ${JSON.stringify(product)}`,
       });
       const comps = await generateImagesWithBoundedRetry(
         this.deps.images,
@@ -624,8 +624,8 @@ export class SiteMakerEngine {
       await this.deps.codex.run({
         role: "builder", model: DESIGN_MODEL, workspace: job.workspace,
         instructions: imagesMissing
-          ? `Build the complete responsive production site using the selected direction. No image comps are available -- image generation failed after ${IMAGE_GENERATION_MAX_ATTEMPTS} attempts. Build using typography, color, layout, and iconography only. Never fabricate, reference, or leave placeholders for missing images. Never fabricate business facts. Directions: ${JSON.stringify(direction)}`
-          : `Build the complete responsive production site using the selected direction. Three pre-generated image comps already exist in the workspace at these exact relative paths -- reference them verbatim in <img src> (or CSS background-image) wherever imagery fits the direction, and do not invent, rename, or leave placeholders for any other image path: ${compPaths.map((c) => c.relativePath).join(", ")}. Never fabricate business facts. Directions: ${JSON.stringify(direction)}`,
+          ? `Build the complete responsive production site using the selected direction. Start from the renderer baseline when present: preserve its verified content, navigation, forms, calls to action, and page coverage, then replace its presentation with the authored direction. No image comps are available -- image generation failed after ${IMAGE_GENERATION_MAX_ATTEMPTS} attempts. Build using typography, color, layout, and iconography only. Never fabricate, reference, or leave placeholders for missing images. Never fabricate business facts. Directions: ${JSON.stringify(direction)}`
+          : `Build the complete responsive production site using the selected direction. Start from the renderer baseline when present: preserve its verified content, navigation, forms, calls to action, and page coverage, then replace its presentation with the authored direction. Three pre-generated image comps already exist in the workspace at these exact relative paths -- reference them verbatim in <img src> (or CSS background-image) wherever imagery fits the direction, and do not invent, rename, or leave placeholders for any other image path: ${compPaths.map((c) => c.relativePath).join(", ")}. Never fabricate business facts. Directions: ${JSON.stringify(direction)}`,
       });
 
       while (true) {

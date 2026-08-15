@@ -25,7 +25,7 @@ from .intake import (
 )
 from .site_data import build_public_site_data
 from .site_magic import SiteMagicNotConfiguredError, SiteMagicRepository
-from .site_magic_engine import generate_site_for_submission, resolve_site_workdir
+from .site_magic_engine import SiteGenerationResult, generate_site_for_submission, resolve_site_workdir
 from .trade_presets import SUPPORTED_INDUSTRIES, get_preset
 from .rate_limit import (
     RateLimitExceeded,
@@ -185,8 +185,8 @@ def submit_intake(req: IntakeRequest, request: Request) -> IntakeResponse:
     finally:
         conn.close()
 
-    _generate_site_if_enabled(submission, request.app.state.db_path)
-    _enqueue_site_magic_job_if_configured(submission, request)
+    renderer_result = _generate_site_if_enabled(submission, request.app.state.db_path)
+    _enqueue_site_magic_job_if_configured(submission, request, renderer_result)
 
     return IntakeResponse(
         submission_id=submission.submission_id,
@@ -197,7 +197,9 @@ def submit_intake(req: IntakeRequest, request: Request) -> IntakeResponse:
     )
 
 
-def _generate_site_if_enabled(submission: IntakeSubmission, db_path: str) -> None:
+def _generate_site_if_enabled(
+    submission: IntakeSubmission, db_path: str
+) -> Optional[SiteGenerationResult]:
     """Best-effort site generation after a successful intake.
 
     Site generation must never fail the intake response: a prospect should
@@ -206,16 +208,21 @@ def _generate_site_if_enabled(submission: IntakeSubmission, db_path: str) -> Non
     silent.
     """
     try:
-        generate_site_for_submission(submission, resolve_site_workdir(db_path))
+        return generate_site_for_submission(submission, resolve_site_workdir(db_path))
     except Exception as exc:
         logger.error(
             "site_generation_failed tenant_id=%s error_type=%s",
             submission.tenant_id,
             type(exc).__name__,
         )
+        return None
 
 
-def _enqueue_site_magic_job_if_configured(submission: IntakeSubmission, request: Request) -> None:
+def _enqueue_site_magic_job_if_configured(
+    submission: IntakeSubmission,
+    request: Request,
+    renderer_result: Optional[SiteGenerationResult],
+) -> None:
     """Best-effort Site Magic job creation after a successful intake commit.
 
     Runs in its own connection/transaction, strictly after the intake
@@ -229,19 +236,31 @@ def _enqueue_site_magic_job_if_configured(submission: IntakeSubmission, request:
     internal-fields-stripped view (see site_data.py's module docstring for
     the never-leak list -- lead_routing, approver, competitors,
     license_number, etc.), not a raw dump of intake_submissions. The
-    worker needs the facts inline: nothing resolves an intake_id back to
+    renderer_baseline makes the deterministic renderer's successful output
+    an explicit input to Site Magic instead of running both pipelines as
+    unrelated side effects. The worker materializes this route into its
+    workspace before product/direction/build roles run.
+
+    The worker needs the facts inline: nothing resolves an intake_id back to
     a submission from the Node side, and duplicating that lookup there
     would be a second, drifting source of truth for what's public-safe.
     """
     conn = _get_connection(request)
     try:
+        source_payload = {
+            "intake_id": str(submission.submission_id),
+            "verified_facts": build_public_site_data(submission),
+        }
+        if renderer_result is not None:
+            source_payload["renderer_baseline"] = {
+                "path": f"/sites/{submission.tenant_id}/web",
+                "pages": renderer_result.pages,
+            }
+
         job = SiteMagicRepository(conn).create_job(
             tenant_id=submission.tenant_id,
             source_type="intake",
-            source_payload={
-                "intake_id": str(submission.submission_id),
-                "verified_facts": build_public_site_data(submission),
-            },
+            source_payload=source_payload,
         )
         request.app.state.site_magic_queue.enqueue(job_id=job.job_id, tenant_id=submission.tenant_id)
         conn.commit()

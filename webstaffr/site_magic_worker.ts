@@ -19,7 +19,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { Server } from "node:http";
 import { timingSafeEqual } from "node:crypto";
-import { mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -124,6 +124,44 @@ export interface JobRecord {
   status: string;
 }
 
+type RendererBaseline = { path: string; pages: string[] };
+
+function resolveRendererBaseline(payload: Record<string, unknown>): RendererBaseline | undefined {
+  const value = payload.renderer_baseline;
+  if (value === undefined) return undefined;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new UnresolvableSourceError("intake renderer_baseline must be an object");
+  }
+  const path = (value as Record<string, unknown>).path;
+  const pages = (value as Record<string, unknown>).pages;
+  if (typeof path !== "string" || !path.startsWith("/sites/") || !path.endsWith("/web")) {
+    throw new UnresolvableSourceError("intake renderer_baseline.path is invalid");
+  }
+  if (!Array.isArray(pages) || pages.some((page) => typeof page !== "string")) {
+    throw new UnresolvableSourceError("intake renderer_baseline.pages is invalid");
+  }
+  return { path, pages: pages as string[] };
+}
+
+async function materializeRendererBaseline(
+  baseline: RendererBaseline,
+  workspace: string,
+  controlPlane: { baseUrl: string; fetchImpl?: typeof fetch },
+): Promise<string> {
+  const fetchImpl = controlPlane.fetchImpl ?? fetch;
+  const url = `${controlPlane.baseUrl.replace(/\/+$/, "")}${baseline.path}`;
+  const response = await fetchImpl(url);
+  if (!response.ok) {
+    throw new UnresolvableSourceError(`renderer baseline fetch failed: ${response.status}`);
+  }
+  const dir = join(workspace, "renderer-baseline");
+  await mkdir(dir, { recursive: true });
+  const target = join(dir, "index.html");
+  await writeFile(target, await response.text(), "utf8");
+  await writeFile(join(dir, "manifest.json"), JSON.stringify({ sourceUrl: url, pages: baseline.pages }, null, 2), "utf8");
+  return "renderer-baseline/index.html";
+}
+
 export async function fetchJobRecord(
   jobId: string,
   tenantId: string,
@@ -196,8 +234,15 @@ export async function processJob(
   controlPlane: { baseUrl: string; apiKey: string; fetchImpl?: typeof fetch }
 ): Promise<{ status: "ready_for_review" | "failed" | "quarantined"; buildId?: string }> {
   const record = await fetchJobRecord(jobId, tenantId, controlPlane);
-  const source = resolveSource(record);
+  let source = resolveSource(record);
   const workspace = await mkdtemp(join(tmpdir(), `site-magic-${jobId}-`));
+  if (source.type === "intake") {
+    const baseline = resolveRendererBaseline(record.source_payload);
+    if (baseline) {
+      const baselinePath = await materializeRendererBaseline(baseline, workspace, controlPlane);
+      source = { ...source, rendererBaselinePath: baselinePath };
+    }
+  }
   return runJob({ jobId, tenantId, workspace, source }, buildDeps(tenantId));
 }
 

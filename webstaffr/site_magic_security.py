@@ -9,7 +9,7 @@ from __future__ import annotations
 import ipaddress
 import socket
 from html.parser import HTMLParser
-from typing import Callable, Iterable
+from typing import Callable, Iterable, Optional
 from urllib.parse import urlsplit, urlunsplit
 
 
@@ -20,7 +20,12 @@ class UnsafeSiteSourceError(ValueError):
 Resolver = Callable[[str, int], Iterable[tuple]]
 
 
-def normalize_public_url(url: str, resolver: Resolver = socket.getaddrinfo) -> str:
+def normalize_public_url(url: str, resolver: Optional[Resolver] = None) -> str:
+    # Resolve the module attribute at call time so tests and incident tooling
+    # can replace DNS deterministically. A function-definition default captured
+    # the original socket.getaddrinfo forever and made the URL-source API depend
+    # on live DNS even while the documented seam was patched.
+    active_resolver = resolver or socket.getaddrinfo
     if len(url) > 2048:
         raise UnsafeSiteSourceError("URL is too long")
     parsed = urlsplit(url.strip())
@@ -37,7 +42,7 @@ def normalize_public_url(url: str, resolver: Resolver = socket.getaddrinfo) -> s
         raise UnsafeSiteSourceError("Only ports 80 and 443 are accepted")
 
     try:
-        resolved = list(resolver(host, port))
+        resolved = list(active_resolver(host, port))
     except OSError as exc:
         raise UnsafeSiteSourceError("URL host could not be resolved") from exc
     if not resolved:
