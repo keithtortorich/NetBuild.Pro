@@ -112,8 +112,26 @@ function closeUnbalancedJson(text: string): string {
     if (ch === "{" || ch === "[") { stack.push(ch === "{" ? "}" : "]"); continue; }
     if (ch === "}" || ch === "]") { stack.pop(); continue; }
   }
-  if (stack.length === 0) return text;
-  return text + stack.reverse().join("");
+  // Truncation frequently lands mid-string (a real production remediation
+  // response cut off 200 chars into an unfinished CSS rule inside a file's
+  // "contents" value) -- the loop above correctly ignores braces/brackets
+  // while inString, but previously left the string itself unterminated:
+  // appending closers after raw, unquoted content is still invalid JSON,
+  // so this repair silently failed exactly when it mattered most. Close
+  // the open string first. A trailing unescaped backslash (the last
+  // character consumed was itself starting an escape sequence) would
+  // otherwise combine with an appended closing quote into an escaped
+  // quote character rather than a terminator, so neutralize it with a
+  // matching backslash first -- an escaped backslash, valid JSON, and
+  // semantically the closest thing to "whatever was being escaped never
+  // arrived" without inventing content.
+  let suffix = "";
+  if (inString) {
+    if (escaped) suffix += "\\";
+    suffix += '"';
+  }
+  if (stack.length === 0 && suffix === "") return text;
+  return text + suffix + stack.reverse().join("");
 }
 
 /** Some reasoning models emit a small planning/placeholder envelope and then

@@ -642,6 +642,73 @@ test("response validation: recovers a response truncated exactly at its own clos
   assert.deepEqual(result, { designScore: 30, applicableMax: 40, findings: ["ok"] });
 });
 
+test("response validation: recovers a response truncated mid-string inside result", async () => {
+  // Regression: a real production remediation-round `builder` response cut
+  // off 15545 of 15545 chars into an unfinished CSS rule inside a file's
+  // "contents" value -- "Unterminated string in JSON at position 15545".
+  // closeUnbalancedJson correctly ignored the CSS's own literal { and }
+  // while walking inString, but never closed the dangling string itself
+  // before appending the outer closers -- appending "}]}" right after raw,
+  // unquoted content is still invalid JSON, so the "repair" silently did
+  // nothing useful and the job failed anyway. This pins that an open
+  // string gets a closing quote before the outer closers. (Truncation
+  // strictly inside "files" before "result" is ever reached is a
+  // different, token-budget problem this JSON-level repair cannot fix --
+  // this test targets the case the repair is actually meant to cover:
+  // truncation mid-string in a field that's otherwise complete enough to
+  // recover. (Deliberately keeps "files" empty: a closed file object
+  // ahead of the truncated string would give stripJsonFence's own naive
+  // "slice to the last }" fallback an earlier, wrong brace to latch onto
+  // -- a separate, narrower limitation in that function, not exercised or
+  // fixed here.)
+  const truncated =
+    `{"files":[],` +
+    `"result":{"status":"complete","note":"Updated the CTA hover state to #2A5C8E`; // cut mid-string
+  const mockFetch = async () => ({
+    ok: true,
+    json: async () => ({
+      choices: [{ message: { content: truncated } }],
+    }),
+  });
+
+  const runtime = new OpenRouterCodegenRuntime({
+    apiKey: "test-key",
+    fetchImpl: mockFetch,
+    fs: createFakeFs(),
+  });
+
+  const result = await runtime.run({ role: "builder", workspace: "/tmp", instructions: "test" });
+  assert.deepEqual(result, {
+    status: "complete",
+    note: "Updated the CTA hover state to #2A5C8E",
+  });
+});
+
+test("response validation: closes a string truncated on a trailing escape character", async () => {
+  // Edge case the fix has to get right: if the very last character
+  // consumed before truncation was itself an unescaped backslash (mid
+  // escape sequence), appending a bare closing quote produces `\"`, which
+  // JSON reads as an escaped quote INSIDE the string, not a terminator --
+  // the string stays open and parsing still fails. The repair must
+  // neutralize the dangling escape with a matching backslash first.
+  const truncated = `{"files":[],"result":{"note":"line one\\`; // ends on a lone backslash
+  const mockFetch = async () => ({
+    ok: true,
+    json: async () => ({
+      choices: [{ message: { content: truncated } }],
+    }),
+  });
+
+  const runtime = new OpenRouterCodegenRuntime({
+    apiKey: "test-key",
+    fetchImpl: mockFetch,
+    fs: createFakeFs(),
+  });
+
+  const result = await runtime.run({ role: "builder", workspace: "/tmp", instructions: "test" });
+  assert.deepEqual(result, { note: "line one\\" });
+});
+
 test("response validation: uses the final envelope after a planning placeholder", async () => {
   // Regression: Terra emitted a valid placeholder CodegenResponse, then the
   // real 24 KB response. JSON.parse rejected the concatenation at the first
