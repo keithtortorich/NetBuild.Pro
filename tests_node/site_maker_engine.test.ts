@@ -489,6 +489,7 @@ test("ensureStableResponsiveLayout injects deterministic mobile and load-stabili
   assert.match(html, /data-site-magic-stability/);
   assert.match(html, /overflow-x:hidden/);
   assert.match(html, /animation:none!important/);
+  assert.match(html, /opacity:1!important/);
   assert.equal(html.match(/data-site-magic-stability/g)?.length, 1);
 });
 

@@ -592,7 +592,7 @@ html,body{max-width:100%;overflow-x:hidden}
 img,video,svg,canvas{max-width:100%;height:auto}
 .ws-comp-gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,18rem),1fr));gap:1rem;width:100%;overflow:hidden}
 .ws-comp-gallery img{display:block;width:100%;height:auto;object-fit:cover}
-body *,body *::before,body *::after{animation:none!important;transition:none!important}
+body *,body *::before,body *::after{animation:none!important;transition:none!important;opacity:1!important;visibility:visible!important}
 [data-aos],[class*="reveal"],[class*="fade-in"],[class*="animate"]{opacity:1!important;transform:none!important;visibility:visible!important}
 </style>`;
   const patched = /<\/head>/i.test(entry.html)
