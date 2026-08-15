@@ -579,6 +579,21 @@ export class OpenRouterCodegenRuntime {
         // failure_code, so a future parse failure is diagnosable from a
         // real response snippet instead of guessing blind again.
         const snippet = redactSecrets(buildParseErrorSnippet(stripped, e));
+        // The 200-char-radius snippet above is what reaches the thrown
+        // error (and from there the ledger/founder-facing path) -- deliberately
+        // bounded. It wasn't enough to tell a truncated response apart from
+        // an embedded-quote one on 2026-08-15/16's production failures: the
+        // snippet only shows what's near the parse-error position, not
+        // whether the response actually continues past it. Full response is
+        // never persisted anywhere else once this function returns, so once
+        // it's gone it's gone -- the next occurrence should not repeat that.
+        // Same split SiteMakerEngine.run()'s own catch already draws between
+        // the bounded ledger code and the unbounded container log: log the
+        // complete raw response here, redacted, with no length cap.
+        console.error(
+          `[site-magic-codegen-runtime] unrecoverable parse failure, full response (${stripped.length} chars):`,
+          redactSecrets(stripped)
+        );
         throw new MalformedCodegenResponseError(
           `Failed to parse or validate response: ${e instanceof Error ? e.message : String(e)} | response snippet: ${snippet}`,
           e instanceof Error ? e : undefined
