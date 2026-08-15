@@ -422,6 +422,17 @@ async function writeImageComps(
  * together on. */
 const ENTRY_CANDIDATES = ["index.html", "home.html"] as const;
 
+async function findEntryFile(
+  writer: WorkspaceWriter, workspace: string
+): Promise<{ path: string; html: string } | null> {
+  for (const candidate of ENTRY_CANDIDATES) {
+    const candidatePath = path.join(workspace, candidate);
+    const contents = await writer.readFile(candidatePath);
+    if (contents !== null) return { path: candidatePath, html: contents };
+  }
+  return null;
+}
+
 /**
  * Guarantees every generated image comp is actually referenced on the
  * one HTML file Evidence Runner audits, instead of trusting the builder
@@ -447,20 +458,11 @@ export async function ensureImageCompsRendered(
 ): Promise<void> {
   if (comps.length === 0) return;
 
-  let entryPath: string | null = null;
-  let html: string | null = null;
-  for (const candidate of ENTRY_CANDIDATES) {
-    const candidatePath = path.join(workspace, candidate);
-    const contents = await writer.readFile(candidatePath);
-    if (contents !== null) {
-      entryPath = candidatePath;
-      html = contents;
-      break;
-    }
-  }
-  if (entryPath === null || html === null) return;
+  const entry = await findEntryFile(writer, workspace);
+  if (entry === null) return;
+  const { path: entryPath, html } = entry;
 
-  const missing = comps.filter((comp) => !html!.includes(comp.relativePath));
+  const missing = comps.filter((comp) => !html.includes(comp.relativePath));
   if (missing.length === 0) return;
 
   // Explicit width/height (when known) reserve the image's layout space
@@ -479,6 +481,69 @@ export async function ensureImageCompsRendered(
   const patched = html.includes("</body>")
     ? html.replace("</body>", `${gallery}\n</body>`)
     : `${html}\n${gallery}`;
+
+  await writer.writeFile(entryPath, Buffer.from(patched, "utf-8"));
+}
+
+function stripHtmlTags(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function escapeHtmlAttribute(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/**
+ * Derives a meta-description-length excerpt from the page's own
+ * already-rendered body text -- truncated to a word boundary, not
+ * invented. Returns null when there's no real text to summarize (an
+ * empty body is not this function's problem to fabricate around).
+ */
+export function extractMetaDescription(html: string, maxLength = 155): string | null {
+  const bodyMatch = /<body[^>]*>([\s\S]*)<\/body>/i.exec(html);
+  const text = stripHtmlTags(bodyMatch ? bodyMatch[1] : html);
+  if (text.length === 0) return null;
+  if (text.length <= maxLength) return text;
+  const truncated = text.slice(0, maxLength);
+  const lastSpace = truncated.lastIndexOf(" ");
+  return `${(lastSpace > 0 ? truncated.slice(0, lastSpace) : truncated).trim()}…`;
+}
+
+/**
+ * Guarantees the audited entry file has a `<meta name="description">` --
+ * the single audit responsible for every real SEO-gate miss seen this
+ * session (confirmed against three separate production jobs on
+ * 2026-08-15, always the same `meta-description` audit; SEO hit 100 on
+ * runs where the builder happened to include one). The content is a
+ * truncated excerpt of the page's own already-rendered text, never
+ * invented copy -- consistent with this repo's no-fabrication rule.
+ * No-op if a description already exists, or if there's no `<head>`/
+ * `<title>` to anchor a new tag to.
+ */
+export async function ensureMetaDescriptionPresent(
+  writer: WorkspaceWriter, workspace: string
+): Promise<void> {
+  const entry = await findEntryFile(writer, workspace);
+  if (entry === null) return;
+  const { path: entryPath, html } = entry;
+  if (/<meta\s+[^>]*name=["']description["']/i.test(html)) return;
+
+  const description = extractMetaDescription(html);
+  if (description === null) return;
+  const tag = `<meta name="description" content="${escapeHtmlAttribute(description)}">`;
+
+  let patched = html;
+  if (/<\/head>/i.test(html)) {
+    patched = html.replace(/<\/head>/i, `${tag}\n</head>`);
+  } else if (/<title>[\s\S]*?<\/title>/i.test(html)) {
+    patched = html.replace(/(<title>[\s\S]*?<\/title>)/i, `$1\n${tag}`);
+  }
+  if (patched === html) return;
 
   await writer.writeFile(entryPath, Buffer.from(patched, "utf-8"));
 }
@@ -565,6 +630,7 @@ export class SiteMakerEngine {
 
       while (true) {
         await ensureImageCompsRendered(this.deps.workspaceWriter, job.workspace, compPaths);
+        await ensureMetaDescriptionPresent(this.deps.workspaceWriter, job.workspace);
         await this.move(job, "evaluating");
         const designAssessment = await this.deps.codex.run({
           role: "design_assessor", model: DESIGN_MODEL, workspace: job.workspace,

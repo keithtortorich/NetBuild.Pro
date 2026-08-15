@@ -8,6 +8,7 @@ import {
   MAX_REMEDIATION_ROUNDS,
   summarizeDeterministicEvidence,
   ensureImageCompsRendered, readImageDimensions,
+  ensureMetaDescriptionPresent, extractMetaDescription,
   type QualityReport, type ImageGenerator, type WorkspaceWriter, type ImageComp,
   describeFailure,
   redactSecrets,
@@ -400,6 +401,53 @@ test("readImageDimensions parses a real PNG's IHDR chunk", () => {
 test("readImageDimensions returns null for a format it doesn't recognize", () => {
   assert.equal(readImageDimensions(Buffer.from("not an image"), "webp"), null);
   assert.equal(readImageDimensions(Buffer.from([0x89, 0x50]), "png"), null);
+});
+
+test("extractMetaDescription pulls real body text, not invented copy", () => {
+  const html = "<html><body><h1>Acme HVAC</h1><p>Licensed heating and cooling in the metro area.</p></body></html>";
+  assert.equal(extractMetaDescription(html), "Acme HVAC Licensed heating and cooling in the metro area.");
+});
+
+test("extractMetaDescription truncates at a word boundary, never mid-word", () => {
+  const longText = "word ".repeat(60).trim(); // well over 155 chars
+  const html = `<html><body><p>${longText}</p></body></html>`;
+  const description = extractMetaDescription(html, 155)!;
+  assert.ok(description.length <= 156, "truncated length within bound plus ellipsis");
+  assert.ok(description.endsWith("…"));
+  assert.doesNotMatch(description, /\bwor…$|\bwo…$|\bw…$/, "cut on a word boundary, not mid-word");
+});
+
+test("extractMetaDescription returns null when there's no real text to summarize", () => {
+  assert.equal(extractMetaDescription("<html><body></body></html>"), null);
+});
+
+test("ensureMetaDescriptionPresent injects a description derived from the page's own text", async () => {
+  // Regression: confirmed live against three separate production jobs
+  // on 2026-08-15 -- every real SEO-gate miss traced to the same
+  // Lighthouse audit, "meta-description: Document does not have a meta
+  // description". A run where the builder happened to include one
+  // scored SEO 100, proving it's the single blocker, not remediation
+  // noise.
+  const writer = fakeWorkspaceWriter({
+    "/ws/index.html": "<html><head><title>Acme HVAC</title></head><body><p>Licensed HVAC contractor in the metro area.</p></body></html>",
+  });
+  await ensureMetaDescriptionPresent(writer, "/ws");
+  const patched = (await writer.readFile("/ws/index.html"))!;
+  assert.match(patched, /<meta name="description" content="Licensed HVAC contractor in the metro area\.">/);
+});
+
+test("ensureMetaDescriptionPresent is a no-op when a description already exists", async () => {
+  const html = "<html><head><meta name=\"description\" content=\"Already here.\"></head><body></body></html>";
+  const writer = fakeWorkspaceWriter({ "/ws/index.html": html });
+  await ensureMetaDescriptionPresent(writer, "/ws");
+  assert.equal(await writer.readFile("/ws/index.html"), html);
+});
+
+test("ensureMetaDescriptionPresent doesn't fabricate a description for an empty page", async () => {
+  const html = "<html><head><title>Acme</title></head><body></body></html>";
+  const writer = fakeWorkspaceWriter({ "/ws/index.html": html });
+  await ensureMetaDescriptionPresent(writer, "/ws");
+  assert.equal(await writer.readFile("/ws/index.html"), html);
 });
 
 test("a builder that ignores the image-path instructions still ends up with every comp on the audited page", async () => {
