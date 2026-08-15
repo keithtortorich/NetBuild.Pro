@@ -107,6 +107,28 @@ test("OpenRouterImageGenerator.generate returns exactly the requested count as d
   }
 });
 
+test("OpenRouterImageGenerator.generate requests a smaller image size to control page weight", async () => {
+  // Regression: real quarantined jobs failed largest-contentful-paint at
+  // 16.7s (gate wants ~2.5s) -- the model's default resolution was
+  // producing multi-MB comps. 2026-08-15 founder decision: request
+  // smaller images rather than add an image-compression dependency.
+  const bodies: string[] = [];
+  const stubFetch = (async (_url: string, init: RequestInit) => {
+    bodies.push(init.body as string);
+    return new Response(
+      JSON.stringify({ choices: [{ message: { images: [{ image_url: { url: "data:image/png;base64,X" } }] } }] }),
+      { status: 200, headers: { "content-type": "application/json" } }
+    );
+  }) as typeof fetch;
+  const generator = new OpenRouterImageGenerator("test-key", stubFetch);
+  await generator.generate({ model: "google/gemini-2.5-flash-image", brief: "a plumbing brand", count: 3 });
+
+  for (const raw of bodies) {
+    const body = JSON.parse(raw);
+    assert.equal(body.image_config?.size, "1024x1024");
+  }
+});
+
 test("OpenRouterImageGenerator.generate rejects when a response has no image part", async () => {
   const stubFetch = (async () =>
     new Response(

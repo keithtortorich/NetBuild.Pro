@@ -185,6 +185,14 @@ export class OpenRouterImageGenerator implements ImageGenerator {
           model: args.model,
           messages: [{ role: "user", content: args.brief }],
           modalities: ["image", "text"],
+          // Real quarantined jobs on 2026-08-15 failed largest-contentful-paint
+          // at 16.7s (gate wants ~2.5s) -- almost certainly the model's
+          // default resolution producing multi-MB comps. 1024x1024 is a
+          // deliberate quality-for-speed tradeoff (founder decision,
+          // 2026-08-15): still a real photo, just fewer pixels to
+          // download. OpenRouter's documented image_config shape for
+          // Gemini image-output models.
+          image_config: { size: "1024x1024" },
         }),
       });
       if (!response.ok) {
