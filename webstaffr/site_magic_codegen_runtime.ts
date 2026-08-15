@@ -567,6 +567,13 @@ Return ONLY the JSON object, nothing else.`;
       body: JSON.stringify({
         model,
         messages: [{ role: "user", content: prompt }],
+        // Prompt-only JSON instructions are not sufficient for newer
+        // reasoning models: Terra returned an ASCII wireframe in production
+        // even though the prompt said "ONLY JSON". OpenRouter's OpenAI-
+        // compatible JSON mode constrains the provider response at decoding
+        // time while preserving the role-specific, intentionally flexible
+        // `result` object.
+        response_format: { type: "json_object" },
         stream: false,
         max_tokens: MAX_COMPLETION_TOKENS,
       }),
@@ -691,6 +698,14 @@ Return ONLY the JSON object, nothing else.`;
     body: JSON.stringify({
       model,
       messages: [{ role: "user", content: prompt }],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: `site_magic_${role}`,
+          strict: true,
+          schema: responseSchema,
+        },
+      },
       stream: false,
       max_tokens: MAX_COMPLETION_TOKENS,
     }),

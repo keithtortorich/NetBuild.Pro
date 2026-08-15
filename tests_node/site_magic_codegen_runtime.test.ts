@@ -174,6 +174,32 @@ test("callOpenRouter: sets an explicit generous max_tokens", async () => {
   assert.ok(typeof capturedMaxTokens === "number" && capturedMaxTokens >= 8000);
 });
 
+test("callOpenRouter: enforces JSON output at the provider", async () => {
+  // Regression: Terra obeyed the design task but returned an ASCII wireframe
+  // instead of the CodegenResponse envelope when JSON was requested only in
+  // prompt prose, aborting the production form-to-site pipeline.
+  let capturedResponseFormat: unknown;
+  const mockFetch = async (_url: string, opts: any) => {
+    capturedResponseFormat = JSON.parse(opts.body).response_format;
+    return {
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: JSON.stringify({ files: [], result: {} }) } }],
+      }),
+    };
+  };
+
+  const runtime = new OpenRouterCodegenRuntime({
+    apiKey: "test-key",
+    fetchImpl: mockFetch,
+    fs: createFakeFs(),
+  });
+
+  await runtime.run({ role: "product", workspace: "/tmp", instructions: "test" });
+
+  assert.deepEqual(capturedResponseFormat, { type: "json_object" });
+});
+
 test("constructor: accepts injected fetch and fs", () => {
   const mockFetch = async () => ({});
   const mockFs = createFakeFs();
