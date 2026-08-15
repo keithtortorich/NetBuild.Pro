@@ -155,6 +155,8 @@ test("PlaywrightEvidenceRunner catches a broken/overflowing/placeholder-riddled 
   const report = await runner.assess({ workspace: dir, widths: WIDTHS });
 
   assert.ok(report.axeViolations > 0, "missing alt text should trip axe");
+  assert.ok(report.axeDiagnostics?.some((item) => item.id === "image-alt"));
+  assert.ok(report.axeDiagnostics?.some((item) => item.targets.length > 0));
   assert.ok(report.missingAssets > 0, "missing.png should 404");
   assert.ok(report.consoleErrors > 0, "console.error() should be counted");
   assert.equal(report.responsiveChecksPassed, false, "3000px div should overflow every width");

@@ -230,6 +230,7 @@ export class PlaywrightEvidenceRunner implements EvidenceRunner {
       let responsiveChecksPassed = true;
       let bodyText = "";
       const axeViolationIds = new Set<string>();
+      const axeDiagnosticMap = new Map<string, { impact: string | null; targets: Set<string> }>();
 
       for (const width of args.widths) {
         const page = await browser.newPage({ viewport: { width, height: 900 } });
@@ -259,9 +260,16 @@ export class PlaywrightEvidenceRunner implements EvidenceRunner {
         const violations = await page.evaluate(async () => {
           // @ts-expect-error axe is injected as a global by the script tag above
           const result = await axe.run();
-          return result.violations.map((v: { id: string }) => v.id);
+          return result.violations.map((v: { id: string; impact: string | null; nodes: Array<{ target: string[] }> }) => ({
+            id: v.id, impact: v.impact, targets: v.nodes.flatMap((node) => node.target),
+          }));
         });
-        for (const id of violations as string[]) axeViolationIds.add(id);
+        for (const violation of violations as Array<{ id: string; impact: string | null; targets: string[] }>) {
+          axeViolationIds.add(violation.id);
+          const diagnostic = axeDiagnosticMap.get(violation.id) ?? { impact: violation.impact, targets: new Set<string>() };
+          for (const target of violation.targets) diagnostic.targets.add(target);
+          axeDiagnosticMap.set(violation.id, diagnostic);
+        }
 
         await page.close();
       }
@@ -319,6 +327,9 @@ export class PlaywrightEvidenceRunner implements EvidenceRunner {
         designScore: 0, applicableMax: 0, findings: [],
         detectorFindings,
         axeViolations: axeViolationIds.size,
+        ...(axeDiagnosticMap.size > 0 ? { axeDiagnostics: [...axeDiagnosticMap.entries()].map(([id, value]) => ({
+          id, impact: value.impact, targets: [...value.targets].slice(0, 12),
+        })) } : {}),
         lighthouse: {
           accessibility: pct(categories.accessibility?.score),
           performance: performanceScore,

@@ -49,6 +49,7 @@ export interface QualityReport {
   findings: Finding[];
   detectorFindings: number;
   axeViolations: number;
+  axeDiagnostics?: Array<{ id: string; impact: string | null; targets: string[] }>;
   lighthouse: { accessibility: number; performance: number; bestPractices: number; seo: number };
   brokenLinks: number;
   missingAssets: number;
@@ -165,6 +166,7 @@ export function summarizeDeterministicEvidence(report: QualityReport): Record<st
   return {
     detectorFindings: report.detectorFindings,
     axeViolations: report.axeViolations,
+    axeDiagnostics: report.axeDiagnostics ?? [],
     lighthouse: report.lighthouse,
     brokenLinks: report.brokenLinks,
     missingAssets: report.missingAssets,

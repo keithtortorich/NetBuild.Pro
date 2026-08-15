@@ -166,7 +166,7 @@ test("remediator instructions carry deterministic gate evidence, not just the de
 test("summarizeDeterministicEvidence surfaces every deterministicGatesPass field", () => {
   const evidence = summarizeDeterministicEvidence(passing());
   assert.deepEqual(evidence, {
-    detectorFindings: 0, axeViolations: 0,
+    detectorFindings: 0, axeViolations: 0, axeDiagnostics: [],
     lighthouse: { accessibility: 100, performance: 90, bestPractices: 95, seo: 95 },
     brokenLinks: 0, missingAssets: 0, consoleErrors: 0, failedRequests: 0,
     responsiveChecksPassed: true, functionalChecksPassed: true,
