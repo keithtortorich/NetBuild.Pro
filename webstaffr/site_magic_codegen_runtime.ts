@@ -134,6 +134,76 @@ function closeUnbalancedJson(text: string): string {
   return text + suffix + stack.reverse().join("");
 }
 
+/** Third JSON-repair tier. Handles literal, unescaped double quotes that
+ * appear *inside* a JSON string value -- e.g. a findings summary quoting UI
+ * copy like "Our Services" without escaping the inner quotes. This is the
+ * malformation that hits the `directing`/`design_assessor`/`finish_reviewer`
+ * roles (any role that writes free-text prose into a JSON string field): the
+ * model emits `..."reflecting the "fast, reliable" aspect..."` and V8 reports
+ * `Expected ',' or '}' after property value in JSON at position N`. It is
+ * distinct from the two earlier repairs: sanitizeJsonControlChars fixes raw
+ * control chars (unescaped newline), closeUnbalancedJson fixes truncation
+ * (missing outer closers). This one fixes interior quotes.
+ *
+ * Detection rule: walk the string tracking inString/escaped exactly like the
+ * other repairs. When an unescaped `"` is found while already inside a string,
+ * peek past any trailing whitespace at the next significant character. If it
+ * is a JSON structural delimiter (`, } ] :`) or end-of-input, the quote
+ * terminates the string (a genuine closing quote). Otherwise it is an embedded
+ * quote inside the string's prose and is escaped as `\"`.
+ *
+ * This is a no-op on already-valid JSON: valid JSON never carries an
+ * unescaped interior quote, so the only `"` seen while inString is a real
+ * terminator followed by `, } ] :` or end, which the rule leaves untouched --
+ * so it only ever helps, never corrupts. Worst case it still fails to parse
+ * and the caller falls through to the next repair tier, so it cannot silently
+ * corrupt an otherwise-good response. */
+function escapeEmbeddedQuotes(text: string): string {
+  let result = "";
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (!inString) {
+      result += ch;
+      if (ch === '"') inString = true;
+      continue;
+    }
+    if (escaped) {
+      result += ch;
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\") {
+      result += ch;
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      // Peek past trailing whitespace to the next significant character.
+      let j = i + 1;
+      while (
+        j < text.length &&
+        (text[j] === " " || text[j] === "\t" || text[j] === "\n" || text[j] === "\r")
+      ) {
+        j += 1;
+      }
+      const next = j < text.length ? text[j] : "";
+      const terminates =
+        next === "" || next === "," || next === "}" || next === "]" || next === ":";
+      if (terminates) {
+        result += ch;
+        inString = false;
+      } else {
+        result += '\\"';
+      }
+      continue;
+    }
+    result += ch;
+  }
+  return result;
+}
+
 /** Some reasoning models emit a small planning/placeholder envelope and then
  * the real CodegenResponse as a second top-level JSON object. JSON.parse
  * correctly rejects the concatenation, but both objects are individually
@@ -487,8 +557,17 @@ export class OpenRouterCodegenRuntime {
           }
         }
         if (recovered === undefined) {
-          recovered = JSON.parse(closeUnbalancedJson(stripped));
-          this.validateCodegenResponse(recovered);
+          try {
+            // Third repair tier: literal unescaped quotes embedded inside a
+            // JSON string value (e.g. a findings summary that quotes UI copy
+            // like "Our Services"). Distinct from raw-control-char and
+            // truncation repairs; a no-op on already-valid JSON.
+            recovered = JSON.parse(escapeEmbeddedQuotes(stripped));
+            this.validateCodegenResponse(recovered);
+          } catch {
+            recovered = JSON.parse(closeUnbalancedJson(stripped));
+            this.validateCodegenResponse(recovered);
+          }
         }
         parsed = recovered;
       } catch {
@@ -799,9 +878,16 @@ Return ONLY the JSON object, nothing else.`;
     return JSON.parse(strippedContent);
   } catch (firstError) {
     try {
-      return JSON.parse(closeUnbalancedJson(strippedContent));
+      // Third repair tier: literal unescaped quotes inside a free-text
+      // string field (e.g. a findings summary quoting UI copy). No-op on
+      // already-valid JSON; falls through to truncation repair otherwise.
+      return JSON.parse(escapeEmbeddedQuotes(strippedContent));
     } catch {
-      // Repair didn't help -- report the original error.
+      try {
+        return JSON.parse(closeUnbalancedJson(strippedContent));
+      } catch {
+        // Repair didn't help -- report the original error.
+      }
     }
     const e = firstError;
     const snippet = redactSecrets(buildParseErrorSnippet(strippedContent, e));

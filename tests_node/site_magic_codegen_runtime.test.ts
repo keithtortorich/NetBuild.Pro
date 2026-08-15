@@ -593,8 +593,13 @@ test("response validation: error snippet windows around the actual parse-error p
   // JSON.parse position 894, but the snippet was a flat 0-300 prefix --
   // useless, the actual bad content was never visible in the log. The
   // snippet must center on wherever V8 reports the error, however deep.
+  // Uses an unrecoverable shape (an unquoted value token, not embedded
+  // quotes): the embedded-quote repair tier now resolves "... \"ok\" \"trailing\""
+  // to a valid string, so a quote-based input no longer reaches this error
+  // path. This keeps the snippet-windowing guard alive against a malformation
+  // none of the repair tiers can fix.
   const padding = "x".repeat(850);
-  const malformed = `{"files":[],"result":{"padding":"${padding}","bad": "ok" "trailing"}}`;
+  const malformed = `{"files":[],"result":{"padding":"${padding}","bad": ok "trailing"}}`;
   const mockFetch = async () => ({
     ok: true,
     json: async () => ({
@@ -1157,4 +1162,105 @@ test("readOnlyRole: throws if no OPENROUTER_API_KEY", async () => {
   } finally {
     process.env.OPENROUTER_API_KEY = oldEnv;
   }
+});
+
+test("response validation: repairs literal unescaped quotes embedded inside a string value (directing/design_assessor shape)", async () => {
+  // Regression: a real production `directing` response died with
+  // `Expected ',' or '}' after property value in JSON at position 2196`,
+  // because a free-text string field carried embedded, unescaped double
+  // quotes (`..."reflecting the "fast, reliable" aspect..."`). This is the
+  // third distinct malformation after raw-control-char and truncation -- it
+  // is interior quotes, not missing outer closers, so neither prior repair
+  // caught it. The third tier escapes only quotes whose following
+  // significant char is NOT a structural delimiter, leaving already-valid
+  // JSON untouched.
+  const malformed =
+    '{"files":[],"result":{"direction":"Build a site reflecting the "fast, reliable" aspect of their service, with "24/7 support" highlighted."}}';
+  const mockFetch = async () => ({
+    ok: true,
+    json: async () => ({
+      choices: [{ message: { content: malformed } }],
+    }),
+  });
+
+  const runtime = new OpenRouterCodegenRuntime({
+    apiKey: "test-key",
+    fetchImpl: mockFetch,
+    fs: createFakeFs(),
+  });
+
+  const result = await runtime.run({
+    role: "direction",
+    workspace: "/tmp",
+    instructions: "test",
+  });
+
+  assert.deepEqual(result, {
+    direction:
+      'Build a site reflecting the "fast, reliable" aspect of their service, with "24/7 support" highlighted.',
+  });
+});
+
+
+test("readOnlyRole: repairs embedded unescaped quotes inside a free-text findings string (design_assessor/finish_reviewer shape)", async () => {
+  // Same malformation, on the read-only path that powers design_assessor /
+  // finish_reviewer -- a findings summary quoting UI copy like "Our Services"
+  // without escaping the inner quotes. The third repair tier must recover it
+  // instead of throwing MalformedCodegenResponseError.
+  const malformed =
+    '{"designScore":36,"applicableMax":40,"findings":["The hero CTA should mirror the "Book Now" button used on the services page."]}';
+  const mockFetch = async () => ({
+    ok: true,
+    json: async () => ({
+      choices: [{ message: { content: malformed } }],
+    }),
+  });
+
+  const result = await callReadOnlyRole({
+    role: "design_assessor",
+    instructions: "assess this design",
+    fetch: mockFetch,
+    apiKey: "test-key",
+  });
+
+  assert.deepEqual(result, {
+    designScore: 36,
+    applicableMax: 40,
+    findings: ['The hero CTA should mirror the "Book Now" button used on the services page.'],
+  });
+});
+
+test("response validation: does not double-escape already-valid JSON containing internal quotes", async () => {
+  // No-false-positive guard: a correctly-escaped string with internal quotes
+  // must pass through unchanged. The repair must leave the genuine closing
+  // quote (followed by a structural delimiter) untouched, so the parsed value
+  // keeps exactly the intended prose.
+  const valid = JSON.stringify({
+    files: [],
+    result: {
+      note: 'keep the "fast, reliable" promise and the "24/7 support" badge',
+    },
+  });
+  const mockFetch = async () => ({
+    ok: true,
+    json: async () => ({
+      choices: [{ message: { content: valid } }],
+    }),
+  });
+
+  const runtime = new OpenRouterCodegenRuntime({
+    apiKey: "test-key",
+    fetchImpl: mockFetch,
+    fs: createFakeFs(),
+  });
+
+  const result = await runtime.run({
+    role: "builder",
+    workspace: "/tmp",
+    instructions: "test",
+  });
+
+  assert.deepEqual(result, {
+    note: 'keep the "fast, reliable" promise and the "24/7 support" badge',
+  });
 });
