@@ -548,6 +548,31 @@ export async function ensureMetaDescriptionPresent(
   await writer.writeFile(entryPath, Buffer.from(patched, "utf-8"));
 }
 
+/** Final deterministic audit hardening for model-authored CSS. Real production
+ * builds used delayed reveal/transition patterns that left Lighthouse waiting
+ * 16.7s for LCP and produced CLS 0.89, while also allowing intrinsic-width
+ * images to overflow mobile. The authored visual system remains intact; this
+ * only removes load-time motion and establishes responsive geometry. */
+export async function ensureStableResponsiveLayout(
+  writer: WorkspaceWriter, workspace: string
+): Promise<void> {
+  const entry = await findEntryFile(writer, workspace);
+  if (entry === null || entry.html.includes("data-site-magic-stability")) return;
+  const css = `<style data-site-magic-stability>
+*,*::before,*::after{box-sizing:border-box}
+html,body{max-width:100%;overflow-x:hidden}
+img,video,svg,canvas{max-width:100%;height:auto}
+.ws-comp-gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,18rem),1fr));gap:1rem;width:100%;overflow:hidden}
+.ws-comp-gallery img{display:block;width:100%;height:auto;object-fit:cover}
+body *,body *::before,body *::after{animation:none!important;transition:none!important}
+[data-aos],[class*="reveal"],[class*="fade-in"],[class*="animate"]{opacity:1!important;transform:none!important;visibility:visible!important}
+</style>`;
+  const patched = /<\/head>/i.test(entry.html)
+    ? entry.html.replace(/<\/head>/i, `${css}\n</head>`)
+    : `${css}\n${entry.html}`;
+  await writer.writeFile(entry.path, Buffer.from(patched, "utf-8"));
+}
+
 function hostileSourceEnvelope(source: SiteSource): string {
   const serialized = JSON.stringify(source);
   return [
@@ -631,6 +656,7 @@ export class SiteMakerEngine {
       while (true) {
         await ensureImageCompsRendered(this.deps.workspaceWriter, job.workspace, compPaths);
         await ensureMetaDescriptionPresent(this.deps.workspaceWriter, job.workspace);
+        await ensureStableResponsiveLayout(this.deps.workspaceWriter, job.workspace);
         await this.move(job, "evaluating");
         const designAssessment = await this.deps.codex.run({
           role: "design_assessor", model: DESIGN_MODEL, workspace: job.workspace,

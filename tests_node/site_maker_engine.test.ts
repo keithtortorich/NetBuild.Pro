@@ -9,6 +9,7 @@ import {
   summarizeDeterministicEvidence,
   ensureImageCompsRendered, readImageDimensions,
   ensureMetaDescriptionPresent, extractMetaDescription,
+  ensureStableResponsiveLayout,
   type QualityReport, type ImageGenerator, type WorkspaceWriter, type ImageComp,
   describeFailure,
   redactSecrets,
@@ -471,6 +472,19 @@ test("ensureMetaDescriptionPresent doesn't fabricate a description for an empty 
   const writer = fakeWorkspaceWriter({ "/ws/index.html": html });
   await ensureMetaDescriptionPresent(writer, "/ws");
   assert.equal(await writer.readFile("/ws/index.html"), html);
+});
+
+test("ensureStableResponsiveLayout injects deterministic mobile and load-stability guards once", async () => {
+  const writer = fakeWorkspaceWriter({
+    "/ws/index.html": '<html><head><title>Acme</title></head><body><img src="hero.png"></body></html>',
+  });
+  await ensureStableResponsiveLayout(writer, "/ws");
+  await ensureStableResponsiveLayout(writer, "/ws");
+  const html = (await writer.readFile("/ws/index.html"))!;
+  assert.match(html, /data-site-magic-stability/);
+  assert.match(html, /overflow-x:hidden/);
+  assert.match(html, /animation:none!important/);
+  assert.equal(html.match(/data-site-magic-stability/g)?.length, 1);
 });
 
 test("a builder that ignores the image-path instructions still ends up with every comp on the audited page", async () => {
