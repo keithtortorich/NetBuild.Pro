@@ -365,7 +365,7 @@ export class OpenRouterCodegenRuntime {
     fs?: WorkspaceFs;
   }) {
     this.apiKey = opts?.apiKey ?? process.env.OPENROUTER_API_KEY ?? "";
-    this.model = opts?.model ?? process.env.SITE_MAGIC_DESIGN_MODEL ?? "openai/gpt-4o-mini";
+    this.model = opts?.model ?? process.env.SITE_MAGIC_DESIGN_MODEL ?? "openai/gpt-5.6-terra";
     // SITE_MAGIC_CODEGEN_BASE_URL, not SITE_MAGIC_API_BASE_URL: this is an
     // OpenAI-compatible LLM endpoint (a `/chat/completions` gets appended),
     // whereas SITE_MAGIC_API_BASE_URL is this repo's own control-plane URL
@@ -625,7 +625,7 @@ export async function callReadOnlyRole(opts: {
   const { role, instructions, workspaceContext = "" } = opts;
   const fetchImpl = opts.fetch ?? global.fetch;
   const apiKey = opts.apiKey ?? process.env.OPENROUTER_API_KEY ?? "";
-  const model = opts.model ?? process.env.SITE_MAGIC_DESIGN_MODEL ?? "openai/gpt-4o-mini";
+  const model = opts.model ?? process.env.SITE_MAGIC_DESIGN_MODEL ?? "openai/gpt-5.6-terra";
   const baseUrl =
     opts.baseUrl ?? process.env.SITE_MAGIC_CODEGEN_BASE_URL ?? "https://openrouter.ai/api/v1";
 

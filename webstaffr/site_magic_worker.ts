@@ -100,7 +100,7 @@ export function buildProductionDependencies(tenantId: string): WorkerDependencie
         viaLocalGateway
           ? {
               apiKey: "dummy",
-              model: process.env.SITE_MAGIC_DESIGN_MODEL ?? "auto/best-free",
+              model: process.env.SITE_MAGIC_DESIGN_MODEL ?? "openai/gpt-5.6-terra",
               baseUrl: codegenBaseUrl,
             }
           : { baseUrl: codegenBaseUrl }

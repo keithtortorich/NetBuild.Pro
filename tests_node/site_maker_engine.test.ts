@@ -587,7 +587,7 @@ test("DESIGN_MODEL picks up SITE_MAGIC_DESIGN_MODEL, not just the runtime's own 
     ["--input-type=module", "-e", "import { DESIGN_MODEL } from './webstaffr/site_maker_engine.ts'; console.log(DESIGN_MODEL);"],
     { encoding: "utf-8", env: envWithoutModel }
   ).trim();
-  assert.equal(withoutEnv, "openai/gpt-4o-mini");
+  assert.equal(withoutEnv, "openai/gpt-5.6-terra");
 });
 
 test("describeFailure carries the provider's reason, not just the class name", () => {

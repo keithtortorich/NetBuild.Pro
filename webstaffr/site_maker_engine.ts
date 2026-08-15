@@ -14,7 +14,7 @@ import sharp from "sharp";
 // constant was hardcoded, so setting that env var in production had no
 // effect on any actual call. Reads it the same way the runtime itself
 // does, so the two stay in sync.
-export const DESIGN_MODEL = process.env.SITE_MAGIC_DESIGN_MODEL ?? "openai/gpt-4o-mini";
+export const DESIGN_MODEL = process.env.SITE_MAGIC_DESIGN_MODEL ?? "openai/gpt-5.6-terra";
 export const IMAGE_MODEL = "google/gemini-2.5-flash-image";
 export const MAX_REMEDIATION_ROUNDS = 4;
 export const MAX_REBUILDS = 1;
