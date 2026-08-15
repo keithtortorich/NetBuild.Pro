@@ -130,3 +130,18 @@ def test_resolve_public_base_url_normalizes(monkeypatch, configured, expected):
     else:
         monkeypatch.setenv("NETBUILD_PUBLIC_BASE_URL", configured)
     assert resolve_public_base_url() == expected
+
+
+def test_root_token_style_block_is_valid_css(tmp_path):
+    """Regression: the inline `:root { ... }` block was built with an
+    f-string missing its literal braces (`f":root {_tokens_css_vars(...)}"`),
+    so every generated page shipped `:root --ws-brand-primary: ...;` with no
+    enclosing `{}` -- invalid CSS that browsers silently drop, killing all
+    brand color styling."""
+    pages = _generated_html(tmp_path)
+    home = pages["home.html"]
+
+    assert ":root {" in home
+    assert "--ws-brand-primary:" in home
+    style_block = home.split("<style>", 1)[1].split("</style>", 1)[0]
+    assert style_block.count("{") == style_block.count("}")

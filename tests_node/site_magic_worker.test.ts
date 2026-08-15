@@ -48,7 +48,9 @@ function fakeDependencies(): { deps: WorkerDependencies; states: string[] } {
         return {};
       },
     },
-    images: { async generate() { return ["one", "two", "three"]; } },
+    images: { async generate() { return [
+      "data:image/png;base64,QUFB", "data:image/png;base64,QkJC", "data:image/png;base64,Q0ND",
+    ]; } },
     evidence: new FakeEvidenceRunner(),
     artifacts: { async sealPrivateImmutable() { return { buildId: "dry-run-build-1" }; } },
   };

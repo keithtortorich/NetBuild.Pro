@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 
 // Aligned with the ADR-031 OpenRouter/OmniRoute codegen swap: these are
 // valid OpenRouter model slugs (resolve against openrouter.ai and any
@@ -82,6 +84,23 @@ export interface ArtifactStore {
   sealPrivateImmutable(args: {
     jobId: string; tenantId: string; workspace: string; manifestSha256: string;
   }): Promise<{ buildId: string }>;
+}
+
+/** Injected the same way CodexRuntime's own `fs.writeFile` seam is (see
+ * site_magic_codegen_runtime.ts) -- real disk in production, a fake in
+ * tests, so tests don't need a real writable workspace directory. */
+export interface WorkspaceWriter {
+  mkdir(dirPath: string): Promise<void>;
+  writeFile(filePath: string, contents: Buffer): Promise<void>;
+}
+
+export class NodeWorkspaceWriter implements WorkspaceWriter {
+  async mkdir(dirPath: string): Promise<void> {
+    await mkdir(dirPath, { recursive: true });
+  }
+  async writeFile(filePath: string, contents: Buffer): Promise<void> {
+    await writeFile(filePath, contents);
+  }
 }
 
 export class CodexRuntimeNotConfiguredError extends Error {}
@@ -286,6 +305,41 @@ export async function generateImagesWithBoundedRetry(
   return null;
 }
 
+/**
+ * Decodes each generated comp's `data:` URI and writes it into the job
+ * workspace's `images/` directory, returning the relative paths the
+ * builder role can reference verbatim in `<img src>`.
+ *
+ * Without this, `comps` (the array `data:` URIs returned by
+ * ImageGenerator.generate()) never touched the filesystem and were never
+ * mentioned in the builder's instructions -- the builder LLM had no way
+ * to know the comps existed, so it invented plausible-looking image
+ * paths (e.g. `images/hero.jpg`) that pointed at files that were never
+ * written. Every one of those guessed paths 404'd, which is why
+ * PlaywrightEvidenceRunner's `missingAssets`/`consoleErrors` counts
+ * always came back as a multiple of 3 (one per comp, times 3 viewport
+ * widths) -- confirmed against a real quarantined job's Evidence Runner
+ * report (`missingAssets: 9, consoleErrors: 9`) on 2026-08-15.
+ */
+async function writeImageComps(
+  writer: WorkspaceWriter, workspace: string, comps: string[]
+): Promise<string[]> {
+  await writer.mkdir(path.join(workspace, "images"));
+  const relativePaths: string[] = [];
+  for (let i = 0; i < comps.length; i += 1) {
+    const match = /^data:image\/(\w+);base64,(.+)$/.exec(comps[i]);
+    if (!match) {
+      throw new Error(`Image comp ${i + 1} is not a base64 data: URI`);
+    }
+    const [, subtype, base64] = match;
+    const ext = subtype === "jpeg" ? "jpg" : subtype;
+    const relativePath = `images/comp-${i + 1}.${ext}`;
+    await writer.writeFile(path.join(workspace, relativePath), Buffer.from(base64, "base64"));
+    relativePaths.push(relativePath);
+  }
+  return relativePaths;
+}
+
 function hostileSourceEnvelope(source: SiteSource): string {
   const serialized = JSON.stringify(source);
   return [
@@ -312,6 +366,7 @@ export class SiteMakerEngine {
     images: ImageGenerator;
     evidence: EvidenceRunner;
     artifacts: ArtifactStore;
+    workspaceWriter: WorkspaceWriter;
   };
 
   constructor(deps: {
@@ -320,8 +375,9 @@ export class SiteMakerEngine {
     images: ImageGenerator;
     evidence: EvidenceRunner;
     artifacts: ArtifactStore;
+    workspaceWriter?: WorkspaceWriter;
   }) {
-    this.deps = deps;
+    this.deps = { workspaceWriter: new NodeWorkspaceWriter(), ...deps };
   }
 
   async run(job: SiteMagicJobInput): Promise<{
@@ -352,13 +408,16 @@ export class SiteMakerEngine {
       if (!imagesMissing && comps.length !== 3) {
         throw new Error("Direction generator must return exactly three private comps");
       }
+      const compPaths = imagesMissing
+        ? []
+        : await writeImageComps(this.deps.workspaceWriter, job.workspace, comps);
 
       await this.move(job, "building", imagesMissing ? { imagesMissing: true } : undefined);
       await this.deps.codex.run({
         role: "builder", model: DESIGN_MODEL, workspace: job.workspace,
         instructions: imagesMissing
           ? `Build the complete responsive production site using the selected direction. No image comps are available -- image generation failed after ${IMAGE_GENERATION_MAX_ATTEMPTS} attempts. Build using typography, color, layout, and iconography only. Never fabricate, reference, or leave placeholders for missing images. Never fabricate business facts. Directions: ${JSON.stringify(direction)}`
-          : `Build the complete responsive production site using the selected direction. Never fabricate business facts. Directions: ${JSON.stringify(direction)}`,
+          : `Build the complete responsive production site using the selected direction. Three pre-generated image comps already exist in the workspace at these exact relative paths -- reference them verbatim in <img src> (or CSS background-image) wherever imagery fits the direction, and do not invent, rename, or leave placeholders for any other image path: ${compPaths.join(", ")}. Never fabricate business facts. Directions: ${JSON.stringify(direction)}`,
       });
 
       while (true) {

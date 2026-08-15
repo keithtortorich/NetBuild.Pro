@@ -7,10 +7,27 @@ import {
   generateImagesWithBoundedRetry, IMAGE_GENERATION_MAX_ATTEMPTS,
   MAX_REMEDIATION_ROUNDS,
   summarizeDeterministicEvidence,
-  type QualityReport, type ImageGenerator,
+  type QualityReport, type ImageGenerator, type WorkspaceWriter,
   describeFailure,
   redactSecrets,
 } from "../webstaffr/site_maker_engine.ts";
+
+// Real comps are `data:` URIs (see OpenAIImageGenerator/OpenRouterImageGenerator
+// in site_magic_adapters.ts) -- writeImageComps() rejects anything else.
+const fakeComps = () => [
+  "data:image/png;base64,QUFB", "data:image/png;base64,QkJC", "data:image/png;base64,Q0ND",
+];
+
+// Mirrors CodexRuntime's own fs-injection seam: a fake so tests don't need
+// a real writable workspace directory on disk.
+const fakeWorkspaceWriter = (): WorkspaceWriter & { written: Map<string, Buffer> } => {
+  const written = new Map<string, Buffer>();
+  return {
+    written,
+    async mkdir() {},
+    async writeFile(filePath, contents) { written.set(filePath, contents); },
+  };
+};
 
 const passing = (): QualityReport => ({
   designScore: 36, applicableMax: 40, findings: [], detectorFindings: 0,
@@ -53,9 +70,10 @@ test("happy path reveals only a sealed final build", async () => {
       if (args.role === "design_assessor") return { designScore: 36, applicableMax: 40, findings: [] };
       return {};
     } },
-    images: { async generate() { return ["one", "two", "three"]; } },
+    images: { async generate() { return fakeComps(); } },
     evidence: { async assess() { return passing(); } },
     artifacts: { async sealPrivateImmutable() { return { buildId: "build-1" }; } },
+    workspaceWriter: fakeWorkspaceWriter(),
   });
   const result = await engine.run({
     jobId: "job-1", tenantId: "tenant-1", workspace: "/private/job-1",
@@ -77,9 +95,10 @@ test("quarantines after MAX_REMEDIATION_ROUNDS unsuccessful remediation rounds",
       if (args.role === "design_assessor") return { designScore: 20, applicableMax: 40, findings: codexFinding };
       return {};
     } },
-    images: { async generate() { return ["one", "two", "three"]; } },
+    images: { async generate() { return fakeComps(); } },
     evidence: { async assess() { return passing(); } },
     artifacts: { async sealPrivateImmutable() { throw new Error("must not seal"); } },
+    workspaceWriter: fakeWorkspaceWriter(),
   });
   const result = await engine.run({
     jobId: "job-2", tenantId: "tenant-1", workspace: "/private/job-2",
@@ -103,9 +122,10 @@ test("remediator instructions carry deterministic gate evidence, not just the de
       if (args.role === "design_assessor") return { designScore: 20, applicableMax: 40, findings: [] };
       return {};
     } },
-    images: { async generate() { return ["one", "two", "three"]; } },
+    images: { async generate() { return fakeComps(); } },
     evidence: { async assess() { return failing; } },
     artifacts: { async sealPrivateImmutable() { throw new Error("must not seal"); } },
+    workspaceWriter: fakeWorkspaceWriter(),
   });
   await engine.run({
     jobId: "job-det-evidence", tenantId: "tenant-1", workspace: "/private/job-det-evidence",
@@ -153,9 +173,10 @@ test("a malformed design_assessor response fails the job closed instead of silen
   const engine = new SiteMakerEngine({
     states: { async transition(_job, _tenant, state) { states.push(state); } },
     codex: { async run(args) { if (args.role === "design_assessor") return { oops: true }; return {}; } },
-    images: { async generate() { return ["one", "two", "three"]; } },
+    images: { async generate() { return fakeComps(); } },
     evidence: { async assess() { return passing(); } },
     artifacts: { async sealPrivateImmutable() { throw new Error("must not seal"); } },
+    workspaceWriter: fakeWorkspaceWriter(),
   });
   const result = await engine.run({
     jobId: "job-4", tenantId: "tenant-1", workspace: "/private/job-4",
@@ -239,6 +260,47 @@ test("a persistently failing image generator does not fail the job -- build fini
   // or reference placeholders -- never a silent gap the visitor discovers
   assert.match(builderInstructions[0], /No image comps are available/);
   assert.match(builderInstructions[0], /Never fabricate, reference, or leave placeholders for missing images/);
+});
+
+test("generated image comps are written to the workspace and the builder is told their exact paths", async () => {
+  // Regression for 2026-08-15: comps were generated but never written to
+  // disk or mentioned in the builder's instructions, so the builder
+  // invented image paths that never existed -- every real job quarantined
+  // with missingAssets/consoleErrors as a multiple of 3 (one per comp,
+  // times 3 viewport widths). Confirmed against a real quarantined job's
+  // Evidence Runner report (missingAssets: 9, consoleErrors: 9).
+  const builderInstructions: string[] = [];
+  const writer = fakeWorkspaceWriter();
+  const engine = new SiteMakerEngine({
+    states: { async transition() {} },
+    codex: {
+      async run(args) {
+        if (args.role === "builder") builderInstructions.push(args.instructions);
+        if (args.role === "finish_reviewer") return { verdict: "PASS", authoredNotInterchangeable: true, materialFindings: [] };
+        if (args.role === "design_assessor") return { designScore: 36, applicableMax: 40, findings: [] };
+        return {};
+      },
+    },
+    images: { async generate() { return fakeComps(); } },
+    evidence: { async assess() { return passing(); } },
+    artifacts: { async sealPrivateImmutable() { return { buildId: "build-with-images" }; } },
+    workspaceWriter: writer,
+  });
+  const result = await engine.run({
+    jobId: "job-images-present", tenantId: "tenant-1", workspace: "/private/job-images-present",
+    source: { type: "intake", intakeId: "intake-1", verifiedFacts: { company: "Acme" } },
+  });
+  assert.deepEqual(result, { status: "ready_for_review", buildId: "build-with-images" });
+  assert.deepEqual(
+    [...writer.written.keys()].sort(),
+    [
+      "/private/job-images-present/images/comp-1.png",
+      "/private/job-images-present/images/comp-2.png",
+      "/private/job-images-present/images/comp-3.png",
+    ]
+  );
+  assert.match(builderInstructions[0], /images\/comp-1\.png, images\/comp-2\.png, images\/comp-3\.png/);
+  assert.match(builderInstructions[0], /do not invent, rename, or leave placeholders/);
 });
 
 test("adapter failure fails closed", async () => {

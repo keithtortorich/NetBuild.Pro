@@ -232,7 +232,7 @@ def _render_page_html(page_name: str, context: dict, schema: SiteSchema) -> str:
         f"<meta property=\"og:description\" content=\"{meta}\">\n"
         "<meta property=\"og:type\" content=\"website\">\n"
         "<style>\n"
-        f":root {_tokens_css_vars(context.get('design_tokens') or {})}\n"
+        f":root {{{_tokens_css_vars(context.get('design_tokens') or {})}}}\n"
         "</style>\n"
         "<link rel=\"stylesheet\" href=\"/static/site.css\">\n"
         "<script type=\"application/ld+json\">"
