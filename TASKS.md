@@ -13,6 +13,9 @@
 - `NB.P LOGO.jpeg` (repo root) — referenced by name only in a code comment (`netbuild_pro.html:1008`, `site/index.html:1008`) as the source of a hand-coded wordmark; not loaded at runtime, not dead either.
 - `Screenshot 2026-08-10 at 14.45.43.jpeg`, `gemini-svg (1).svg` (repo root) — no references anywhere found; look like scratch drops.
 **Not fixed:** none of this was asked for, nothing secret or broken. Worth a future D1 pass to gitignore `supabase/.temp/` + `generated_sites/`, decide the impeccable re-sync's fate, and move/delete the root-level images.
+**Update, same session:** gitignore + move/delete done (`aa24061`).
+
+**Fix verified live:** fired a real test intake (`zz_test_hvac_imgfix3_0815_1786769873_10c7b232`, job `40b33393-0b15-45ff-ab9c-e05ab3b132f0`) against production after the fix deployed. `missingAssets: 0, consoleErrors: 0, responsiveChecksPassed: true, axeViolations: 0` — down from the pre-fix job's `missingAssets: 9, consoleErrors: 9, responsiveChecksPassed: false`. Confirms the image-comp wiring bug is dead. Job still quarantined (`remediation_limit`), but now for the expected reason: `designScore: 16/24` (real UX findings — mobile nav, color palette, persuasion copy) and `lighthouse.performance: 72`. That's the design_assessor/Lighthouse doing its job, not a wiring bug. Test tenant not cleaned up.
 
 ### 2026-08-15: Remediator Was Blind To Deterministic Gate Failures — Fixed, But missingAssets Still Won't Clear, Real Cause Now Narrowed To A Path/Wiring Bug
 
