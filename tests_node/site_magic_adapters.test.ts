@@ -257,6 +257,27 @@ test("HTTPJobStateSink.transition maps remediationRounds/rebuilds/reason metadat
   assert.equal(body.remediation_rounds, 2);
 });
 
+test("HTTPJobStateSink.transition forwards the report as quality_summary", async () => {
+  // Regression: quality_summary_json stayed null on every quarantined job
+  // -- the DB column and API both accepted it, but nothing ever mapped a
+  // metadata field to body.quality_summary, so SiteMakerEngine's full
+  // QualityReport never left the container log. Confirmed against two
+  // real quarantined jobs on 2026-08-15 (quality_summary_json: null on
+  // both) before this fix.
+  const calls: string[] = [];
+  const fetchImpl = (async (_url: string, init: RequestInit) => {
+    calls.push(init.body as string);
+    return new Response("", { status: 200 });
+  }) as typeof fetch;
+
+  const sink = new HTTPJobStateSink({ baseUrl: "https://api.netbuild.pro", apiKey: "k", fetchImpl });
+  const report = { designScore: 16, applicableMax: 24, findings: [], lighthouse: { performance: 72 } };
+  await sink.transition("job_1", "acme_hvac", "quarantined", { reason: "remediation_limit", report });
+
+  const body = JSON.parse(calls[0]);
+  assert.deepEqual(body.quality_summary, report);
+});
+
 test("HTTPJobStateSink.transition expands buildId into build_id/preview_locator/artifact_manifest", async () => {
   const calls: string[] = [];
   const fetchImpl = (async (_url: string, init: RequestInit) => {

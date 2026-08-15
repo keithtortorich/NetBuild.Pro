@@ -432,7 +432,7 @@ export class SiteMakerEngine {
         if (!deterministicGatesPass(report)) {
           if (remediationRounds >= MAX_REMEDIATION_ROUNDS) {
             console.error(`[site-maker-engine] job ${job.jobId} hit remediation_limit, final report:`, report);
-            await this.move(job, "quarantined", { reason: "remediation_limit" });
+            await this.move(job, "quarantined", { reason: "remediation_limit", report });
             return { status: "quarantined", failureCode: "remediation_limit" };
           }
           remediationRounds += 1;
@@ -453,7 +453,7 @@ export class SiteMakerEngine {
         });
         if (finish.verdict === "REBUILD") {
           if (rebuilds >= MAX_REBUILDS) {
-            await this.move(job, "quarantined", { reason: "second_rebuild_directive" });
+            await this.move(job, "quarantined", { reason: "second_rebuild_directive", report });
             return { status: "quarantined", failureCode: "second_rebuild_directive" };
           }
           rebuilds += 1;
@@ -466,7 +466,7 @@ export class SiteMakerEngine {
         }
         if (!releaseGatesPass(report, finish)) {
           if (remediationRounds >= MAX_REMEDIATION_ROUNDS) {
-            await this.move(job, "quarantined", { reason: "final_review_failed" });
+            await this.move(job, "quarantined", { reason: "final_review_failed", report });
             return { status: "quarantined", failureCode: "final_review_failed" };
           }
           remediationRounds += 1;

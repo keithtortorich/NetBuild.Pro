@@ -370,6 +370,9 @@ export class HTTPJobStateSink implements JobStateSink {
       body.preview_locator = `${tenantId}/${jobId}/${buildId}.tar`;
       body.artifact_manifest = { jobId, tenantId, buildId };
     }
+    if (metadata?.report && typeof metadata.report === "object") {
+      body.quality_summary = metadata.report;
+    }
 
     const response = await this.fetchImpl(`${this.baseUrl}/site-magic/internal/jobs/${jobId}/transition`, {
       method: "POST",

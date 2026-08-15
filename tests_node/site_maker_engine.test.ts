@@ -86,10 +86,14 @@ test("happy path reveals only a sealed final build", async () => {
 
 test("quarantines after MAX_REMEDIATION_ROUNDS unsuccessful remediation rounds", async () => {
   const states: string[] = [];
+  const quarantineMetadata: Array<Record<string, unknown> | undefined> = [];
   let remediations = 0;
   const codexFinding = [{ id: "p1", priority: "P1" as const, summary: "weak" }];
   const engine = new SiteMakerEngine({
-    states: { async transition(_job, _tenant, state) { states.push(state); } },
+    states: { async transition(_job, _tenant, state, metadata) {
+      states.push(state);
+      if (state === "quarantined") quarantineMetadata.push(metadata);
+    } },
     codex: { async run(args) {
       if (args.role === "remediator") remediations += 1;
       if (args.role === "design_assessor") return { designScore: 20, applicableMax: 40, findings: codexFinding };
@@ -107,6 +111,14 @@ test("quarantines after MAX_REMEDIATION_ROUNDS unsuccessful remediation rounds",
   assert.equal(result.status, "quarantined");
   assert.equal(remediations, MAX_REMEDIATION_ROUNDS);
   assert.equal(states.at(-1), "quarantined");
+  // Regression: quality_summary_json stayed null on every real quarantined
+  // job because the quality report was only ever console.error'd, never
+  // handed to the states sink -- confirmed against two live jobs on
+  // 2026-08-15 before this fix.
+  assert.equal(quarantineMetadata.length, 1);
+  const report = quarantineMetadata[0]?.report as { designScore: number; findings: unknown };
+  assert.equal(report?.designScore, 20);
+  assert.deepEqual(report?.findings, codexFinding);
 });
 
 test("remediator instructions carry deterministic gate evidence, not just the design assessor's subjective findings", async () => {
