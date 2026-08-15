@@ -48,6 +48,32 @@ import type { EvidenceRunner, QualityReport } from "./site_maker_engine.ts";
 
 export class EvidenceRunnerError extends Error {}
 
+/**
+ * Failing (score < 1, non-zero weight) audits for one Lighthouse category,
+ * worst first. Only headline category scores ever reached QualityReport
+ * and the quarantine log -- a job could sit at "performance: 72" with no
+ * way to tell whether that was unoptimized images, missing meta tags, or
+ * something else without re-running Lighthouse by hand. Weight-0 audits
+ * are informational only (they don't move the category score), so they're
+ * excluded here to keep the list to things that actually matter.
+ */
+export function failingLighthouseAudits(
+  lhr: {
+    categories: Record<string, { auditRefs: Array<{ id: string; weight: number }> } | undefined>;
+    audits: Record<string, { id: string; title: string; score: number | null } | undefined>;
+  },
+  categoryId: string
+): Array<{ id: string; title: string; score: number | null }> {
+  const category = lhr.categories[categoryId];
+  if (!category) return [];
+  return category.auditRefs
+    .filter((ref) => ref.weight > 0)
+    .map((ref) => lhr.audits[ref.id])
+    .filter((audit): audit is { id: string; title: string; score: number | null } =>
+      Boolean(audit) && audit!.score !== null && audit!.score < 1)
+    .sort((a, b) => (a.score ?? 0) - (b.score ?? 0));
+}
+
 const require = createRequire(import.meta.url);
 
 const CONTENT_TYPES: Record<string, string> = {
@@ -250,6 +276,25 @@ export class PlaywrightEvidenceRunner implements EvidenceRunner {
       }
       const pct = (score: number | null | undefined) => Math.round((score ?? 0) * 100);
 
+      const performanceScore = pct(categories.performance?.score);
+      const seoScore = pct(categories.seo?.score);
+      // deterministicGatesPass's thresholds (site_maker_engine.ts) --
+      // duplicated here as literals rather than imported, since this
+      // logging is diagnostic-only and shouldn't create a dependency on
+      // the gate's exact numbers ever staying in sync.
+      if (performanceScore < 90) {
+        console.error(
+          `[evidence-runner] tenant ${this.tenantId} performance ${performanceScore} below gate (90) -- failing audits:`,
+          failingLighthouseAudits(lighthouseResult.lhr, "performance")
+        );
+      }
+      if (seoScore < 95) {
+        console.error(
+          `[evidence-runner] tenant ${this.tenantId} seo ${seoScore} below gate (95) -- failing audits:`,
+          failingLighthouseAudits(lighthouseResult.lhr, "seo")
+        );
+      }
+
       const contentIntegrityPassed = !PLACEHOLDER_PATTERNS.some((pattern) => pattern.test(bodyText));
       const otherTenantLeak = new RegExp(`/sites/(?!${escapeRegExp(this.tenantId)}/)[^/"'\\s]+/`);
       const tenantIsolationPassed = !otherTenantLeak.test(bodyText);
@@ -260,9 +305,9 @@ export class PlaywrightEvidenceRunner implements EvidenceRunner {
         axeViolations: axeViolationIds.size,
         lighthouse: {
           accessibility: pct(categories.accessibility?.score),
-          performance: pct(categories.performance?.score),
+          performance: performanceScore,
           bestPractices: pct(categories["best-practices"]?.score),
-          seo: pct(categories.seo?.score),
+          seo: seoScore,
         },
         brokenLinks, missingAssets, consoleErrors, failedRequests,
         responsiveChecksPassed,

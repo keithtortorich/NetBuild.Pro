@@ -9,6 +9,7 @@ import {
   runImpeccableDetect,
   EvidenceRunnerError,
   startStaticServer,
+  failingLighthouseAudits,
 } from "../webstaffr/site_magic_evidence_runner.ts";
 
 const WIDTHS = [390, 768, 1440] as const;
@@ -50,6 +51,32 @@ const TENANT_LEAK_HTML = `<!doctype html>
   <h1>Acme HVAC</h1>
   <p>See also our sister site at /sites/other-tenant-999/web for reference.</p>
 </body></html>`;
+
+test("failingLighthouseAudits returns only failing, weighted audits, worst first", () => {
+  const lhr = {
+    categories: {
+      performance: { auditRefs: [
+        { id: "uses-optimized-images", weight: 10 },
+        { id: "unattributed-informational", weight: 0 },
+        { id: "first-contentful-paint", weight: 5 },
+        { id: "already-perfect", weight: 3 },
+      ] },
+    },
+    audits: {
+      "uses-optimized-images": { id: "uses-optimized-images", title: "Serve images in next-gen formats", score: 0.2 },
+      "unattributed-informational": { id: "unattributed-informational", title: "Informational only", score: 0 },
+      "first-contentful-paint": { id: "first-contentful-paint", title: "First Contentful Paint", score: 0.6 },
+      "already-perfect": { id: "already-perfect", title: "Passing audit", score: 1 },
+    },
+  };
+  const result = failingLighthouseAudits(lhr, "performance");
+  assert.deepEqual(result.map((a) => a.id), ["uses-optimized-images", "first-contentful-paint"]);
+});
+
+test("failingLighthouseAudits returns an empty list for an unknown category", () => {
+  const lhr = { categories: {}, audits: {} };
+  assert.deepEqual(failingLighthouseAudits(lhr, "seo"), []);
+});
 
 test("runImpeccableDetect throws when the CLI can't run at all, instead of reporting a false clean scan", () => {
   assert.throws(
