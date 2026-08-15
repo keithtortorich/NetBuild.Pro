@@ -273,9 +273,15 @@ export async function generateImagesWithBoundedRetry(
       }
     }
   }
+  // Full message, not describeFailure()'s 64-char bound -- that bound
+  // exists for the ledger's failure_code field (site_magic_router.py's
+  // Pydantic cap), not this container log, which has no such audience or
+  // length constraint. Same distinction SiteMakerEngine.run()'s own catch
+  // block already draws between the raw log and the bounded ledger code.
+  const rawMessage = lastError instanceof Error ? lastError.message : String(lastError);
   console.error(
     `[site-maker-engine] image generation exhausted ${IMAGE_GENERATION_MAX_ATTEMPTS} attempts, proceeding without images:`,
-    describeFailure(lastError)
+    redactSecrets(rawMessage)
   );
   return null;
 }
