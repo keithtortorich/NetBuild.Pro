@@ -17,9 +17,8 @@ import {
 
 // Real comps are `data:` URIs (see OpenAIImageGenerator/OpenRouterImageGenerator
 // in site_magic_adapters.ts) -- writeImageComps() rejects anything else.
-const fakeComps = () => [
-  "data:image/png;base64,QUFB", "data:image/png;base64,QkJC", "data:image/png;base64,Q0ND",
-];
+const TEST_PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+const fakeComps = () => [TEST_PNG, TEST_PNG, TEST_PNG];
 
 // Mirrors CodexRuntime's own fs-injection seam: a fake so tests don't need
 // a real writable workspace directory on disk. Pre-seed `files` to
@@ -342,13 +341,14 @@ test("generated image comps are written to the workspace and the builder is told
   assert.deepEqual(
     [...writer.written.keys()].sort(),
     [
-      "/private/job-images-present/images/comp-1.png",
-      "/private/job-images-present/images/comp-2.png",
-      "/private/job-images-present/images/comp-3.png",
+      "/private/job-images-present/images/comp-1.webp",
+      "/private/job-images-present/images/comp-2.webp",
+      "/private/job-images-present/images/comp-3.webp",
     ]
   );
-  assert.match(builderInstructions[0], /images\/comp-1\.png, images\/comp-2\.png, images\/comp-3\.png/);
+  assert.match(builderInstructions[0], /images\/comp-1\.webp, images\/comp-2\.webp, images\/comp-3\.webp/);
   assert.match(builderInstructions[0], /do not invent, rename, or leave placeholders/);
+  assert.equal(writer.written.get("/private/job-images-present/images/comp-1.webp")?.subarray(0, 4).toString("ascii"), "RIFF");
 });
 
 // width/height 0 means "unknown" -- ensureImageCompsRendered omits the
@@ -520,9 +520,9 @@ test("a builder that ignores the image-path instructions still ends up with ever
   });
   assert.deepEqual(result, { status: "ready_for_review", buildId: "build-1" });
   const entry = (await writer.readFile("/private/job-noncompliant/index.html"))!;
-  assert.match(entry, /comp-1\.png/);
-  assert.match(entry, /comp-2\.png/);
-  assert.match(entry, /comp-3\.png/);
+  assert.match(entry, /comp-1\.webp/);
+  assert.match(entry, /comp-2\.webp/);
+  assert.match(entry, /comp-3\.webp/);
 });
 
 test("adapter failure fails closed", async () => {

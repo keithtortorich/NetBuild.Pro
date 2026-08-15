@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import sharp from "sharp";
 
 // Aligned with the ADR-031 OpenRouter/OmniRoute codegen swap: these are
 // valid OpenRouter model slugs (resolve against openrouter.ai and any
@@ -403,12 +404,15 @@ async function writeImageComps(
       throw new Error(`Image comp ${i + 1} is not a base64 data: URI`);
     }
     const [, subtype, base64] = match;
-    const ext = subtype === "jpeg" ? "jpg" : subtype;
-    const relativePath = `images/comp-${i + 1}.${ext}`;
+    const relativePath = `images/comp-${i + 1}.webp`;
     const buffer = Buffer.from(base64, "base64");
-    await writer.writeFile(path.join(workspace, relativePath), buffer);
-    const dims = readImageDimensions(buffer, subtype);
-    result.push({ relativePath, width: dims?.width ?? 0, height: dims?.height ?? 0 });
+    const optimized = await sharp(buffer)
+      .rotate()
+      .resize({ width: 1280, height: 1280, fit: "inside", withoutEnlargement: true })
+      .webp({ quality: 80, effort: 5 })
+      .toBuffer({ resolveWithObject: true });
+    await writer.writeFile(path.join(workspace, relativePath), optimized.data);
+    result.push({ relativePath, width: optimized.info.width, height: optimized.info.height });
   }
   return result;
 }

@@ -2,6 +2,12 @@
 
 ## ACTIVE NOW
 
+### 2026-08-15: Site Magic Image Compression (Verified, Pending Production Confirmation)
+
+Production jobs 54 and 55 confirmed that form intake, the tenant-scoped four-page Renderer baseline, Site Magic building/remediation, and deterministic evidence all execute end to end. Both remained quarantined because generated PNG transfer weight held Lighthouse LCP near 20 seconds despite responsive geometry and clean links/assets/requests. Founder approved pinned `sharp` on 2026-08-15. Generated comps now normalize to bounded 1280px WebP at quality 80 before the builder sees their paths; intrinsic dimensions remain attached for CLS protection. `sharp` is pinned at 0.35.3 and `npm audit` reports zero vulnerabilities.
+
+Current verification: Python 824/824 passing; Node Site Magic 119/119 passing; health check HEALTHY (14/14). Next action: push/deploy approved change, then fire a real production intake and require a terminal evidence result before closing.
+
 ### 2026-08-15: Site Renderer Now Feeds Site Magic (Local, Verified, Pending Push/Deploy)
 
 Form submission no longer launches the deterministic renderer and Site Magic as unrelated side effects. The database-backed renderer route is always recorded in the Site Magic intake source as a tenant-scoped baseline route plus page manifest, independent of the optional on-disk artifact writer (required for Vercel serverless, where that best-effort write may be unavailable). The worker fetches that rendered baseline from the control plane into its isolated workspace before product, direction, and builder roles run. Prompts now require Site Magic to preserve verified content, navigation, forms, calls to action, and page coverage while replacing the fallback presentation with a distinctive authored direction. Existing design, accessibility, responsive, functional, tenant-isolation, asset, Lighthouse, and final-review release gates remain mandatory before `ready_for_review`.
