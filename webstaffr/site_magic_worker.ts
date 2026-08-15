@@ -157,7 +157,13 @@ async function materializeRendererBaseline(
   const dir = join(workspace, "renderer-baseline");
   await mkdir(dir, { recursive: true });
   const target = join(dir, "index.html");
-  await writeFile(target, await response.text(), "utf8");
+  const html = await response.text();
+  await writeFile(target, html, "utf8");
+  // Seed the audited entry with the deterministic renderer output. The
+  // builder normally replaces this file with its authored design, but a
+  // malformed/truncated provider response must never leave Lighthouse
+  // requesting a nonexistent document (a real production 404 on job 53).
+  await writeFile(join(workspace, "index.html"), html, "utf8");
   await writeFile(join(dir, "manifest.json"), JSON.stringify({ sourceUrl: url, pages: baseline.pages }, null, 2), "utf8");
   return "renderer-baseline/index.html";
 }

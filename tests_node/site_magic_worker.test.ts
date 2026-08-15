@@ -285,6 +285,10 @@ test("intake circuit materializes the Site Renderer baseline before Site Magic r
     readFileSync(join(productWorkspace, "renderer-baseline", "index.html"), "utf8"),
     /Acme HVAC baseline/,
   );
+  assert.match(
+    readFileSync(join(productWorkspace, "index.html"), "utf8"),
+    /Acme HVAC baseline/,
+  );
   assert.deepEqual(
     JSON.parse(readFileSync(join(productWorkspace, "renderer-baseline", "manifest.json"), "utf8")).pages,
     ["home", "about", "contact"],
