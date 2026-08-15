@@ -262,15 +262,21 @@ export async function generateImagesWithBoundedRetry(
   args: { model: string; brief: string; count: 3 },
   sleep: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 ): Promise<string[] | null> {
+  let lastError: unknown;
   for (let attempt = 1; attempt <= IMAGE_GENERATION_MAX_ATTEMPTS; attempt += 1) {
     try {
       return await images.generate(args);
-    } catch {
+    } catch (error) {
+      lastError = error;
       if (attempt < IMAGE_GENERATION_MAX_ATTEMPTS) {
         await sleep(IMAGE_GENERATION_RETRY_BASE_MS * attempt);
       }
     }
   }
+  console.error(
+    `[site-maker-engine] image generation exhausted ${IMAGE_GENERATION_MAX_ATTEMPTS} attempts, proceeding without images:`,
+    describeFailure(lastError)
+  );
   return null;
 }
 
