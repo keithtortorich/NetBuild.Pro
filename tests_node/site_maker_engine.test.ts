@@ -136,6 +136,8 @@ test("quarantines after MAX_REMEDIATION_ROUNDS unsuccessful remediation rounds",
 test("remediator instructions carry deterministic gate evidence, not just the design assessor's subjective findings", async () => {
   const failing: QualityReport = {
     ...passing(), designScore: 20, applicableMax: 40,
+    detectorFindings: 1,
+    detectorDiagnostics: [{ antipattern: "side-tab", name: "Side tab", description: "remove it", severity: "warning", file: "about.html", line: 4, snippet: "border-left:3px" }],
     missingAssets: 3, consoleErrors: 3, responsiveChecksPassed: false,
   };
   const remediatorInstructions: string[] = [];
@@ -160,6 +162,9 @@ test("remediator instructions carry deterministic gate evidence, not just the de
     assert.match(instructions, /"missingAssets":3/);
     assert.match(instructions, /"consoleErrors":3/);
     assert.match(instructions, /"responsiveChecksPassed":false/);
+    assert.match(instructions, /"antipattern":"side-tab"/);
+    assert.match(instructions, /detectorFindings must reach zero/);
+    assert.match(instructions, /edit every affected source file/);
   }
 });
 
@@ -493,7 +498,7 @@ test("ensureStableResponsiveLayout injects deterministic mobile and load-stabili
   assert.match(html, /<main><img/);
   assert.match(html, /background:#0b3b5a!important;color:#fff!important/);
   assert.match(html, /nav a\{min-height:44px/);
-  assert.match(html, /nav,.menu-toggle,.active,.cta-banner,button,footer/);
+  assert.match(html, /nav,.menu-toggle,.cta-banner/);
   assert.match(html, /nav a\[data-view\]/);
   assert.match(html, /\.service-row,\.service-row \*/);
   assert.equal(html.match(/data-site-magic-stability/g)?.length, 1);

@@ -21,6 +21,8 @@ export const MAX_REBUILDS = 1;
 export const IMAGE_GENERATION_MAX_ATTEMPTS = 3;
 export const IMAGE_GENERATION_RETRY_BASE_MS = 500;
 
+const DESIGN_DETECTOR_CONSTRAINTS = `The deterministic Impeccable detector is a blocking release gate. Do not use AI-default visual tropes: no thick one-sided accent borders (side tabs), no tiny tracked uppercase eyebrow or kicker above headings, no decorative radial-gradient halo, no long all-caps body copy, no text flush against colored/bordered containers (use at least 12px inset), and no overflow-hidden/clip ancestor around positioned interactive layers. Apply the visual system consistently to every generated HTML page.`;
+
 export type JobState =
   | "queued" | "ingesting" | "directing" | "building" | "evaluating"
   | "remediating" | "final_review" | "ready_for_review" | "failed" | "quarantined";
@@ -608,13 +610,14 @@ html,body{max-width:100%;overflow-x:hidden}
 img,video,svg,canvas{max-width:100%;height:auto}
 .ws-comp-gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,18rem),1fr));gap:1rem;width:100%;overflow:hidden}
 .ws-comp-gallery img{display:block;width:100%;height:auto;object-fit:cover}
-body *,body *::before,body *::after{animation:none!important;transition:none!important;opacity:1!important;visibility:visible!important}
+body *{opacity:1!important;visibility:visible!important}
 [data-aos],[class*="reveal"],[class*="fade-in"],[class*="animate"]{opacity:1!important;transform:none!important;visibility:visible!important}
 .cta-button,a[class*="cta"],button[class*="cta"]{background:#0b3b5a!important;color:#fff!important;border-color:#0b3b5a!important}
-nav,.menu-toggle,.active,.cta-banner,button,footer{background-color:#0b3b5a!important;color:#fff!important;border-color:#0b3b5a!important}
-nav a,footer a,.active{color:#fff!important}
+nav,.menu-toggle,.cta-banner{background-color:#0b3b5a!important;color:#fff!important;border-color:#0b3b5a!important}
+nav a{color:#fff!important}
 nav a[data-view],nav a[aria-current="page"]{background:#0b3b5a!important;color:#fff!important;text-decoration:underline!important;text-decoration-thickness:2px!important;text-underline-offset:.3em!important}
 .service-row,.service-row *{background-color:#fff!important;color:#102f3f!important;border-color:#102f3f!important}
+@media(prefers-reduced-motion:reduce){body *,body *::before,body *::after{animation:none!important;transition:none!important}}
 @media(max-width:48rem){nav,[class*="nav-links"],[class*="navigation"]{display:flex!important;flex-wrap:wrap!important;visibility:visible!important;opacity:1!important}nav a{min-height:44px;display:inline-flex;align-items:center}}
 </style>`;
   let semanticHtml = entry.html;
@@ -723,8 +726,8 @@ export class SiteMakerEngine {
       await this.deps.codex.run({
         role: "builder", model: DESIGN_MODEL, workspace: job.workspace,
         instructions: imagesMissing
-          ? `Build the complete responsive production site in index.html using the selected direction. Start from the renderer baseline when present: preserve its verified content, navigation, forms, calls to action, and page coverage, then replace its presentation with the authored direction. No image comps are available -- image generation failed after ${IMAGE_GENERATION_MAX_ATTEMPTS} attempts. Build using typography, color, layout, and iconography only. Never fabricate, reference, or leave placeholders for missing images. Never fabricate business facts. Directions: ${JSON.stringify(direction)}`
-          : `Build the complete responsive production site in index.html using the selected direction. Start from the renderer baseline when present: preserve its verified content, navigation, forms, calls to action, and page coverage, then replace its presentation with the authored direction. Three pre-generated image comps already exist in the workspace at these exact relative paths -- reference them verbatim in <img src> (or CSS background-image) wherever imagery fits the direction, and do not invent, rename, or leave placeholders for any other image path: ${compPaths.map((c) => c.relativePath).join(", ")}. Never fabricate business facts. Directions: ${JSON.stringify(direction)}`,
+          ? `Build the complete responsive production site in index.html using the selected direction. Start from the renderer baseline when present: preserve its verified content, navigation, forms, calls to action, and page coverage, then replace its presentation with the authored direction. ${DESIGN_DETECTOR_CONSTRAINTS} No image comps are available -- image generation failed after ${IMAGE_GENERATION_MAX_ATTEMPTS} attempts. Build using typography, color, layout, and iconography only. Never fabricate, reference, or leave placeholders for missing images. Never fabricate business facts. Directions: ${JSON.stringify(direction)}`
+          : `Build the complete responsive production site in index.html using the selected direction. Start from the renderer baseline when present: preserve its verified content, navigation, forms, calls to action, and page coverage, then replace its presentation with the authored direction. ${DESIGN_DETECTOR_CONSTRAINTS} Three pre-generated image comps already exist in the workspace at these exact relative paths -- reference them verbatim in <img src> (or CSS background-image) wherever imagery fits the direction, and do not invent, rename, or leave placeholders for any other image path: ${compPaths.map((c) => c.relativePath).join(", ")}. Never fabricate business facts. Directions: ${JSON.stringify(direction)}`,
       });
 
       while (true) {
@@ -751,7 +754,7 @@ export class SiteMakerEngine {
           const deterministicEvidence = summarizeDeterministicEvidence(report);
           await this.deps.codex.run({
             role: "remediator", model: DESIGN_MODEL, workspace: job.workspace,
-            instructions: `Address this weakness ledger one item at a time, then render once. Design assessment: ${JSON.stringify(designAssessment)} Ledger: ${JSON.stringify(ledger)} Deterministic evidence (must all clear -- missingAssets/consoleErrors/broken links/axe violations/lighthouse scores/responsive checks): ${JSON.stringify(deterministicEvidence)}`,
+            instructions: `Address every blocking item, then render once. ${DESIGN_DETECTOR_CONSTRAINTS} For detectorDiagnostics, edit every affected source file and remove or replace the exact underlying antipattern; do not add a compensating stylesheet that repeats the flagged pattern. detectorFindings must reach zero. Preserve the data-site-magic-stability safety style. Design assessment: ${JSON.stringify(designAssessment)} Ledger: ${JSON.stringify(ledger)} Deterministic evidence (every field must clear): ${JSON.stringify(deterministicEvidence)}`,
           });
           continue;
         }
