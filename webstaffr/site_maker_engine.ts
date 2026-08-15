@@ -600,10 +600,25 @@ img,video,svg,canvas{max-width:100%;height:auto}
 .ws-comp-gallery img{display:block;width:100%;height:auto;object-fit:cover}
 body *,body *::before,body *::after{animation:none!important;transition:none!important;opacity:1!important;visibility:visible!important}
 [data-aos],[class*="reveal"],[class*="fade-in"],[class*="animate"]{opacity:1!important;transform:none!important;visibility:visible!important}
+.cta-button,a[class*="cta"],button[class*="cta"]{background:#0b3b5a!important;color:#fff!important;border-color:#0b3b5a!important}
+@media(max-width:48rem){nav,[class*="nav-links"],[class*="navigation"]{display:flex!important;flex-wrap:wrap!important;visibility:visible!important;opacity:1!important}nav a{min-height:44px;display:inline-flex;align-items:center}}
 </style>`;
-  const patched = /<\/head>/i.test(entry.html)
-    ? entry.html.replace(/<\/head>/i, `${css}\n</head>`)
-    : `${css}\n${entry.html}`;
+  let semanticHtml = entry.html;
+  if (!/<main\b/i.test(semanticHtml)) {
+    semanticHtml = semanticHtml.replace(/(<body\b[^>]*>)([\s\S]*?)(<\/body>)/i, (_all, open, body, close) => {
+      const footerAt = body.search(/<footer\b/i);
+      const contentEnd = footerAt >= 0 ? footerAt : body.length;
+      const beforeContent = body.slice(0, contentEnd);
+      const boundaryMatches = [...beforeContent.matchAll(/<\/(?:header|nav)>/gi)];
+      const contentStart = boundaryMatches.at(-1)?.index !== undefined
+        ? boundaryMatches.at(-1)!.index! + boundaryMatches.at(-1)![0].length
+        : 0;
+      return `${open}${body.slice(0, contentStart)}<main>${body.slice(contentStart, contentEnd)}</main>${body.slice(contentEnd)}${close}`;
+    });
+  }
+  const patched = /<\/head>/i.test(semanticHtml)
+    ? semanticHtml.replace(/<\/head>/i, `${css}\n</head>`)
+    : `${css}\n${semanticHtml}`;
   await writer.writeFile(entry.path, Buffer.from(patched, "utf-8"));
 }
 

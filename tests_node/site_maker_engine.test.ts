@@ -490,7 +490,19 @@ test("ensureStableResponsiveLayout injects deterministic mobile and load-stabili
   assert.match(html, /overflow-x:hidden/);
   assert.match(html, /animation:none!important/);
   assert.match(html, /opacity:1!important/);
+  assert.match(html, /<main><img/);
+  assert.match(html, /background:#0b3b5a!important;color:#fff!important/);
+  assert.match(html, /nav a\{min-height:44px/);
   assert.equal(html.match(/data-site-magic-stability/g)?.length, 1);
+});
+
+test("ensureStableResponsiveLayout keeps header and footer outside the injected main landmark", async () => {
+  const writer = fakeWorkspaceWriter({
+    "/ws/index.html": "<html><body><header><nav>Links</nav></header><section>Content</section><footer>Footer</footer></body></html>",
+  });
+  await ensureStableResponsiveLayout(writer, "/ws");
+  const html = (await writer.readFile("/ws/index.html"))!;
+  assert.match(html, /<\/header><main><section>Content<\/section><\/main><footer>/);
 });
 
 test("a builder that ignores the image-path instructions still ends up with every comp on the audited page", async () => {
