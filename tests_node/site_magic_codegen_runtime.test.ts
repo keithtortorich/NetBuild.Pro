@@ -615,6 +615,32 @@ test("response validation: recovers a response truncated exactly at its own clos
   assert.deepEqual(result, { designScore: 30, applicableMax: 40, findings: ["ok"] });
 });
 
+test("response validation: uses the final envelope after a planning placeholder", async () => {
+  // Regression: Terra emitted a valid placeholder CodegenResponse, then the
+  // real 24 KB response. JSON.parse rejected the concatenation at the first
+  // character after the placeholder and production failed on remediation 3.
+  const placeholder = JSON.stringify({
+    files: [{ path: "index.html", contents: "" }],
+    result: { status: "placeholder" },
+  });
+  const final = JSON.stringify({
+    files: [{ path: "index.html", contents: "<main>Finished</main>" }],
+    result: { status: "complete" },
+  });
+  const runtime = new OpenRouterCodegenRuntime({
+    apiKey: "test-key",
+    fetchImpl: async () => ({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: `${placeholder}\n${final}` } }] }),
+    }) as any,
+    fs: createFakeFs(),
+  });
+
+  const result = await runtime.run({ role: "builder", workspace: "/tmp", instructions: "test" });
+
+  assert.deepEqual(result, { status: "complete" });
+});
+
 test("response validation: rejects response missing 'files' key", async () => {
   const mockFetch = async () => ({
     ok: true,

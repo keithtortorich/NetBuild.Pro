@@ -116,6 +116,43 @@ function closeUnbalancedJson(text: string): string {
   return text + stack.reverse().join("");
 }
 
+/** Some reasoning models emit a small planning/placeholder envelope and then
+ * the real CodegenResponse as a second top-level JSON object. JSON.parse
+ * correctly rejects the concatenation, but both objects are individually
+ * valid. Extract complete top-level objects without interpreting string
+ * contents; callers deliberately prefer the last schema-valid object because
+ * the model's final answer follows its placeholder. */
+function extractTopLevelJsonObjects(text: string): string[] {
+  const objects: string[] = [];
+  let start = -1;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const ch = text[index];
+    if (inString) {
+      if (escaped) { escaped = false; continue; }
+      if (ch === "\\") { escaped = true; continue; }
+      if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') { inString = true; continue; }
+    if (ch === "{") {
+      if (depth === 0) start = index;
+      depth += 1;
+      continue;
+    }
+    if (ch === "}" && depth > 0) {
+      depth -= 1;
+      if (depth === 0 && start >= 0) {
+        objects.push(text.slice(start, index + 1));
+        start = -1;
+      }
+    }
+  }
+  return objects;
+}
+
 /** V8's JSON.parse SyntaxError includes "at position N" for most failure
  * modes. A flat prefix snippet is useless when the malformation is deep
  * into a large multi-finding response -- a 300-char prefix missed the
@@ -419,8 +456,22 @@ export class OpenRouterCodegenRuntime {
       this.validateCodegenResponse(parsed);
     } catch (firstError) {
       try {
-        parsed = JSON.parse(closeUnbalancedJson(stripped));
-        this.validateCodegenResponse(parsed);
+        const candidates = extractTopLevelJsonObjects(response);
+        let recovered: CodegenResponse | undefined;
+        for (const candidate of candidates) {
+          try {
+            const value = JSON.parse(sanitizeJsonControlChars(candidate));
+            this.validateCodegenResponse(value);
+            recovered = value;
+          } catch {
+            // Keep scanning: the final schema-valid envelope is authoritative.
+          }
+        }
+        if (recovered === undefined) {
+          recovered = JSON.parse(closeUnbalancedJson(stripped));
+          this.validateCodegenResponse(recovered);
+        }
+        parsed = recovered;
       } catch {
         // Repair didn't help -- report the original error, which carries
         // the real diagnostic snippet the repair attempt doesn't need.
