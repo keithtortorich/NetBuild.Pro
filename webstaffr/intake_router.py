@@ -251,11 +251,19 @@ def _enqueue_site_magic_job_if_configured(
             "intake_id": str(submission.submission_id),
             "verified_facts": build_public_site_data(submission),
         }
-        if renderer_result is not None:
-            source_payload["renderer_baseline"] = {
-                "path": f"/sites/{submission.tenant_id}/web",
-                "pages": renderer_result.pages,
-            }
+        # The public renderer route is database-backed and exists as soon as
+        # the intake transaction commits. Do not condition this contract on
+        # the optional on-disk artifact writer: Vercel's serverless filesystem
+        # may reject that best-effort write even while /sites/{tenant}/web is
+        # fully available. Site Magic must always receive the live renderer.
+        source_payload["renderer_baseline"] = {
+            "path": f"/sites/{submission.tenant_id}/web",
+            "pages": (
+                renderer_result.pages
+                if renderer_result is not None
+                else ["home", "about", "contact", "services"]
+            ),
+        }
 
         job = SiteMagicRepository(conn).create_job(
             tenant_id=submission.tenant_id,

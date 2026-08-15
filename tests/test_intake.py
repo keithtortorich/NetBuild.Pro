@@ -218,6 +218,35 @@ class TestIntakeAutoEnqueuesSiteMagic(unittest.TestCase):
         self.assertEqual(resp.status_code, 429)
         self.assertEqual(self.queue.enqueued, [])
 
+    def test_renderer_route_is_enqueued_when_optional_disk_generation_fails(self):
+        with patch(
+            "webstaffr.intake_router.generate_site_for_submission",
+            side_effect=OSError("read-only serverless filesystem"),
+        ):
+            resp = self.client.post("/intake", json=_valid_payload())
+        self.assertEqual(resp.status_code, 200)
+        tenant_id = resp.json()["tenant_id"]
+        self.assertEqual(len(self.queue.enqueued), 1)
+
+        job_id, _ = self.queue.enqueued[0]
+        conn = sqlite3.connect(self.db_path)
+        try:
+            raw = conn.execute(
+                "SELECT source_payload_json FROM site_magic_jobs WHERE job_id = ?",
+                (job_id,),
+            ).fetchone()[0]
+        finally:
+            conn.close()
+        source_payload = json.loads(raw)
+        self.assertEqual(
+            source_payload["renderer_baseline"]["path"],
+            f"/sites/{tenant_id}/web",
+        )
+        self.assertEqual(
+            source_payload["renderer_baseline"]["pages"],
+            ["home", "about", "contact", "services"],
+        )
+
 
 class TestIntakeWithoutSiteMagicQueueConfigured(IntakeTestCase):
     """IntakeTestCase's create_app() call doesn't pass site_magic_queue, so
