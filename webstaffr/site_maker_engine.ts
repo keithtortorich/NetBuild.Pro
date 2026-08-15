@@ -342,11 +342,61 @@ export async function generateImagesWithBoundedRetry(
  * widths) -- confirmed against a real quarantined job's Evidence Runner
  * report (`missingAssets: 9, consoleErrors: 9`) on 2026-08-15.
  */
+export interface ImageComp {
+  relativePath: string;
+  /** 0 when the format isn't recognized (readImageDimensions returned
+   * null) -- ensureImageCompsRendered omits width/height in that case
+   * rather than emitting a bogus 0x0 attribute. */
+  width: number;
+  height: number;
+}
+
+/**
+ * Reads pixel dimensions straight from PNG/JPEG header bytes -- no
+ * decode, no new dependency, just the handful of bytes every encoder
+ * writes in the same fixed position. Returns null for any other format
+ * (webp, gif, ...) or malformed input; callers treat that as "unknown",
+ * not an error, since the earlier writeImageComps() already validated
+ * this is a real base64 image and the site should still render fine
+ * without explicit width/height, just with more CLS risk.
+ */
+export function readImageDimensions(buf: Buffer, subtype: string): { width: number; height: number } | null {
+  if (subtype === "png") {
+    // 8-byte PNG signature, then IHDR chunk: 4-byte length + "IHDR" (4
+    // bytes) + width (4 bytes BE) + height (4 bytes BE), starting at
+    // offset 16.
+    if (buf.length < 24) return null;
+    return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
+  }
+  if (subtype === "jpeg" || subtype === "jpg") {
+    // Scan JFIF markers for the first SOF (start-of-frame) segment,
+    // which carries height then width as 2-byte big-endian fields 5
+    // bytes into the segment payload.
+    let offset = 2; // skip the 0xFFD8 SOI marker
+    while (offset + 4 <= buf.length && buf[offset] === 0xff) {
+      const marker = buf[offset + 1];
+      if (marker === 0xd8 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
+        offset += 2;
+        continue;
+      }
+      const segmentLength = buf.readUInt16BE(offset + 2);
+      const isSOF = (marker >= 0xc0 && marker <= 0xc3) || (marker >= 0xc5 && marker <= 0xc7)
+        || (marker >= 0xc9 && marker <= 0xcb) || (marker >= 0xcd && marker <= 0xcf);
+      if (isSOF && offset + 9 <= buf.length) {
+        return { height: buf.readUInt16BE(offset + 5), width: buf.readUInt16BE(offset + 7) };
+      }
+      offset += 2 + segmentLength;
+    }
+    return null;
+  }
+  return null;
+}
+
 async function writeImageComps(
   writer: WorkspaceWriter, workspace: string, comps: string[]
-): Promise<string[]> {
+): Promise<ImageComp[]> {
   await writer.mkdir(path.join(workspace, "images"));
-  const relativePaths: string[] = [];
+  const result: ImageComp[] = [];
   for (let i = 0; i < comps.length; i += 1) {
     const match = /^data:image\/(\w+);base64,(.+)$/.exec(comps[i]);
     if (!match) {
@@ -355,10 +405,12 @@ async function writeImageComps(
     const [, subtype, base64] = match;
     const ext = subtype === "jpeg" ? "jpg" : subtype;
     const relativePath = `images/comp-${i + 1}.${ext}`;
-    await writer.writeFile(path.join(workspace, relativePath), Buffer.from(base64, "base64"));
-    relativePaths.push(relativePath);
+    const buffer = Buffer.from(base64, "base64");
+    await writer.writeFile(path.join(workspace, relativePath), buffer);
+    const dims = readImageDimensions(buffer, subtype);
+    result.push({ relativePath, width: dims?.width ?? 0, height: dims?.height ?? 0 });
   }
-  return relativePaths;
+  return result;
 }
 
 /** Mirrors PlaywrightEvidenceRunner's own ENTRY_CANDIDATES
@@ -391,9 +443,9 @@ const ENTRY_CANDIDATES = ["index.html", "home.html"] as const;
  * builder wrote, it doesn't invent a page.
  */
 export async function ensureImageCompsRendered(
-  writer: WorkspaceWriter, workspace: string, compPaths: string[]
+  writer: WorkspaceWriter, workspace: string, comps: ImageComp[]
 ): Promise<void> {
-  if (compPaths.length === 0) return;
+  if (comps.length === 0) return;
 
   let entryPath: string | null = null;
   let html: string | null = null;
@@ -408,12 +460,20 @@ export async function ensureImageCompsRendered(
   }
   if (entryPath === null || html === null) return;
 
-  const missing = compPaths.filter((compPath) => !html!.includes(compPath));
+  const missing = comps.filter((comp) => !html!.includes(comp.relativePath));
   if (missing.length === 0) return;
 
+  // Explicit width/height (when known) reserve the image's layout space
+  // before it loads -- omitting them was a real cause of the
+  // cumulative-layout-shift failures Evidence Runner caught on
+  // 2026-08-15 (CLS 0.578 against a 0.1 gate) on jobs where this
+  // fallback gallery was the only place a comp ended up referenced.
   const gallery = [
     '<section class="ws-comp-gallery" aria-label="Photos">',
-    ...missing.map((compPath) => `  <img src="${compPath}" alt="" loading="lazy">`),
+    ...missing.map((comp) => {
+      const dims = comp.width > 0 && comp.height > 0 ? ` width="${comp.width}" height="${comp.height}"` : "";
+      return `  <img src="${comp.relativePath}"${dims} alt="" loading="lazy">`;
+    }),
     "</section>",
   ].join("\n");
   const patched = html.includes("</body>")
@@ -500,7 +560,7 @@ export class SiteMakerEngine {
         role: "builder", model: DESIGN_MODEL, workspace: job.workspace,
         instructions: imagesMissing
           ? `Build the complete responsive production site using the selected direction. No image comps are available -- image generation failed after ${IMAGE_GENERATION_MAX_ATTEMPTS} attempts. Build using typography, color, layout, and iconography only. Never fabricate, reference, or leave placeholders for missing images. Never fabricate business facts. Directions: ${JSON.stringify(direction)}`
-          : `Build the complete responsive production site using the selected direction. Three pre-generated image comps already exist in the workspace at these exact relative paths -- reference them verbatim in <img src> (or CSS background-image) wherever imagery fits the direction, and do not invent, rename, or leave placeholders for any other image path: ${compPaths.join(", ")}. Never fabricate business facts. Directions: ${JSON.stringify(direction)}`,
+          : `Build the complete responsive production site using the selected direction. Three pre-generated image comps already exist in the workspace at these exact relative paths -- reference them verbatim in <img src> (or CSS background-image) wherever imagery fits the direction, and do not invent, rename, or leave placeholders for any other image path: ${compPaths.map((c) => c.relativePath).join(", ")}. Never fabricate business facts. Directions: ${JSON.stringify(direction)}`,
       });
 
       while (true) {

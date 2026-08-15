@@ -7,8 +7,8 @@ import {
   generateImagesWithBoundedRetry, IMAGE_GENERATION_MAX_ATTEMPTS,
   MAX_REMEDIATION_ROUNDS,
   summarizeDeterministicEvidence,
-  ensureImageCompsRendered,
-  type QualityReport, type ImageGenerator, type WorkspaceWriter,
+  ensureImageCompsRendered, readImageDimensions,
+  type QualityReport, type ImageGenerator, type WorkspaceWriter, type ImageComp,
   describeFailure,
   redactSecrets,
 } from "../webstaffr/site_maker_engine.ts";
@@ -326,6 +326,10 @@ test("generated image comps are written to the workspace and the builder is told
   assert.match(builderInstructions[0], /do not invent, rename, or leave placeholders/);
 });
 
+// width/height 0 means "unknown" -- ensureImageCompsRendered omits the
+// attributes rather than emitting a bogus 0x0.
+const comp = (relativePath: string, width = 0, height = 0): ImageComp => ({ relativePath, width, height });
+
 test("ensureImageCompsRendered injects any comp the entry file doesn't already reference", async () => {
   // Regression for 2026-08-15: telling the builder the exact paths was
   // necessary but not sufficient -- confirmed against a real job that
@@ -335,7 +339,7 @@ test("ensureImageCompsRendered injects any comp the entry file doesn't already r
   const writer = fakeWorkspaceWriter({
     "/ws/index.html": "<html><body><h1>Hi</h1><img src=\"images/comp-2.png\"></body></html>",
   });
-  await ensureImageCompsRendered(writer, "/ws", ["images/comp-1.png", "images/comp-2.png", "images/comp-3.png"]);
+  await ensureImageCompsRendered(writer, "/ws", [comp("images/comp-1.png"), comp("images/comp-2.png"), comp("images/comp-3.png")]);
 
   const patched = (await writer.readFile("/ws/index.html"))!;
   assert.match(patched, /<img src="images\/comp-1\.png"/);
@@ -346,23 +350,56 @@ test("ensureImageCompsRendered injects any comp the entry file doesn't already r
   assert.ok(patched.indexOf("comp-1.png") < patched.indexOf("</body>"));
 });
 
+test("ensureImageCompsRendered sets width/height when known, to avoid layout shift", async () => {
+  // Regression for 2026-08-15: a real quarantined job whose only comp
+  // reference came from this fallback gallery failed cumulative-layout-shift
+  // (0.578 against a 0.1 gate) -- images with no reserved layout space
+  // shift content as they load. Explicit dimensions fix that.
+  const writer = fakeWorkspaceWriter({ "/ws/index.html": "<html><body></body></html>" });
+  await ensureImageCompsRendered(writer, "/ws", [comp("images/comp-1.png", 1536, 1024)]);
+  const patched = (await writer.readFile("/ws/index.html"))!;
+  assert.match(patched, /<img src="images\/comp-1\.png" width="1536" height="1024"/);
+});
+
+test("ensureImageCompsRendered omits width/height when dimensions are unknown", async () => {
+  const writer = fakeWorkspaceWriter({ "/ws/index.html": "<html><body></body></html>" });
+  await ensureImageCompsRendered(writer, "/ws", [comp("images/comp-1.png")]);
+  const patched = (await writer.readFile("/ws/index.html"))!;
+  assert.match(patched, /<img src="images\/comp-1\.png" alt=""/);
+  assert.doesNotMatch(patched, /width=/);
+});
+
 test("ensureImageCompsRendered is a no-op when every comp is already referenced", async () => {
   const html = "<html><body><img src=\"images/comp-1.png\"></body></html>";
   const writer = fakeWorkspaceWriter({ "/ws/index.html": html });
-  await ensureImageCompsRendered(writer, "/ws", ["images/comp-1.png"]);
+  await ensureImageCompsRendered(writer, "/ws", [comp("images/comp-1.png")]);
   assert.equal(await writer.readFile("/ws/index.html"), html);
 });
 
 test("ensureImageCompsRendered is a no-op when no entry file exists yet", async () => {
   const writer = fakeWorkspaceWriter();
-  await ensureImageCompsRendered(writer, "/ws", ["images/comp-1.png"]);
+  await ensureImageCompsRendered(writer, "/ws", [comp("images/comp-1.png")]);
   assert.equal(writer.written.size, 0);
 });
 
 test("ensureImageCompsRendered falls back to home.html when index.html doesn't exist", async () => {
   const writer = fakeWorkspaceWriter({ "/ws/home.html": "<html><body></body></html>" });
-  await ensureImageCompsRendered(writer, "/ws", ["images/comp-1.png"]);
+  await ensureImageCompsRendered(writer, "/ws", [comp("images/comp-1.png")]);
   assert.match((await writer.readFile("/ws/home.html"))!, /comp-1\.png/);
+});
+
+test("readImageDimensions parses a real PNG's IHDR chunk", () => {
+  // A minimal valid 1x1 transparent PNG.
+  const onePixelPng = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+    "base64"
+  );
+  assert.deepEqual(readImageDimensions(onePixelPng, "png"), { width: 1, height: 1 });
+});
+
+test("readImageDimensions returns null for a format it doesn't recognize", () => {
+  assert.equal(readImageDimensions(Buffer.from("not an image"), "webp"), null);
+  assert.equal(readImageDimensions(Buffer.from([0x89, 0x50]), "png"), null);
 });
 
 test("a builder that ignores the image-path instructions still ends up with every comp on the audited page", async () => {
