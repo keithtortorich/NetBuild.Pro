@@ -282,16 +282,21 @@ export class PlaywrightEvidenceRunner implements EvidenceRunner {
       // duplicated here as literals rather than imported, since this
       // logging is diagnostic-only and shouldn't create a dependency on
       // the gate's exact numbers ever staying in sync.
+      const lighthouseDiagnostics: QualityReport["lighthouseDiagnostics"] = {};
       if (performanceScore < 90) {
+        const audits = failingLighthouseAudits(lighthouseResult.lhr, "performance");
+        lighthouseDiagnostics.performance = audits;
         console.error(
           `[evidence-runner] tenant ${this.tenantId} performance ${performanceScore} below gate (90) -- failing audits:`,
-          failingLighthouseAudits(lighthouseResult.lhr, "performance")
+          audits
         );
       }
       if (seoScore < 95) {
+        const audits = failingLighthouseAudits(lighthouseResult.lhr, "seo");
+        lighthouseDiagnostics.seo = audits;
         console.error(
           `[evidence-runner] tenant ${this.tenantId} seo ${seoScore} below gate (95) -- failing audits:`,
-          failingLighthouseAudits(lighthouseResult.lhr, "seo")
+          audits
         );
       }
 
@@ -314,6 +319,7 @@ export class PlaywrightEvidenceRunner implements EvidenceRunner {
         functionalChecksPassed: pageErrors === 0,
         contentIntegrityPassed,
         tenantIsolationPassed,
+        ...(Object.keys(lighthouseDiagnostics).length > 0 ? { lighthouseDiagnostics } : {}),
       };
     } finally {
       await browser?.close();

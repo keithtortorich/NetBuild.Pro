@@ -57,6 +57,17 @@ export interface QualityReport {
   functionalChecksPassed: boolean;
   contentIntegrityPassed: boolean;
   tenantIsolationPassed: boolean;
+  /** Populated only for Lighthouse categories that missed
+   * deterministicGatesPass's threshold -- the specific failing audits
+   * (id/title/score), not just the headline category number. Without
+   * this, "seo: 91" told you nothing was passing without re-running
+   * Lighthouse by hand; now it's in quality_summary_json, queryable
+   * like everything else in the report. See failingLighthouseAudits()
+   * in site_magic_evidence_runner.ts. */
+  lighthouseDiagnostics?: {
+    performance?: Array<{ id: string; title: string; score: number | null }>;
+    seo?: Array<{ id: string; title: string; score: number | null }>;
+  };
 }
 
 export interface JobStateSink {

@@ -120,6 +120,34 @@ test("PlaywrightEvidenceRunner reports a clean site as passing its deterministic
   }
 });
 
+test("PlaywrightEvidenceRunner records lighthouseDiagnostics only for categories that missed the gate", async (t) => {
+  // Regression: quality_summary_json carried headline lighthouse scores
+  // only ("seo: 91") with no way to tell which specific audit was
+  // failing without re-running Lighthouse by hand or digging through
+  // Railway's log UI (which elides multi-line console.error array
+  // output unpredictably). Confirmed live: SEO sat at exactly 91 across
+  // 4 real jobs on 2026-08-15, never moving -- a fixed, content-independent
+  // audit, not remediation noise.
+  const dir = await writeFixture(CLEAN_HTML);
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const runner = new PlaywrightEvidenceRunner({ tenantId: "acme-hvac" });
+  const report = await runner.assess({ workspace: dir, widths: WIDTHS });
+
+  for (const key of ["performance", "seo"] as const) {
+    const gate = key === "performance" ? 90 : 95;
+    if (report.lighthouse[key] < gate) {
+      const audits = report.lighthouseDiagnostics?.[key];
+      assert.ok(Array.isArray(audits) && audits.length > 0, `${key} below gate should carry failing audits`);
+      for (const audit of audits!) {
+        assert.equal(typeof audit.id, "string");
+        assert.equal(typeof audit.title, "string");
+      }
+    } else {
+      assert.equal(report.lighthouseDiagnostics?.[key], undefined, `${key} passing shouldn't carry diagnostics`);
+    }
+  }
+});
+
 test("PlaywrightEvidenceRunner catches a broken/overflowing/placeholder-riddled site", async (t) => {
   const dir = await writeFixture(BROKEN_HTML);
   t.after(() => rm(dir, { recursive: true, force: true }));
