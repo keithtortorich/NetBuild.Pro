@@ -286,6 +286,29 @@ test("a persistently failing image generator does not fail the job -- build fini
   assert.match(builderInstructions[0], /Never fabricate, reference, or leave placeholders for missing images/);
 });
 
+test("a no-image fallback is assessed without demanding unavailable imagery or fabricated testimonials", async () => {
+  const calls: Array<{ role: string; instructions: string }> = [];
+  const engine = new SiteMakerEngine({
+    states: { async transition() {} },
+    codex: { async run(args) {
+      calls.push({ role: args.role, instructions: args.instructions });
+      if (args.role === "design_assessor") return { designScore: 36, applicableMax: 40, findings: [] };
+      if (args.role === "finish_reviewer") return { verdict: "PASS", authoredNotInterchangeable: true, materialFindings: [] };
+      return {};
+    } },
+    images: { async generate() { throw new Error("image vendor outage"); } },
+    evidence: { async assess() { return passing(); } },
+    artifacts: { async sealPrivateImmutable() { return { buildId: "build-no-image" }; } },
+    workspaceWriter: fakeWorkspaceWriter(),
+  });
+  await engine.run({
+    jobId: "job-no-image-assessment", tenantId: "tenant-1", workspace: "/tmp/no-image-assessment",
+    source: { type: "intake", intakeId: "1", verifiedFacts: {} },
+  });
+  const assessment = calls.find((call) => call.role === "design_assessor");
+  assert.match(String(assessment?.instructions), /Do not create a finding merely for lacking photography or testimonials/);
+});
+
 test("generated image comps are written to the workspace and the builder is told their exact paths", async () => {
   // Regression for 2026-08-15: comps were generated but never written to
   // disk or mentioned in the builder's instructions, so the builder

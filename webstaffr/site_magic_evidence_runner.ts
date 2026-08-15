@@ -270,11 +270,22 @@ export class PlaywrightEvidenceRunner implements EvidenceRunner {
         port: debugPort, logLevel: "silent", output: "json",
         onlyCategories: ["accessibility", "performance", "best-practices", "seo"],
       });
+      const runtimeError = lighthouseResult?.lhr?.runtimeError;
+      if (runtimeError) {
+        const code = typeof runtimeError.code === "string" ? runtimeError.code : "UNKNOWN";
+        const message = typeof runtimeError.message === "string" ? runtimeError.message : "Lighthouse runtime failure";
+        throw new EvidenceRunnerError(`Lighthouse ${code}: ${message}`);
+      }
       const categories = lighthouseResult?.lhr?.categories;
       if (!categories) {
         throw new EvidenceRunnerError("Lighthouse returned no categories");
       }
       const pct = (score: number | null | undefined) => Math.round((score ?? 0) * 100);
+      for (const category of ["accessibility", "performance", "best-practices", "seo"] as const) {
+        if (categories[category]?.score == null) {
+          throw new EvidenceRunnerError(`Lighthouse returned no score for ${category}`);
+        }
+      }
 
       const performanceScore = pct(categories.performance?.score);
       const seoScore = pct(categories.seo?.score);
