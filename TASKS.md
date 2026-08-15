@@ -2,6 +2,23 @@
 
 ## ACTIVE NOW
 
+### 2026-08-15: Remediator Was Blind To Deterministic Gate Failures — Fixed, But missingAssets Still Won't Clear, Real Cause Now Narrowed To A Path/Wiring Bug
+
+**Root cause of the 2026-08-14 gpt-4o/gpt-4o-mini non-convergence, found by reading code, not by another model swap:** `deterministicGatesPass` gates on `missingAssets`/`consoleErrors`/`axeViolations`/`lighthouse`/`responsiveChecksPassed` etc., but the remediator prompt (`site_maker_engine.ts`) only ever carried `designAssessment`/`ledger` -- the design_assessor's subjective findings. `mergeDesignAssessment` overwrites `report.findings` with those, dropping the deterministic ones entirely. The remediator model was never told missing assets or console errors existed; no text instruction could have fixed what it never saw. Fixed: `summarizeDeterministicEvidence()` spliced into both remediator call sites (`195b501`). Node 95/95 passing.
+
+**Second bug found in the same pass:** `generateImagesWithBoundedRetry` swallowed every image-generation error silently and returned `null` after 3 attempts -- by design (2026-08-10 founder direction: a failed image gen must never fail the job), but nobody ever logged *why*. Added a log line (`9039056`), then found it truncated the real error to 64 chars because it reused `describeFailure()` -- the ledger's bounded-field helper, wrong tool for an unaudienced container log (`SiteMakerEngine.run()`'s own catch already draws this exact distinction). Fixed to log the full redacted message (`b75edfe`).
+
+**Fired three real test intakes against production (BYOK-paid) to verify, one per fix:**
+1. `zz_test_hvac_detfix_0815` (deterministic-evidence fix only) -- still quarantined, `missingAssets: 3` / `consoleErrors: 3` / `responsiveChecksPassed: false`, unchanged across all 4 remediation rounds despite the remediator now being told about them explicitly. Fix was necessary but not sufficient.
+2. `zz_test_hvac_imgfix_0815` (image-gen logging added) -- quarantined again, and the log confirmed image generation genuinely failed: `OpenRouter image call 1/3 for google/gemini-2.5-flash-im...` (truncated). Looked like it might confirm the suspected OpenRouter BYOK gap (BYOK only covers `openai/*` calls per the 2026-08-13 fix; `IMAGE_MODEL` is `google/gemini-2.5-flash-image`, never covered).
+3. `zz_test_hvac_imgfix2_0815` (untruncated logging) -- **that theory didn't hold.** This run logged zero "image generation exhausted" lines at all -- images generated successfully. But `missingAssets` jumped to **9** (not 0), `consoleErrors` to 9, still `responsiveChecksPassed: false`. 9 = 3 assets × the 3 viewport widths EvidenceRunner checks (`[390, 768, 1440]`), so it reads as the same 3 assets, just counted per-breakpoint -- not a new/different failure.
+
+**Where this actually points now:** not image generation (that worked on run 3), not OpenRouter billing, not remediator blindness (fixed and confirmed wired). Most likely a path/wiring bug between where the 3 generated image comps get saved in the workspace and what `src` paths the builder role actually writes into the HTML -- i.e. the builder is referencing images at a path that doesn't match where they landed, an ENOENT-shaped bug at the browser/asset level instead of the filesystem level fixed in `c019951`. Not confirmed -- needs someone to actually open one of these three quarantined jobs' workspaces and diff image `src` attributes against actual comp filenames on disk. Two structural fixes shipped and verified this session; this last piece needs manual workspace inspection, not another blind log pull.
+
+**Test tenants added today, none cleaned up:** `zz_test_hvac_detfix_0815_1786761700` (quarantined, remediation_limit), `zz_test_hvac_imgfix_0815_1786762402` (quarantined, remediation_limit, image-gen genuinely failed this run), `zz_test_hvac_imgfix2_0815_1786762931` (quarantined, remediation_limit, images generated fine -- the one worth inspecting for the path/wiring theory above). All three real BYOK spend, safe to delete once inspected.
+
+---
+
 ### 2026-08-14 (cont'd): Three More Infra Bugs Found, Model Swap To gpt-4o Doesn't Converge Either — Quality Gates Are A Structural Problem, Not A Model-Tier Problem
 
 **Chasing the remediation-limit quarantine from earlier today surfaced three more real bugs, each found by pushing the pipeline further than it had gone before:**
