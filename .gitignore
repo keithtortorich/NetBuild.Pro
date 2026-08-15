@@ -32,6 +32,10 @@ node_modules/
 .impeccable/sessions/
 .impeccable/cache/
 .impeccable/config.local.json
+generated_sites/
+
+# Supabase CLI local state
+supabase/.temp/
 
 # macOS
 .DS_Store

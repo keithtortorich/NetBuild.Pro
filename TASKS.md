@@ -2,6 +2,18 @@
 
 ## ACTIVE NOW
 
+### 2026-08-15: Image Comps Never Wired To Builder — Fixed (Root Cause Of The Path/Wiring Bug Below), Plus Untracked-Sprawl Audit
+
+**Root cause of the "real cause narrowed to a path/wiring bug" note below, confirmed:** `site_maker_engine.ts` generated 3 image comps but never wrote them to the job workspace or told the builder role they existed — the builder invented `<img src>` paths blind, all 404ing. Confirmed live against quarantined job `fb8798e6` (missingAssets: 9, consoleErrors: 9 — exactly 3 comps x 3 widths) by pulling Railway deploy logs directly. Fixed: comps now decode to `{workspace}/images/comp-N.{ext}` before the builder step, and the builder's instructions list the exact paths. `WorkspaceWriter` added as an injected seam (mirrors `CodexRuntime.fs`) so tests don't need a real disk. Also fixed a second, unrelated bug in the same session: `site_magic_engine.py`'s inline `:root` CSS block was an f-string missing its literal braces, so the whole style block was invalid and silently dropped by browsers — every generated site shipped with zero brand-color styling applied. Tests: Python 823/823, Node 96/96. Pushed `4ba5ecf`.
+
+**Untracked-sprawl audit (nothing urgent, logging per drift-watch convention):**
+- `supabase/.temp/linked-project.json` — Supabase CLI link cache (project ref + org id, no secrets). Should be gitignored, isn't.
+- `.claude/skills/impeccable/` — 25 untracked files (reference docs + detector/hook scripts) alongside 84 already-tracked files from the same skill. Looks like a skill re-sync that was never `git add`ed, not orphaned content.
+- `generated_sites/`, `scripts/local_site_magic_driver.ts` — real local-dev output/tooling, just never gitignored or committed.
+- `NB.P LOGO.jpeg` (repo root) — referenced by name only in a code comment (`netbuild_pro.html:1008`, `site/index.html:1008`) as the source of a hand-coded wordmark; not loaded at runtime, not dead either.
+- `Screenshot 2026-08-10 at 14.45.43.jpeg`, `gemini-svg (1).svg` (repo root) — no references anywhere found; look like scratch drops.
+**Not fixed:** none of this was asked for, nothing secret or broken. Worth a future D1 pass to gitignore `supabase/.temp/` + `generated_sites/`, decide the impeccable re-sync's fate, and move/delete the root-level images.
+
 ### 2026-08-15: Remediator Was Blind To Deterministic Gate Failures — Fixed, But missingAssets Still Won't Clear, Real Cause Now Narrowed To A Path/Wiring Bug
 
 **Root cause of the 2026-08-14 gpt-4o/gpt-4o-mini non-convergence, found by reading code, not by another model swap:** `deterministicGatesPass` gates on `missingAssets`/`consoleErrors`/`axeViolations`/`lighthouse`/`responsiveChecksPassed` etc., but the remediator prompt (`site_maker_engine.ts`) only ever carried `designAssessment`/`ledger` -- the design_assessor's subjective findings. `mergeDesignAssessment` overwrites `report.findings` with those, dropping the deterministic ones entirely. The remediator model was never told missing assets or console errors existed; no text instruction could have fixed what it never saw. Fixed: `summarizeDeterministicEvidence()` spliced into both remediator call sites (`195b501`). Node 95/95 passing.
