@@ -186,10 +186,10 @@ function resolveImpeccableCliPath(): string {
  * 2 = findings; anything else means the scan itself didn't run, and
  * reporting 0 findings in that case would be a false pass, not a clean
  * result -- so this throws instead. */
-export function runImpeccableDetect(
+export function collectImpeccableFindings(
   workspace: string,
   cliPath: string = resolveImpeccableCliPath()
-): number {
+): NonNullable<QualityReport["detectorDiagnostics"]> {
   const result = spawnSync(process.execPath, [cliPath, "detect", "--json", workspace], { encoding: "utf-8" });
   if (result.status !== 0 && result.status !== 2) {
     throw new EvidenceRunnerError(
@@ -197,7 +197,14 @@ export function runImpeccableDetect(
     );
   }
   const findings = JSON.parse(result.stdout || "[]");
-  return Array.isArray(findings) ? findings.length : 0;
+  return Array.isArray(findings) ? findings : [];
+}
+
+export function runImpeccableDetect(
+  workspace: string,
+  cliPath: string = resolveImpeccableCliPath()
+): number {
+  return collectImpeccableFindings(workspace, cliPath).length;
 }
 
 export class PlaywrightEvidenceRunner implements EvidenceRunner {
@@ -212,9 +219,10 @@ export class PlaywrightEvidenceRunner implements EvidenceRunner {
   }
 
   async assess(args: { workspace: string; widths: readonly [390, 768, 1440] }): Promise<QualityReport> {
-    const detectorFindings = this.detectCliPath
-      ? runImpeccableDetect(args.workspace, this.detectCliPath)
-      : runImpeccableDetect(args.workspace);
+    const detectorDiagnostics = this.detectCliPath
+      ? collectImpeccableFindings(args.workspace, this.detectCliPath)
+      : collectImpeccableFindings(args.workspace);
+    const detectorFindings = detectorDiagnostics.length;
     const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf-8");
     const { server, baseUrl } = await startStaticServer(args.workspace, this.staticRoot);
     const debugPort = 9200 + (process.pid % 300);
@@ -326,6 +334,7 @@ export class PlaywrightEvidenceRunner implements EvidenceRunner {
       return {
         designScore: 0, applicableMax: 0, findings: [],
         detectorFindings,
+        ...(detectorDiagnostics.length > 0 ? { detectorDiagnostics: detectorDiagnostics.slice(0, 50) } : {}),
         axeViolations: axeViolationIds.size,
         ...(axeDiagnosticMap.size > 0 ? { axeDiagnostics: [...axeDiagnosticMap.entries()].map(([id, value]) => ({
           id, impact: value.impact, targets: [...value.targets].slice(0, 12),

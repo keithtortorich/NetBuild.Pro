@@ -48,6 +48,15 @@ export interface QualityReport {
   applicableMax: number;
   findings: Finding[];
   detectorFindings: number;
+  detectorDiagnostics?: Array<{
+    antipattern: string;
+    name: string;
+    description: string;
+    severity: string;
+    file: string;
+    line: number;
+    snippet: string;
+  }>;
   axeViolations: number;
   axeDiagnostics?: Array<{ id: string; impact: string | null; targets: string[] }>;
   lighthouse: { accessibility: number; performance: number; bestPractices: number; seo: number };
@@ -165,6 +174,7 @@ export function orderWeaknesses(findings: Finding[]): Finding[] {
 export function summarizeDeterministicEvidence(report: QualityReport): Record<string, unknown> {
   return {
     detectorFindings: report.detectorFindings,
+    detectorDiagnostics: report.detectorDiagnostics ?? [],
     axeViolations: report.axeViolations,
     axeDiagnostics: report.axeDiagnostics ?? [],
     lighthouse: report.lighthouse,
@@ -603,9 +613,20 @@ body *,body *::before,body *::after{animation:none!important;transition:none!imp
 .cta-button,a[class*="cta"],button[class*="cta"]{background:#0b3b5a!important;color:#fff!important;border-color:#0b3b5a!important}
 nav,.menu-toggle,.active,.cta-banner,button,footer{background-color:#0b3b5a!important;color:#fff!important;border-color:#0b3b5a!important}
 nav a,footer a,.active{color:#fff!important}
+nav a[data-view],nav a[aria-current="page"]{background:#0b3b5a!important;color:#fff!important;text-decoration:underline!important;text-decoration-thickness:2px!important;text-underline-offset:.3em!important}
+.service-row,.service-row *{background-color:#fff!important;color:#102f3f!important;border-color:#102f3f!important}
 @media(max-width:48rem){nav,[class*="nav-links"],[class*="navigation"]{display:flex!important;flex-wrap:wrap!important;visibility:visible!important;opacity:1!important}nav a{min-height:44px;display:inline-flex;align-items:center}}
 </style>`;
   let semanticHtml = entry.html;
+  semanticHtml = semanticHtml.replace(/<(div|section)(\s+[^>]*class=["'][^"']*\butility\b[^"']*["'][^>]*)>/gi, (tag, element, attrs) => {
+    if (/\srole=/i.test(tag)) return tag;
+    const label = /\saria-label=/i.test(tag) ? "" : ' aria-label="Utility information"';
+    return `<${element}${attrs} role="region"${label}>`;
+  });
+  semanticHtml = semanticHtml.replace(/<a(\s+[^>]*data-view=["']home["'][^>]*)>/i, (tag, attrs) => {
+    if (/\saria-current=/i.test(tag)) return tag;
+    return `<a${attrs} aria-current="page">`;
+  });
   if (!/<main\b/i.test(semanticHtml)) {
     semanticHtml = semanticHtml.replace(/(<body\b[^>]*>)([\s\S]*?)(<\/body>)/i, (_all, open, body, close) => {
       const footerAt = body.search(/<footer\b/i);

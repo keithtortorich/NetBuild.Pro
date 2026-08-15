@@ -166,7 +166,7 @@ test("remediator instructions carry deterministic gate evidence, not just the de
 test("summarizeDeterministicEvidence surfaces every deterministicGatesPass field", () => {
   const evidence = summarizeDeterministicEvidence(passing());
   assert.deepEqual(evidence, {
-    detectorFindings: 0, axeViolations: 0, axeDiagnostics: [],
+    detectorFindings: 0, detectorDiagnostics: [], axeViolations: 0, axeDiagnostics: [],
     lighthouse: { accessibility: 100, performance: 90, bestPractices: 95, seo: 95 },
     brokenLinks: 0, missingAssets: 0, consoleErrors: 0, failedRequests: 0,
     responsiveChecksPassed: true, functionalChecksPassed: true,
@@ -494,6 +494,8 @@ test("ensureStableResponsiveLayout injects deterministic mobile and load-stabili
   assert.match(html, /background:#0b3b5a!important;color:#fff!important/);
   assert.match(html, /nav a\{min-height:44px/);
   assert.match(html, /nav,.menu-toggle,.active,.cta-banner,button,footer/);
+  assert.match(html, /nav a\[data-view\]/);
+  assert.match(html, /\.service-row,\.service-row \*/);
   assert.equal(html.match(/data-site-magic-stability/g)?.length, 1);
 });
 
@@ -513,6 +515,16 @@ test("ensureStableResponsiveLayout wraps standalone mobile navigation in a heade
   await ensureStableResponsiveLayout(writer, "/ws");
   const html = (await writer.readFile("/ws/index.html"))!;
   assert.match(html, /<header><button class="menu-toggle">Menu<\/button><nav>Links<\/nav><\/header><main>/);
+});
+
+test("ensureStableResponsiveLayout labels utility regions and the initial SPA page", async () => {
+  const writer = fakeWorkspaceWriter({
+    "/ws/index.html": '<html><body><div class="utility">Call us</div><nav><a data-view="home">Home</a></nav><section>Content</section></body></html>',
+  });
+  await ensureStableResponsiveLayout(writer, "/ws");
+  const html = (await writer.readFile("/ws/index.html"))!;
+  assert.match(html, /class="utility" role="region" aria-label="Utility information"/);
+  assert.match(html, /data-view="home" aria-current="page"/);
 });
 
 test("a builder that ignores the image-path instructions still ends up with every comp on the audited page", async () => {
