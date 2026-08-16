@@ -41,3 +41,25 @@ None gating. The chain is wired but unexercised.
 ## Files updated
 
 `TASKS.md`, `docs/SESSION_SUMMARY.md`, `outputs/SESSION_SUMMARY.md`, `CREDENTIALS.md`, `Dockerfile`, `.dockerignore`, `railway.json`, `package.json`, `webstaffr/migrations/postgres_manual/0021_rate_limit_dimensions_rls.sql`
+
+---
+
+# Delta Handoff — 2026-08-16 (resume, appended)
+
+Branch: `codex/site-renderer-site-magic`. At `2665e35`: Node 133/133, Python 824/824 (green).
+
+**Shipped (pushed earlier):** four-point fix `2665e35` — schema-constrained `design_assessor`/`finish_reviewer` findings to `Finding[]` + fail-closed `isValidFinding` guard.
+
+**Verified this turn (real tree + pixel check, no fabrication):**
+- P2 email-wrap: real UNCOMMITTED 7-line diff in `webstaffr/site_maker_engine.ts` `ensureStableResponsiveLayout` (forces `overflow-wrap:anywhere` on `mailto:`/contact-value). Job `local-1786857894432` burned all 4 remediation rounds on a tablet-width email-wrap finding the model kept re-flagging; enforcing removes it from the model's remediation surface. Node 133/133 pass. Awaiting your commit decision.
+- P1 image mismatch: real. `comp-3.webp` (job `local-1786857894432`) pixel-confirmed = HVAC tech's gloved hands on an outdoor AC condenser/compressor; `index.html:118` alt says "metal ductwork and vent grille." Engine root cause confirmed: `generateImagesWithBoundedRetry` runs ONCE at `site_maker_engine.ts:806`; remediation loop (826-899) never calls `images.generate` (grep: zero). Wrong comps unfixable mid-remediation by design. Not patched.
+- ADR-030 (Proposed) written to `docs/DECISIONS.md` (~line 597, +96 lines): post-generation image-content vision gate, behind `SITE_MAGIC_IMAGE_VERIFY` flag, additive/isolated. NOT implemented, NOT committed.
+
+**Open founder gates:**
+1. ADR-030 approval → I implement + test (flag-off default, reversible, D1 once approved).
+2. P2 7-line diff commit decision (separate from ADR).
+3. Phase 0 real-pipeline run — CORRECTION: `.env.local` actually holds a 75-char `OPENROUTER_API_KEY` (verified present, value never echoed). Not empty, so missing-key `CodexRuntimeNotConfiguredError` is not the blocker. Gate is key validity/active identity + whether `scripts/local_site_magic_driver.ts` is the intended entry. Confirm/replace key before a real run.
+
+**Untouched untracked:** `.claude/skills/impeccable/` (plugin sync), `scripts/local_site_magic_driver.ts`, `webstaffr/test_import.txt`. `.env.local` gitignored — no secrets in git.
+
+**Uncommitted this session:** `docs/DECISIONS.md` (+96, ADR-030), `webstaffr/site_maker_engine.ts` (+7, P2).

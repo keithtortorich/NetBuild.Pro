@@ -593,3 +593,99 @@ class SupabaseArtifactStorage(ArtifactStorage):
 - **No migration needed:** Public URLs work; just change from signed to public (same length).
 
 ---
+
+## ADR-030: Image-Content Verification Gate After Generation (PROPOSED)
+
+**Date:** 2026-08-16
+**Status:** Proposed (founder approval required before implementation)
+**Depth:** D3 (design before code — architectural change to the Site Magic pipeline shape)
+**Affects:** `webstaffr/site_maker_engine.ts` image-generation + remediation flow
+
+### Problem
+
+Site Magic generates exactly three comps (`hero`, `proof`, `service`) once, up front,
+in `generateImagesWithBoundedRetry` (engine line ~806), before the build/remediation
+loop. The remediation loop (lines ~826–895) calls `evidence.assess` and builder rebuilds
+but **never** calls `images.generate` again — confirmed: zero `images.*` calls inside the loop.
+
+Consequence: if a generated comp does not match its brief, the mismatch is invisible until
+evidence assessment flags it, typically deep inside remediation. By then there is no path
+back to image generation, so remediation can only edit HTML/CSS and can never fix image
+*content*. The job then burns all `MAX_REMEDIATION_ROUNDS` (4) rounds failing to converge,
+or ships a wrong-but-clean-looking image with alt text that contradicts the picture.
+
+**Observed real instance (2026-08-16):** job `local-1786857894432`, comp-3 (`service`,
+brief "duct cleaning") came back as a technician's hands doing electrical diagnostics on an
+outdoor AC condenser. `index.html` wires it in with alt text "Close view of metal ductwork
+and vent grille." Four remediation rounds could not close the finding because the loop
+cannot regenerate the comp.
+
+### Decision (proposed)
+
+Add a **post-generation image-content verification gate** immediately after the comps are
+written to the workspace, before the build phase starts:
+
+1. For each comp, run one cheap vision check: "Does this image actually depict the subject
+   its brief asked for?" The brief text (`ImageBrief.role` + `ImageBrief.altText`) is the
+   acceptance criterion. No score, no aesthetics — binary content-match only.
+2. If a comp fails the check, attempt **one bounded regen** of that specific comp through
+   the existing `images.generate` path (retry already bounded by `IMAGE_GENERATION_MAX_ATTEMPTS`).
+3. If the regen also fails the check (or generation is exhausted), **drop that comp** and
+   proceed without it (the engine already degrades gracefully when `comps.length !== 3` —
+   it builds with typography/color/layout only, and `writeImageComps`/`ensureCompsReferenced`
+   already handle a partial set). Do **not** fabricate alt text for a comp that isn't there.
+4. The gate is a pure pre-build step. It does **not** alter the remediation loop contract,
+   the fail-closed `isValidFinding` guard, or the `MAX_*` constants.
+
+### Rationale
+
+- The cost of discovering a wrong comp in round 3 of remediation is: 3+ evidence runs +
+  N builder rebuilds already spent, plus a job that either fails or ships a wrong image.
+  A single cheap vision check up front costs one model call per comp and prevents all of it.
+- Regenerating at generation time (when the `images` adapter is already in scope) is the only
+  point in the pipeline where comp content is mutable. After the loop starts, it is not.
+- Bounding to one regen + drop-otherwise keeps the gate's worst case cost fixed and prevents
+  an infinite image-generation loop. Dropping a non-conforming comp is strictly safer than
+  shipping a contradicted alt text (never-fabricate invariant).
+
+### Implementation Stages (proposed, not started)
+
+1. Add `verifyImageContent({ imagePath, brief })` adapter method (or a thin wrapper in the
+   engine) returning `{ match: boolean, reason?: string }`. Reuse the existing vision
+   capability if present; otherwise the cheapest available vision model.
+2. In `run()`, after `writeImageComps(...)` and before the `while(true)` build loop, iterate
+   comps, call `verifyImageContent`, and on mismatch call `images.generate` once for that
+   brief; replace the comp in place if the regen matches.
+3. On persistent mismatch, remove the comp from the set passed to the builder (do not leave a
+   dangling `relativePath` or contradicted alt text).
+4. Add a `job_events` row / metric for "image regen" and "image dropped" so the gate's
+   behavior is observable in `site_magic_jobs` history.
+
+### Trade-offs
+
+- **Added latency/cost:** one vision call per comp per job (3 calls), plus up to 3 one-shot
+  regens in the failure case. Small relative to the evidence-assessment cost already paid
+  per remediation round.
+- **New failure mode:** a flaky vision checker could drop a perfectly good comp. Mitigated by
+  keeping the check binary and content-only, and by the graceful no-image build path.
+- **Scope:** intentionally does not fix already-shipped jobs or historical comps; it is
+  forward-looking. The `local-1786857894432` comp-3 remains wrong until a fresh run.
+
+### Rollout
+
+- Ship behind a boolean env flag (`SITE_MAGIC_IMAGE_VERIFY=1`) so it can be disabled without
+  a code change if the vision checker misbehaves in production.
+- First real-world validation is the Phase 0 production intake (already approved for spend),
+  watched via `site_magic_jobs` state transitions.
+
+### Rollback
+
+- Set `SITE_MAGIC_IMAGE_VERIFY=0`. No schema change, no migration, no control-flow dependency
+  elsewhere — the gate is additive and isolated to the pre-build phase.
+
+### Open questions for founder
+
+- None blocking. Cost is bounded and small; the founder's only live lever is the env flag
+  and whether to keep the gate on by default after validation.
+
+---
