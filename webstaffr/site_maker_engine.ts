@@ -20,6 +20,7 @@ export const MAX_REMEDIATION_ROUNDS = 4;
 export const MAX_REBUILDS = 1;
 export const IMAGE_GENERATION_MAX_ATTEMPTS = 3;
 export const IMAGE_GENERATION_RETRY_BASE_MS = 500;
+export const DESIGN_ASSESSMENT_MAX_ATTEMPTS = 2;
 
 const DESIGN_DETECTOR_CONSTRAINTS = `The deterministic Impeccable detector is a blocking release gate. Do not use AI-default visual tropes: no thick one-sided accent borders (side tabs), no tiny tracked uppercase eyebrow or kicker above headings, no decorative radial-gradient halo, no long all-caps body copy, no text flush against colored/bordered containers (use at least 16px inset), no overflow-hidden/clip ancestor around positioned interactive layers, no cream/beige default page palette, no Inter/Roboto/Fraunces/Geist/Plus Jakarta Sans/Space Grotesk, and no letter-spacing tighter than -0.03em. Every normal-size text/background pair must exceed 4.5:1 contrast with margin, not barely meet it. Keep the verified primary phone action visually dominant on mobile; when emergency service is a verified fact, pair that status directly with the real tel: action without inventing response times. Decorative imagery and contour graphics must never compete with contact/navigation, overflow mobile, or be necessary to understand the content. Apply the visual system consistently to every generated HTML page.`;
 
@@ -830,12 +831,41 @@ export class SiteMakerEngine {
         await this.move(job, "evaluating");
         let report = await this.deps.evidence.assess({ workspace: job.workspace, widths: [390, 768, 1440] });
         const visualEvidence = this.deps.evidence.getVisualEvidence?.() ?? [];
-        const designAssessment = await this.deps.codex.run({
-          role: "design_assessor", model: DESIGN_MODEL, workspace: job.workspace,
-          instructions: `The attached screenshots are the primary design evidence, ordered mobile 390px, tablet 768px, and desktop 1440px. Judge what a visitor actually sees, not whether the source sounds sophisticated. Independently assess composition, hierarchy, persuasion, emotional journey, typography and spacing rhythm, cross-breakpoint consistency, mobile conversion clarity, image relevance/crop/art direction, distinctiveness versus templates and AI-default styling, factual integrity, and Nielsen heuristics. ${imagesMissing ? "Image generation was unavailable, which fails the mandatory image composition requirement; record that as a material finding." : "All three editorial image roles must visibly contribute to the composition; a hidden, tiny, generic, or fallback-gallery image is a material failure."} Do not demand fabricated testimonials, awards, ratings, or customer claims. Score every APPLICABLE heuristic 0-4 (skip ones that don't apply) and sum earned points as designScore against applicableMax. List every issue worth fixing as a P0-P3 finding with a stable id and one-line summary. Return exactly {\"designScore\": number, \"applicableMax\": number, \"findings\": [{\"id\": string, \"priority\": \"P0\"|\"P1\"|\"P2\"|\"P3\", \"summary\": string}]}. Do not modify files.`,
-          imageDataUrls: visualEvidence.map((item) => item.dataUrl),
-        });
-        report = mergeDesignAssessment(report, designAssessment);
+        const designAssessorInstructions = `The attached screenshots are the primary design evidence, ordered mobile 390px, tablet 768px, and desktop 1440px. Judge what a visitor actually sees, not whether the source sounds sophisticated. Independently assess composition, hierarchy, persuasion, emotional journey, typography and spacing rhythm, cross-breakpoint consistency, mobile conversion clarity, image relevance/crop/art direction, distinctiveness versus templates and AI-default styling, factual integrity, and Nielsen heuristics. ${imagesMissing ? "Image generation was unavailable, which fails the mandatory image composition requirement; record that as a material finding." : "All three editorial image roles must visibly contribute to the composition; a hidden, tiny, generic, or fallback-gallery image is a material failure."} Do not demand fabricated testimonials, awards, ratings, or customer claims. Score every APPLICABLE heuristic 0-4 (skip ones that don't apply) and sum earned points as designScore against applicableMax. List every issue worth fixing as a P0-P3 finding with a stable id and one-line summary. Return exactly {\"designScore\": number, \"applicableMax\": number, \"findings\": [{\"id\": string, \"priority\": \"P0\"|\"P1\"|\"P2\"|\"P3\", \"summary\": string}]}. Do not modify files.`;
+        // OpenRouter's strict json_schema mode is declared for this role
+        // (READ_ONLY_RESPONSE_SCHEMAS.design_assessor, site_magic_codegen_runtime.ts)
+        // but is not airtight in practice -- two independent production jobs
+        // on 2026-08-16 (08:03 and 15:44) both got a `result` that parsed as
+        // valid JSON but was missing/mistyped designScore/applicableMax/findings,
+        // which OpenRouterCodegenRuntime.run()'s own validateCodegenResponse()
+        // doesn't catch (it only checks the generic files/result envelope, not
+        // the role-specific shape) -- so the malformed shape reached
+        // mergeDesignAssessment() as a hard, unretried job failure. Bounded
+        // retry here follows the same resilience posture as
+        // generateImagesWithBoundedRetry: one provider hiccup should not fail
+        // the whole job. Still fail-closed -- InvalidDesignAssessmentError
+        // propagates normally once attempts are exhausted, and no assessment
+        // shape is ever fabricated or defaulted.
+        let designAssessment: Record<string, unknown> = {};
+        for (let attempt = 1; attempt <= DESIGN_ASSESSMENT_MAX_ATTEMPTS; attempt += 1) {
+          designAssessment = await this.deps.codex.run({
+            role: "design_assessor", model: DESIGN_MODEL, workspace: job.workspace,
+            instructions: designAssessorInstructions,
+            imageDataUrls: visualEvidence.map((item) => item.dataUrl),
+          });
+          try {
+            report = mergeDesignAssessment(report, designAssessment);
+            break;
+          } catch (error) {
+            if (!(error instanceof InvalidDesignAssessmentError) || attempt >= DESIGN_ASSESSMENT_MAX_ATTEMPTS) {
+              throw error;
+            }
+            console.error(
+              `[site-maker-engine] job ${job.jobId} design_assessor returned a malformed shape on attempt ${attempt}/${DESIGN_ASSESSMENT_MAX_ATTEMPTS}, retrying:`,
+              redactSecrets(error.message)
+            );
+          }
+        }
 
         if (!deterministicGatesPass(report)) {
           if (remediationRounds >= MAX_REMEDIATION_ROUNDS) {
