@@ -31,11 +31,12 @@ Tailwind-precompile + landing-page-polish entry below.
 image-verification-gate work from two sessions ago, also still unpushed -- see the
 2026-08-16 top-of-file entry from that session). Today's staged changes are on top of those 5.
 
-**Founder action needed:** from a real Mac Terminal (not the Cowork device bridge),
-`cd` into the repo and run `git commit` (message drafted in this session's transcript) then
-`git push origin codex/site-renderer-site-magic`. If a stale `index.lock` blocks even a local
-commit, `rm .git/index.lock` from real Terminal clears it (this has not been tested from real
-Terminal, only confirmed to fail from the bridge).
+**Resolved by founder:** cleared the stale `.git/index.lock` from real Terminal, then
+`git add` + `git commit` + `git push` succeeded cleanly. Commit `82d2e0c` on
+`codex/site-renderer-site-magic`, pushed `2665e35..82d2e0c` (8 files, +1258/-276). Confirms the
+bridge-vs-real-Terminal git distinction in `netbuild_current_state.md` is the right mental model
+-- worth trying real Terminal first next time this comes up, rather than retrying from the
+bridge at all.
 
 ### 2026-08-16 (cont'd yet again): netbuild.pro Landing Page — Trades-Pills Removed, Pipeline Chart Redesigned, Section-Rhythm Colors Fixed, Tailwind CDN Runtime Replaced With Precompiled CSS
 
