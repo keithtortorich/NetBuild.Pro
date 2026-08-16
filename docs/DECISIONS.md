@@ -594,12 +594,21 @@ class SupabaseArtifactStorage(ArtifactStorage):
 
 ---
 
-## ADR-030: Image-Content Verification Gate After Generation (PROPOSED)
+## ADR-030: Image-Content Verification Gate After Generation (APPROVED — implemented behind flag)
 
 **Date:** 2026-08-16
-**Status:** Proposed (founder approval required before implementation)
+**Status:** Approved and implemented (2026-08-16), shipped dark behind `SITE_MAGIC_IMAGE_VERIFY=1`
 **Depth:** D3 (design before code — architectural change to the Site Magic pipeline shape)
-**Affects:** `webstaffr/site_maker_engine.ts` image-generation + remediation flow
+**Affects:** `webstaffr/site_maker_engine.ts` image-generation + remediation flow, `webstaffr/site_magic_codegen_runtime.ts` (new `verifyImageContent`)
+
+**Implementation note (2026-08-16):** The `ImageGenerator.generate` contract is all-or-nothing
+`count: 3` (no single-comp regen). The gate therefore does one bounded regen of the whole set,
+re-verifies only the indices that originally mismatched, and drops any still-mismatched comp
+(splicing both the data URI and its `ImageBrief`). `verifyImageContent` is a standalone multimodal
+helper mirroring `callReadOnlyRole` (strict `json_schema`, fail-open on any error) so it does not
+touch `ROLE_CONFIG`/`validateCodegenResponse`. The pre-gate `comps.length !== 3` throw was relaxed
+to accept a 1-2 partial set; the builder instructions now report the actual comp count and forbid
+fabricating missing images.
 
 ### Problem
 
@@ -631,9 +640,19 @@ written to the workspace, before the build phase starts:
 2. If a comp fails the check, attempt **one bounded regen** of that specific comp through
    the existing `images.generate` path (retry already bounded by `IMAGE_GENERATION_MAX_ATTEMPTS`).
 3. If the regen also fails the check (or generation is exhausted), **drop that comp** and
-   proceed without it (the engine already degrades gracefully when `comps.length !== 3` —
-   it builds with typography/color/layout only, and `writeImageComps`/`ensureCompsReferenced`
-   already handle a partial set). Do **not** fabricate alt text for a comp that isn't there.
+   proceed without it. **Correction (2026-08-16, verified against the real engine before
+   implementation):** the engine does *not* already handle this. `site_maker_engine.ts:811`
+   (`if (!imagesMissing && comps.length !== 3) throw`) only tolerates `comps === null` (all
+   three missing) or exactly 3 — a dropped-to-2 set trips that throw before `writeImageComps`
+   ever runs. There is also no `ensureCompsReferenced` function; the real one is
+   `ensureImageCompsRendered`, which does handle any comp-array length fine — it's the earlier
+   guard that's the blocker, not that function. The gate's implementation must (a) relax the
+   line-811 guard to route any non-empty partial set through the same path as the full set
+   (only `comps === null` should trigger the no-image build instructions), and (b) splice the
+   matching `ImageBrief` out of `imageBriefs` when a comp is dropped, so remaining comps keep
+   their correct role/alt text instead of shifting (e.g. dropping `hero` must not leave the old
+   `proof` comp built against `briefs[0]`'s hero alt text). Do **not** fabricate alt text for a
+   comp that isn't there.
 4. The gate is a pure pre-build step. It does **not** alter the remediation loop contract,
    the fail-closed `isValidFinding` guard, or the `MAX_*` constants.
 
@@ -656,8 +675,12 @@ written to the workspace, before the build phase starts:
 2. In `run()`, after `writeImageComps(...)` and before the `while(true)` build loop, iterate
    comps, call `verifyImageContent`, and on mismatch call `images.generate` once for that
    brief; replace the comp in place if the regen matches.
-3. On persistent mismatch, remove the comp from the set passed to the builder (do not leave a
-   dangling `relativePath` or contradicted alt text).
+3. On persistent mismatch, remove the comp from the set passed to the builder **and** splice
+   its `ImageBrief` from `imageBriefs` at the same index, so role/alt-text assignment for the
+   surviving comps doesn't shift. Relax the `comps.length !== 3` guard (`site_maker_engine.ts:811`)
+   to accept any non-empty partial set via the existing full-set build path; only a fully-null
+   `comps` should route to the no-image build instructions. Do not leave a dangling
+   `relativePath` or contradicted alt text.
 4. Add a `job_events` row / metric for "image regen" and "image dropped" so the gate's
    behavior is observable in `site_magic_jobs` history.
 
@@ -687,5 +710,88 @@ written to the workspace, before the build phase starts:
 
 - None blocking. Cost is bounded and small; the founder's only live lever is the env flag
   and whether to keep the gate on by default after validation.
+
+### Verification (2026-08-16, before founder sign-off)
+
+Reviewed the implementation against this ADR line by line rather than trusting the diff's own
+summary. Two things worth recording:
+
+- **Real gap found and closed:** the only two existing tests (`ADR-030 image gate is dead code
+  when unset`, `...fails open when no credential`) both exercise the *gate-does-nothing* paths.
+  Neither exercised the actual mismatch → regen → drop → splice logic this ADR exists for — the
+  highest-risk part of the change (an index bug here silently mislabels a surviving comp's role/alt
+  text, which is exactly the failure class ADR-030 was written to prevent). Added
+  `tests_node/site_maker_engine.test.ts`: "ADR-030 image gate drops a persistently-mismatched comp
+  and splices its brief, leaving the survivors' roles/paths correct" — mocks `fetch` so
+  `verifyImageContent` fails closed only for the `service` role (mirrors the real
+  `local-1786857894432` instance), runs the real engine end-to-end, and asserts the builder is told
+  about exactly 2 comps with hero/proof's correct re-numbered paths, correct alt text, and no
+  `service=` or stale `comp-3.webp` reference. Passes against the real (non-mocked) splice logic.
+- **Known gap, not fixed here:** Implementation Stage 4 (`job_events` row / metric for "image
+  regen" / "image dropped") was not built — the gate only `console.error`s. Observable via Railway
+  logs today, same as everything else in this pipeline, but not queryable from `site_magic_jobs`
+  history. Logged in TASKS.md as a follow-up, not blocking the dark-behind-flag ship.
+
+**Test status:** `npm run test:site-magic` (Node built-in test runner) 129/129 passing on every
+suite unrelated to the local Playwright Chromium binary being absent from this sandbox (7 failures,
+all `browserType.launch: Executable doesn't exist`, pre-existing environment gap, unrelated to this
+change — confirmed by reading the failure stack, not assumed). `npm run check:site-magic` (syntax
+check across all Site Magic engine files) clean.
+
+---
+
+## ADR-032: Customer Auth Bootstrap From Verified Intake Email (APPROVED — direction only, not implemented)
+
+**Date:** 2026-08-16
+**Status:** Approved direction, implementation explicitly deferred by founder to post-publish-path
+**Depth:** D3 (design before code — touches auth architecture, no precedent in codebase)
+**Affects:** `webstaffr/customer_auth.py` (`CustomerAuthorizer.start_session()`), `webstaffr/intake_router.py`, `customer_users`/`tenant_memberships` tables
+
+### Problem
+
+`intake_router.py`'s `submit_intake()` creates a `tenants` row (and a tracking number) but never
+a `customer_users` row. `CustomerAuthorizer.start_session()` ([customer_auth.py:143](../webstaffr/customer_auth.py)) requires a
+`customer_users` row to already exist for the verified Supabase identity and 403s if not — it
+never bootstraps one. There is currently no working path for a real customer to end up in
+`customer_users`/`tenant_memberships` at all. The dashboard/attribution/site-magic-control auth
+routes (`auth_router.py`, `attribution_router.py`, `site_magic_router.py`) are wired but
+unreachable for any tenant created via intake. Does not block the MVP path (intake → generated
+site → Angel widget never touches auth), but blocks a customer from ever managing their own site
+post-publish.
+
+### Decision (approved, not yet built)
+
+When a Supabase-verified identity calls `POST /auth/session` and no `customer_users` row exists
+yet for that `user_id`, look up the most recent `intake_submissions` row whose captured email
+matches the verified identity's email (case-insensitive), and if found:
+
+1. Create a `customer_users` row for the verified identity (`status='active'`).
+2. Create an `owner` `tenant_memberships` row linking that user to the tenant from the matched
+   intake submission.
+3. Continue the session as normal (existing `start_session()` behavior from that point on).
+
+Trust boundary: the email being matched against is the verified Supabase identity's own email
+(already authenticated by `SupabaseIdentityVerifier`), not user-supplied input — the only new
+data being trusted is that it matches an intake row's email string. Must be **idempotent**: a
+second `/auth/session` call for the same user must not create a duplicate `customer_users` row or
+a duplicate/conflicting membership (`ON CONFLICT` on `user_id`, membership existence check before
+insert).
+
+### Explicitly not decided / not in scope for the approval
+
+- What happens when an intake email matches **zero** or **multiple** `intake_submissions` rows.
+- Whether a bootstrapped membership should default to `owner` unconditionally or need
+  confirmation for shared/agency-submitted intakes.
+- Whether this needs a DB migration (new column, index on `intake_submissions.email` for the
+  lookup) — not yet checked against the real schema.
+
+These need the D3 design pass this ADR's "not implemented yet" status is holding open for.
+
+### Status
+
+Direction approved by founder 2026-08-16. **Explicitly not to be implemented yet** — logged here
+as a post-publish-path item per founder instruction, tracked in TASKS.md's backlog. Revisit once
+the core intake → site → Angel MVP flow has shipped and a customer-facing dashboard is actually
+on the roadmap.
 
 ---

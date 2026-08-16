@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
+import { verifyImageContent } from "./site_magic_codegen_runtime.ts";
 
 // Aligned with the ADR-031 OpenRouter/OmniRoute codegen swap: these are
 // valid OpenRouter model slugs (resolve against openrouter.ai and any
@@ -809,10 +810,77 @@ export class SiteMakerEngine {
         { model: IMAGE_MODEL, brief: JSON.stringify(direction), count: 3, briefs: imageBriefs }
       );
       const imagesMissing = comps === null;
-      if (!imagesMissing && comps.length !== 3) {
+      // ADR-030: a partial comp set (1-2) must route through the same
+      // full-set build path, NOT throw. Only a fully-null `comps` (all
+      // generation attempts exhausted) triggers the no-image build. The
+      // line-811 guard previously threw on any non-3 length; the gate below
+      // may drop one mismatched comp down to 2, and that is a legitimate,
+      // graceful outcome -- dropping a comp is strictly safer than shipping
+      // a contradicted alt text (never-fabricate invariant).
+      if (!imagesMissing && !(comps.length === 3 || comps.length === 2 || comps.length === 1)) {
         throw new Error("Direction generator must return exactly three private comps");
       }
-      const compPaths = imagesMissing
+
+      // ADR-030 image-content verification gate (opt-in via SITE_MAGIC_IMAGE_VERIFY=1).
+      // Runs once, here, after comps are written but before the build phase -- the only
+      // point in the pipeline where comp content is still mutable (image generation is
+      // one-shot up front; the remediation loop never regenerates a comp). On a mismatch,
+      // attempt ONE bounded regen of the whole set, then re-verify; drop any still-mismatched
+      // comp (splice both the data URI and its ImageBrief so survivors keep correct
+      // role/alt text). The gate is fail-open: if verification can't run, we proceed with
+      // the comps as generated. Off by default so it can be validated in production without
+      // a code change.
+      if (process.env.SITE_MAGIC_IMAGE_VERIFY === "1" && !imagesMissing) {
+        const mismatches: number[] = [];
+        for (let i = 0; i < comps.length; i += 1) {
+          const brief = imageBriefs[i];
+          const verdict = await verifyImageContent({
+            imageDataUrl: comps[i],
+            role: brief?.role ?? `comp-${i + 1}`,
+            altText: brief?.altText ?? "",
+          });
+          if (!verdict.match) {
+            console.error(
+              `[site-maker-engine] job ${job.jobId} image gate: comp ${i} (${brief?.role ?? "?"}) failed content match: ${verdict.reason ?? "(no reason)"}`
+            );
+            mismatches.push(i);
+          }
+        }
+        if (mismatches.length > 0) {
+          console.error(
+            `[site-maker-engine] job ${job.jobId} image gate: regenerating set (attempt 1) after ${mismatches.length} mismatch(es)`
+          );
+          const regen = await generateImagesWithBoundedRetry(
+            this.deps.images,
+            { model: IMAGE_MODEL, brief: JSON.stringify(direction), count: 3, briefs: imageBriefs }
+          );
+          if (regen !== null) {
+            // Re-verify only the indices that previously mismatched; keep matches from the
+            // original set. A regenerated set could itself drift, so re-check those indices.
+            for (const i of mismatches) {
+              const brief = imageBriefs[i];
+              const reVerdict = await verifyImageContent({
+                imageDataUrl: regen[i],
+                role: brief?.role ?? `comp-${i + 1}`,
+                altText: brief?.altText ?? "",
+              });
+              if (reVerdict.match) {
+                comps[i] = regen[i]; // adopt the regenerated comp
+                mismatches.splice(mismatches.indexOf(i), 1);
+              }
+            }
+          }
+          // Drop any still-mismatched comps: splice the data URI and its ImageBrief
+          // together so surviving comps keep their correct role/alt text.
+          for (const i of [...mismatches].sort((a, b) => b - a)) {
+            comps.splice(i, 1);
+            imageBriefs.splice(i, 1);
+            console.error(`[site-maker-engine] job ${job.jobId} image gate: dropped comp ${i} (no conforming regen)`);
+          }
+        }
+      }
+
+      const compPaths = imagesMissing || comps.length === 0
         ? []
         : await writeImageComps(this.deps.workspaceWriter, job.workspace, comps, imageBriefs);
 
@@ -821,7 +889,7 @@ export class SiteMakerEngine {
         role: "builder", model: DESIGN_MODEL, workspace: job.workspace,
         instructions: imagesMissing
           ? `Build the complete responsive production site in index.html using the selected direction. Start from the renderer baseline when present: preserve its verified content, navigation, forms, calls to action, and page coverage, then replace its presentation with the authored direction. ${DESIGN_DETECTOR_CONSTRAINTS} No image comps are available -- image generation failed after ${IMAGE_GENERATION_MAX_ATTEMPTS} attempts. Build using typography, color, layout, and iconography only. Never fabricate, reference, or leave placeholders for missing images. Never fabricate business facts. Directions: ${JSON.stringify(direction)}`
-          : `Build the complete responsive production site in index.html using the selected direction. Start from the renderer baseline when present: preserve its verified content, navigation, forms, calls to action, and page coverage, then replace its presentation with the authored direction. ${DESIGN_DETECTOR_CONSTRAINTS} Three pre-generated editorial images exist and are mandatory compositional assets: ${compPaths.map((c) => `${c.role}=${c.relativePath} (alt: ${c.altText})`).join("; ")}. Place the hero image prominently above the fold with intentional copy space; place proof and service images in semantically relevant sections at meaningful size. Use <img> elements with the supplied alt text and data-image-role attributes. A hidden image, tiny thumbnail, CSS preload, or appended fallback gallery does not satisfy the image gate. Do not invent, rename, or reference any other image path. Never fabricate business facts. Directions: ${JSON.stringify(direction)}`,
+          : `Build the complete responsive production site in index.html using the selected direction. Start from the renderer baseline when present: preserve its verified content, navigation, forms, calls to action, and page coverage, then replace its presentation with the authored direction. ${DESIGN_DETECTOR_CONSTRAINTS} ${compPaths.length} pre-generated editorial image(s) exist and are mandatory compositional assets: ${compPaths.map((c) => `${c.role}=${c.relativePath} (alt: ${c.altText})`).join("; ")}. Place the hero image prominently above the fold with intentional copy space; place proof and service images in semantically relevant sections at meaningful size. Use <img> elements with the supplied alt text and data-image-role attributes. A hidden image, tiny thumbnail, CSS preload, or appended fallback gallery does not satisfy the image gate. Do not invent, rename, or reference any other image path. If fewer than three comps are present, build with the available ones and do not reference or fabricate the missing image. Never fabricate business facts. Directions: ${JSON.stringify(direction)}`,
       });
 
       while (true) {

@@ -700,3 +700,147 @@ test("a failed run returns the reason so the worker can log it", async () => {
   const failed = states.find((s) => s.state === "failed");
   assert.equal(failed?.metadata?.errorType, "Error: OpenRouter API error: 401 Unauthorized");
 });
+
+test("ADR-030 image gate is dead code when SITE_MAGIC_IMAGE_VERIFY is unset", async () => {
+  delete process.env.SITE_MAGIC_IMAGE_VERIFY;
+  const roles: string[] = [];
+  let imagesGenerateCalls = 0;
+  const engine = new SiteMakerEngine({
+    states: { async transition() {} },
+    codex: { async run(args) {
+      roles.push(args.role);
+      if (args.role === "finish_reviewer") return { verdict: "PASS", authoredNotInterchangeable: true, materialFindings: [] };
+      if (args.role === "design_assessor") return { designScore: 36, applicableMax: 40, findings: [] };
+      return {};
+    } },
+    images: { async generate() { imagesGenerateCalls += 1; return fakeComps(); } },
+    evidence: {
+      async assess() { return passing(); },
+      getVisualEvidence() { return [{ width: 390, dataUrl: "data:image/jpeg;base64,MOBILE" }]; },
+    },
+    artifacts: { async sealPrivateImmutable() { return { buildId: "build-1" }; } },
+    workspaceWriter: fakeWorkspaceWriter(),
+  });
+  const result = await engine.run({
+    jobId: "job-gate-off", tenantId: "tenant-1", workspace: "/tmp/gate-off",
+    source: { type: "intake", intakeId: "1", verifiedFacts: {} },
+  });
+  assert.equal(result.status, "ready_for_review");
+  // Gate off: image generation called exactly once (no regen), count passed through as 3.
+  assert.equal(imagesGenerateCalls, 1);
+});
+
+test("ADR-030 image gate fails open when the verifier has no credential", async () => {
+  // verifyImageContent is fail-open: with no OPENROUTER_API_KEY it returns
+  // {match:true}, so the gate must NOT drop or regenerate comps and the job
+  // must still reach ready_for_review. This protects the default-off posture.
+  const prevKey = process.env.OPENROUTER_API_KEY;
+  delete process.env.OPENROUTER_API_KEY;
+  process.env.SITE_MAGIC_IMAGE_VERIFY = "1";
+  const roles: string[] = [];
+  let imagesGenerateCalls = 0;
+  try {
+    const engine = new SiteMakerEngine({
+      states: { async transition() {} },
+      codex: { async run(args) {
+        roles.push(args.role);
+        if (args.role === "finish_reviewer") return { verdict: "PASS", authoredNotInterchangeable: true, materialFindings: [] };
+        if (args.role === "design_assessor") return { designScore: 36, applicableMax: 40, findings: [] };
+        return {};
+      } },
+      images: { async generate() { imagesGenerateCalls += 1; return fakeComps(); } },
+      evidence: {
+        async assess() { return passing(); },
+        getVisualEvidence() { return [{ width: 390, dataUrl: "data:image/jpeg;base64,MOBILE" }]; },
+      },
+      artifacts: { async sealPrivateImmutable() { return { buildId: "build-1" }; } },
+      workspaceWriter: fakeWorkspaceWriter(),
+    });
+    const result = await engine.run({
+      jobId: "job-gate-open-nokey", tenantId: "tenant-1", workspace: "/tmp/gate-open-nokey",
+      source: { type: "intake", intakeId: "1", verifiedFacts: {} },
+    });
+    assert.equal(result.status, "ready_for_review");
+    // Fail-open: gate ran (flag on) but with no credential it must not regenerate.
+    assert.equal(imagesGenerateCalls, 1);
+  } finally {
+    if (prevKey !== undefined) process.env.OPENROUTER_API_KEY = prevKey;
+    delete process.env.SITE_MAGIC_IMAGE_VERIFY;
+  }
+});
+
+test("ADR-030 image gate drops a persistently-mismatched comp and splices its brief, leaving the survivors' roles/paths correct", async () => {
+  // Mirrors the real production instance the ADR was written from: comp
+  // index 2 ("service") never matches its brief, even after the one bounded
+  // regen, while hero/proof always match. Verifies the end-to-end outcome
+  // that unit tests on verifyImageContent() alone cannot: that the engine
+  // actually drops the right comp, splices the matching ImageBrief out (not
+  // just the data URI), and the builder is told about exactly 2 comps with
+  // hero/proof's original roles and alt text -- not shifted or fabricated.
+  const prevKey = process.env.OPENROUTER_API_KEY;
+  process.env.OPENROUTER_API_KEY = "test-key";
+  process.env.SITE_MAGIC_IMAGE_VERIFY = "1";
+  const prevFetch = global.fetch;
+  let verifyCalls = 0;
+  // @ts-expect-error test stub, narrower than the real fetch signature
+  global.fetch = async (_url: string, init: { body: string }) => {
+    verifyCalls += 1;
+    const body = JSON.parse(init.body);
+    const promptText = body.messages[0].content[0].text as string;
+    const roleMatch = /role "([^"]+)"/.exec(promptText);
+    const role = roleMatch ? roleMatch[1] : "";
+    const match = role !== "service"; // service never matches, initial or regen
+    return {
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: JSON.stringify({ match, reason: match ? "ok" : "wrong subject" }) } }],
+      }),
+    } as Response;
+  };
+  let builderInstructions = "";
+  let imagesGenerateCalls = 0;
+  try {
+    const engine = new SiteMakerEngine({
+      states: { async transition() {} },
+      codex: {
+        async run(args) {
+          if (args.role === "builder") builderInstructions = args.instructions;
+          if (args.role === "finish_reviewer") return { verdict: "PASS", authoredNotInterchangeable: true, materialFindings: [] };
+          if (args.role === "design_assessor") return { designScore: 36, applicableMax: 40, findings: [] };
+          return {};
+        },
+      },
+      images: { async generate() { imagesGenerateCalls += 1; return fakeComps(); } },
+      evidence: {
+        async assess() { return passing(); },
+        getVisualEvidence() { return [{ width: 390, dataUrl: "data:image/jpeg;base64,MOBILE" }]; },
+      },
+      artifacts: { async sealPrivateImmutable() { return { buildId: "build-1" }; } },
+      workspaceWriter: fakeWorkspaceWriter(),
+    });
+    const result = await engine.run({
+      jobId: "job-gate-drop", tenantId: "tenant-1", workspace: "/tmp/gate-drop",
+      source: {
+        type: "intake", intakeId: "1",
+        verifiedFacts: { biz_name: "Acme HVAC", industry: "HVAC Contractor", service_area: "Denver, CO", services: ["Duct Cleaning"] },
+      },
+    });
+    assert.equal(result.status, "ready_for_review");
+    // Initial generate (3 comps) + exactly one bounded regen of the whole set.
+    assert.equal(imagesGenerateCalls, 2);
+    // 3 initial verify calls + 1 re-verify of the still-mismatched index only.
+    assert.equal(verifyCalls, 4);
+    // Builder was told about exactly 2 comps, with hero/proof's real roles,
+    // alt text, and re-numbered (not stale) relative paths -- not 3, and not
+    // a service comp smuggled through.
+    assert.match(builderInstructions, /2 pre-generated editorial image/);
+    assert.match(builderInstructions, /hero=images\/comp-1\.webp \(alt: HVAC Contractor service environment in Denver, CO\)/);
+    assert.match(builderInstructions, /proof=images\/comp-2\.webp \(alt: HVAC Contractor tools and process detail\)/);
+    assert.doesNotMatch(builderInstructions, /service=/);
+    assert.doesNotMatch(builderInstructions, /comp-3\.webp/);
+  } finally {
+    global.fetch = prevFetch;
+    if (prevKey !== undefined) process.env.OPENROUTER_API_KEY = prevKey; else delete process.env.OPENROUTER_API_KEY;
+    delete process.env.SITE_MAGIC_IMAGE_VERIFY;
+  }
+});

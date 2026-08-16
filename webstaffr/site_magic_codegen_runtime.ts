@@ -1030,3 +1030,111 @@ Return ONLY the JSON object, nothing else.`;
     );
   }
 }
+
+// ============================================================================
+// Image-Content Verification (ADR-030 pre-build gate)
+// ============================================================================
+
+/**
+ * Binary content-match check for one generated comp: does the picture
+ * actually depict the subject its brief asked for? The brief text
+ * (`role` + `altText`) is the acceptance criterion -- no score, no
+ * aesthetics. Returns `{ match, reason? }`.
+ *
+ * This is the cheap pre-build vision gate from ADR-030: it runs once per
+ * comp right after the comps are written, before the build phase, so a
+ * wrong-content comp (the loop can never regenerate one -- image
+ * generation is one-shot up front) is caught and (bounded-)regenerated at
+ * the only point in the pipeline where comp content is mutable.
+ *
+ * Standalone on purpose: it does NOT route through `codex.run` /
+ * `ROLE_CONFIG` / `validateCodegenResponse` (that path requires a fixed
+ * role union and a `files` envelope). It speaks OpenRouter's multimodal
+ * chat path directly, the same way `callReadOnlyRole` does, with a strict
+ * json_schema so the `match` boolean is well-formed at the source. Any
+ * failure (network, parse, malformed shape) is treated as "match" so the
+ * gate can never block a job -- the gate is additive and fail-open by
+ * design; the remediation loop and evidence runner remain the authoritative
+ * quality backstop.
+ */
+export async function verifyImageContent(opts: {
+  imageDataUrl: string;
+  role: string;
+  altText: string;
+  /** Optional injected deps for tests; production reads env. */
+  apiKey?: string;
+  model?: string;
+  baseUrl?: string;
+  fetchImpl?: typeof fetch;
+}): Promise<{ match: boolean; reason?: string }> {
+  const { imageDataUrl, role, altText } = opts;
+  const apiKey = opts.apiKey ?? process.env.OPENROUTER_API_KEY ?? "";
+  const model =
+    opts.model ?? process.env.SITE_MAGIC_IMAGE_VERIFY_MODEL ?? "openai/gpt-5.6-terra";
+  const baseUrl =
+    opts.baseUrl ?? process.env.SITE_MAGIC_CODEGEN_BASE_URL ?? "https://openrouter.ai/api/v1";
+  const fetchImpl = opts.fetchImpl ?? global.fetch;
+
+  if (!apiKey) {
+    // No credential: gate cannot run. Fail open -- log and skip, never block.
+    return { match: true, reason: "verifyImageContent skipped: no OPENROUTER_API_KEY" };
+  }
+
+  const prompt = `You are a strict image-content verifier. The attached image is an AI-generated marketing photo for a local service-business website. It was supposed to show: role "${role}", described as "${altText}". Judge ONLY whether the image's actual subject matter plausibly matches that description. Ignore style, quality, lighting, and composition. Answer match: true only if the depicted subject is consistent with the brief; false if the image shows something unrelated (e.g. the brief asked for ductwork but the image shows a person's hands on an outdoor air conditioner). Return strict JSON: {"match": boolean, "reason": string}.`;
+
+  const schema = {
+    type: "object",
+    additionalProperties: false,
+    required: ["match", "reason"],
+    properties: {
+      match: { type: "boolean" },
+      reason: { type: "string" },
+    },
+  } as const;
+
+  try {
+    const response = await fetchImpl(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: prompt },
+              { type: "image_url", image_url: { url: imageDataUrl } },
+            ],
+          },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: { name: "site_magic_image_verify", strict: true, schema },
+        },
+        stream: false,
+        max_tokens: 512,
+      }),
+    });
+
+    if (!response.ok) {
+      return { match: true, reason: `verifyImageContent skipped: API ${response.status}` };
+    }
+
+    const data = (await response.json()) as any;
+    const content = data?.choices?.[0]?.message?.content ?? "";
+    const parsed = JSON.parse(stripJsonFence(content)) as { match?: unknown; reason?: unknown };
+    if (typeof parsed.match !== "boolean") {
+      return { match: true, reason: "verifyImageContent skipped: malformed verdict" };
+    }
+    return {
+      match: parsed.match,
+      reason: typeof parsed.reason === "string" ? parsed.reason : undefined,
+    };
+  } catch {
+    // Fail open: never block the job because the verifier itself errored.
+    return { match: true, reason: "verifyImageContent skipped: exception" };
+  }
+}
