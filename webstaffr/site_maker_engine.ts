@@ -304,7 +304,28 @@ export function mergeDesignAssessment(report: QualityReport, assessment: Record<
       "design_assessor must return {designScore: number, applicableMax: number, findings: Finding[]}"
     );
   }
-  return { ...report, designScore, applicableMax, findings: findings as Finding[] };
+  // Fail-closed guard: even with the provider schema pinning findings to the
+  // Finding shape, a model/provider that loosens the contract mid-rollout
+  // must not silently corrupt the release gate. Each item is validated
+  // structurally (id/summary strings, priority one of P0-P3); a drifted
+  // item throws rather than being cast through, so a malformed assessment
+  // fails the job closed instead of slipping a bad finding past
+  // deterministicGatesPass.
+  const validFindings: Finding[] = [];
+  for (const item of findings) {
+    if (
+      typeof item !== "object" || item === null
+      || typeof (item as Finding).id !== "string"
+      || typeof (item as Finding).summary !== "string"
+      || !["P0", "P1", "P2", "P3"].includes((item as Finding).priority)
+    ) {
+      throw new InvalidDesignAssessmentError(
+        "design_assessor findings must be {id: string, priority: 'P0'|'P1'|'P2'|'P3', summary: string}[]"
+      );
+    }
+    validFindings.push(item as Finding);
+  }
+  return { ...report, designScore, applicableMax, findings: validFindings };
 }
 
 /**

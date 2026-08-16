@@ -353,6 +353,94 @@ export const FILE_WRITE_SCHEMA = {
   },
 } as const;
 
+// One structured finding, matching site_maker_engine.ts's `Finding` type.
+// The design_assessor / finish_reviewer findings used to be free `string[]`
+// prose, which is exactly the shape that spawned the embedded-quote /
+// truncation repair tiers (a summary quoting UI copy like "Book Now"
+// broke JSON.parse). Constraining findings to this object form at the
+// provider is what ends that loop for the assessor/reviewer roles.
+const FINDING_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["id", "priority", "summary"],
+  properties: {
+    id: { type: "string" },
+    priority: { enum: ["P0", "P1", "P2", "P3"] },
+    summary: { type: "string" },
+  },
+} as const;
+
+// Read-only roles return no files; their entire payload is the
+// role-specific `result`. Both are fully known shapes, so we pin them
+// with a strict schema (findings/materialFindings constrained to
+// FINDING_SCHEMA) instead of the open-ended FILE_WRITE_SCHEMA. The
+// `files: []` wrapper is kept only so the response still matches the
+// generic CodegenResponse parser in `run()`.
+const READ_ONLY_RESPONSE_SCHEMAS: Record<string, unknown> = {
+  design_assessor: {
+    type: "object",
+    additionalProperties: false,
+    required: ["files", "result"],
+    properties: {
+      files: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["path", "contents"],
+          properties: { path: { type: "string" }, contents: { type: "string" } },
+        },
+      },
+      result: {
+        type: "object",
+        additionalProperties: false,
+        required: ["designScore", "applicableMax", "findings"],
+        properties: {
+          designScore: { type: "number" },
+          applicableMax: { type: "number" },
+          findings: { type: "array", items: FINDING_SCHEMA },
+        },
+      },
+    },
+  },
+  finish_reviewer: {
+    type: "object",
+    additionalProperties: false,
+    required: ["files", "result"],
+    properties: {
+      files: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["path", "contents"],
+          properties: { path: { type: "string" }, contents: { type: "string" } },
+        },
+      },
+      result: {
+        type: "object",
+        additionalProperties: false,
+        required: ["verdict", "authoredNotInterchangeable", "materialFindings"],
+        properties: {
+          verdict: { enum: ["PASS", "REBUILD", "REMEDIATE"] },
+          authoredNotInterchangeable: { type: "boolean" },
+          materialFindings: { type: "array", items: FINDING_SCHEMA },
+        },
+      },
+    },
+  },
+};
+
+// Mutating roles stay on FILE_WRITE_SCHEMA (strict: false, so the
+// role-specific `result` object remains flexible). Read-only roles get
+// their fully-constrained, strict schema so the model cannot drift the
+// findings shape.
+function resolveResponseSchema(role: string): unknown {
+  return ROLE_CONFIG[role]?.mutatesFiles
+    ? FILE_WRITE_SCHEMA
+    : (READ_ONLY_RESPONSE_SCHEMAS[role] ?? FILE_WRITE_SCHEMA);
+}
+
 // ============================================================================
 // Error Classes
 // ============================================================================
@@ -549,7 +637,7 @@ export class OpenRouterCodegenRuntime {
     const prompt = this.buildPrompt(role, instructions, workspaceContext);
 
     // 3. Call OpenRouter
-    const response = await this.callOpenRouter(model, role, prompt, args.imageDataUrls ?? []);
+    const response = await this.callOpenRouter(model, role, prompt, args.imageDataUrls ?? [], resolveResponseSchema(role));
 
     // 4. Validate response shape
     const stripped = stripJsonFence(response);
@@ -734,7 +822,7 @@ Return ONLY the JSON object, nothing else.`;
     return prompt.trim();
   }
 
-  private async callOpenRouter(model: string, role: string, prompt: string, imageDataUrls: string[]): Promise<string> {
+  private async callOpenRouter(model: string, role: string, prompt: string, imageDataUrls: string[], schema?: unknown): Promise<string> {
     const endpoint = `${this.baseUrl}/chat/completions`;
     const content = imageDataUrls.length === 0
       ? prompt
@@ -742,6 +830,22 @@ Return ONLY the JSON object, nothing else.`;
           { type: "text", text: prompt },
           ...imageDataUrls.map((url) => ({ type: "image_url", image_url: { url } })),
         ];
+    // Schema-constrained output at the provider. `json_object` mode only
+    // nudges the model to *emit* valid JSON; it does not guarantee it, and
+    // Terra in particular still produced a structural delimiter error
+    // (`Expected ',' or '}'`) mid-payload under json_object. OpenRouter's
+    // json_schema mode constrains the decoder to the role's schema, so the
+    // wrapper `files` array and `result` object are guaranteed well-formed
+    // at the source -- which is what ends the tail-chase of post-hoc JSON
+    // repair tiers. `strict` is set per schema: read-only roles use a
+    // fully-specified schema (findings constrained to the Finding shape) and
+    // run strict: true; mutating roles keep strict: false so the
+    // role-specific `result` object remains flexible (it is intentionally
+    // open-ended and consumed only as Record<string, unknown>), while the
+    // `files` array is still hard-constrained so file writes are always
+    // `{ path, contents }`. The repair engine remains as a fallback.
+    const activeSchema = schema ?? FILE_WRITE_SCHEMA;
+    const strict = activeSchema === FILE_WRITE_SCHEMA ? false : true;
     const response = await this.fetch(endpoint, {
       method: "POST",
       headers: {
@@ -751,24 +855,12 @@ Return ONLY the JSON object, nothing else.`;
       body: JSON.stringify({
         model,
         messages: [{ role: "user", content }],
-        // Schema-constrained output at the provider. `json_object` mode only
-        // nudges the model to *emit* valid JSON; it does not guarantee it, and
-        // Terra in particular still produced a structural delimiter error
-        // (`Expected ',' or '}'`) mid-payload under json_object. OpenRouter's
-        // json_schema mode constrains the decoder to the FILE_WRITE_SCHEMA, so
-        // the wrapper `files` array and `result` object are guaranteed
-        // well-formed at the source -- which is what ends the tail-chase of
-        // post-hoc JSON repair tiers. `strict: false` keeps the
-        // role-specific `result` object flexible (it is intentionally
-        // open-ended and consumed only as Record<string, unknown>), while the
-        // `files` array is still hard-constrained so file writes are always
-        // `{ path, contents }`. The repair engine remains as a fallback.
         response_format: {
           type: "json_schema",
           json_schema: {
             name: `site_magic_${role}`,
-            strict: false,
-            schema: FILE_WRITE_SCHEMA,
+            strict,
+            schema: activeSchema,
           },
         },
         stream: false,
@@ -871,7 +963,7 @@ Return ONLY the JSON object, nothing else.`;
           properties: {
             designScore: { type: "number" },
             applicableMax: { type: "number" },
-            findings: { type: "array", items: { type: "string" } },
+            findings: { type: "array", items: FINDING_SCHEMA },
           },
         }
       : {
@@ -881,7 +973,7 @@ Return ONLY the JSON object, nothing else.`;
           properties: {
             verdict: { enum: ["PASS", "REBUILD", "REMEDIATE"] },
             authoredNotInterchangeable: { type: "boolean" },
-            materialFindings: { type: "array", items: { type: "string" } },
+            materialFindings: { type: "array", items: FINDING_SCHEMA },
           },
         };
 

@@ -654,7 +654,7 @@ test("response validation: recovers a response truncated exactly at its own clos
   // wrapper's own closing brace never arrived. max_tokens ran out one
   // token short. closeUnbalancedJson should append exactly the missing
   // closer and let this parse successfully instead of failing the job.
-  const truncated = `{"files":[],"result":{"designScore":30,"applicableMax":40,"findings":["ok"]}`; // missing final }
+  const truncated = `{"files":[],"result":{"designScore":30,"applicableMax":40,"findings":[{"id":"f1","priority":"P1","summary":"ok"}]}`; // missing final }
   const mockFetch = async () => ({
     ok: true,
     json: async () => ({
@@ -669,7 +669,7 @@ test("response validation: recovers a response truncated exactly at its own clos
   });
 
   const result = await runtime.run({ role: "design_assessor", workspace: "/tmp", instructions: "test" });
-  assert.deepEqual(result, { designScore: 30, applicableMax: 40, findings: ["ok"] });
+  assert.deepEqual(result, { designScore: 30, applicableMax: 40, findings: [{ id: "f1", priority: "P1", summary: "ok" }] });
 });
 
 test("response validation: recovers a response truncated mid-string inside result", async () => {
@@ -1089,7 +1089,10 @@ test("readOnlyRole: design_assessor returns expected structure", async () => {
             content: JSON.stringify({
               designScore: 85,
               applicableMax: 100,
-              findings: ["Missing alt text", "Low contrast"],
+              findings: [
+                { id: "f1", priority: "P1", summary: "Missing alt text" },
+                { id: "f2", priority: "P2", summary: "Low contrast" },
+              ],
             }),
           },
         },
@@ -1107,7 +1110,10 @@ test("readOnlyRole: design_assessor returns expected structure", async () => {
   assert.deepEqual(result, {
     designScore: 85,
     applicableMax: 100,
-    findings: ["Missing alt text", "Low contrast"],
+    findings: [
+      { id: "f1", priority: "P1", summary: "Missing alt text" },
+      { id: "f2", priority: "P2", summary: "Low contrast" },
+    ],
   });
 });
 
@@ -1115,7 +1121,7 @@ test("readOnlyRole: strips a markdown code fence OpenRouter wraps JSON in", asyn
   const fenced = "```json\n" + JSON.stringify({
     designScore: 85,
     applicableMax: 100,
-    findings: ["Missing alt text"],
+    findings: [{ id: "f1", priority: "P1", summary: "Missing alt text" }],
   }) + "\n```";
   const mockFetch = async () => ({
     ok: true,
@@ -1134,7 +1140,7 @@ test("readOnlyRole: strips a markdown code fence OpenRouter wraps JSON in", asyn
   assert.deepEqual(result, {
     designScore: 85,
     applicableMax: 100,
-    findings: ["Missing alt text"],
+    findings: [{ id: "f1", priority: "P1", summary: "Missing alt text" }],
   });
 });
 
@@ -1233,7 +1239,7 @@ test("readOnlyRole: repairs embedded unescaped quotes inside a free-text finding
   // without escaping the inner quotes. The third repair tier must recover it
   // instead of throwing MalformedCodegenResponseError.
   const malformed =
-    '{"designScore":36,"applicableMax":40,"findings":["The hero CTA should mirror the "Book Now" button used on the services page."]}';
+    '{"designScore":36,"applicableMax":40,"findings":[{"id":"f1","priority":"P1","summary":"The hero CTA should mirror the "Book Now" button used on the services page."}]}';
   const mockFetch = async () => ({
     ok: true,
     json: async () => ({
@@ -1251,7 +1257,7 @@ test("readOnlyRole: repairs embedded unescaped quotes inside a free-text finding
   assert.deepEqual(result, {
     designScore: 36,
     applicableMax: 40,
-    findings: ['The hero CTA should mirror the "Book Now" button used on the services page.'],
+    findings: [{ id: "f1", priority: "P1", summary: 'The hero CTA should mirror the "Book Now" button used on the services page.' }],
   });
 });
 
