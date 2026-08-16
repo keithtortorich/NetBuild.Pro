@@ -2,6 +2,44 @@
 
 ## ACTIVE NOW
 
+### 2026-08-16 (cont'd once more again): Builder-Split Fix (`c9d7ea7`) Retest Verified Live -- Truncation Bug Confirmed Gone, Remaining Stop Is An Unrelated Quality Gate
+
+**Status:** RESOLVED / VERIFIED. Retest of the per-file builder-codegen-split fix (`c9d7ea7`,
+deployed to Railway `7d55022e`, `main`, gate OFF) against a fresh intake
+(`zz_test_builder_split_20260816b_4fb8dcde`, submission 81, job `deeb6baa`). Full 293-line job
+log pulled and read end to end, not sampled.
+
+**Verdict: the fix holds.** Grepped for the exact pre-fix crash signature across the full log --
+zero hits on `MalformedCodegenResponseError`, `Unterminated string`, and
+`Response.result must be an object`. Before this fix, this class of job died at the builder with
+`Unterminated string in JSON at position 57648` -> `Response.result must be an object`, never
+reaching the gate at all. This run reached it.
+
+**Evidence the job actually progressed past the builder this time:** remediation report
+references real generated files (`/tmp/site-magic-.../index.html` x11, `.../styles.css` x5) --
+the builder emitted files and the evidence runner audited them. Settled `quarantined` /
+`remediation_limit` with `designScore: 28`, Lighthouse `{ accessibility: 91, performance: 97,
+bestPractices: 96, seo: 100 }`, `consoleErrors: 9`, performance 87 below the 90 gate threshold.
+
+**The two `error`-shaped log lines are false positives, not failures:** `errorMessage: undefined`
+/ `errorStack: undefined` are standard Lighthouse audit-object schema fields present on passing
+audits too, not exceptions. `consoleErrors: 9` is a Lighthouse metric on the *generated page's*
+console output (a content-quality signal for the gate), not a codegen crash.
+
+**What this means:** the truncation/codegen defect is fixed and confirmed live. The remaining
+stop on this specific retest (quarantined on the performance/design-score/console-error gate) is
+a pre-existing, separate quality-gate concern -- not a regression, not related to the fix, and not
+blocking anything. Nothing left to do on the builder-split fix itself.
+
+**State recap at time of this entry:**
+- `main` = `c9d7ea7` (deployed, Active, ADR-030 gate still OFF).
+- `codex/site-renderer-site-magic` = `82d2e0c`/`cc71e12` (this session's landing-page +
+  Tailwind-precompile work, separate scope from the builder-split fix).
+- Retest tenant `zz_test_builder_split_20260816b_4fb8dcde`: quarantined on quality gate, expected
+  outcome, not touched further.
+- Two `zz_test_*` tenants from this retest remain in prod, folded into the existing cleanup
+  backlog rather than a one-off deletion.
+
 ### 2026-08-16 (cont'd once more): CI Wired, Committed Locally-Staged, Push Blocked By Device Git Lock
 
 **Status:** All of today's landing-page + Tailwind-precompile work (see entry below) plus a new
