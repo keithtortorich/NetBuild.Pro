@@ -8,7 +8,9 @@
   "scripts": {
     "check:site-magic": "node --check webstaffr/site_maker_engine.ts && node --check webstaffr/site_magic_adapters.ts && node --check webstaffr/site_magic_worker.ts && node --check webstaffr/site_magic_evidence_runner.ts",
     "test:site-magic": "node --test tests_node/*.test.ts",
-    "start:site-magic-worker": "node webstaffr/site_magic_worker.ts"
+    "start:site-magic-worker": "node webstaffr/site_magic_worker.ts",
+    "build:site-css": "node scripts/build_site_css.mjs",
+    "check:site-css": "node scripts/build_site_css.mjs --check"
   },
   "dependencies": {
     "@openai/codex-sdk": "^0.98.0",
@@ -19,6 +21,7 @@
     "sharp": "0.35.3"
   },
   "devDependencies": {
-    "impeccable": "3.5.0"
+    "impeccable": "3.5.0",
+    "tailwindcss": "^3.4.19"
   }
 }

@@ -2,6 +2,68 @@
 
 ## ACTIVE NOW
 
+### 2026-08-16 (cont'd once more): CI Wired, Committed Locally-Staged, Push Blocked By Device Git Lock
+
+**Status:** All of today's landing-page + Tailwind-precompile work (see entry below) plus a new
+CI job are `git add`-staged on `codex/site-renderer-site-magic`. **Not committed, not pushed** --
+`git commit` from the cloud container fails with `Unable to create .git/index.lock: File exists`,
+and the lock file itself can't be removed through the device bridge either (`rm` returns
+`Operation not permitted` even as the owning user). This is a permission quirk of the device
+mount, not a real concurrent git process. Logged to project memory
+(`netbuild_current_state.md`) since this is at least the second session this has happened in --
+future sessions should not keep retrying `git commit` / `rm .git/index.lock` from the cloud
+container, it will not succeed there.
+
+**CI change made (staged, not yet live since unpushed):** added a `site-css` job to
+`.github/workflows/ci.yml`, parallel to the existing `backend` (pytest) job -- this repo had no
+Node-based CI step at all before this. Runs `actions/setup-node@v4` (Node 22, npm cache),
+`npm ci`, then `npm run check:site-css` (the drift-guard added this session -- recompiles the
+Tailwind CSS in memory and fails if it doesn't match what's inlined in `site/index.html`).
+Validated the YAML parses (`python3 -c "import yaml; yaml.safe_load(...)"`) but **not yet run for
+real** since it's not pushed -- first real signal on whether it passes will be the first push.
+
+**Also staged:** `package.json`/`package-lock.json` (new `check:site-css` script, `tailwindcss`
+already added earlier this session), `TASKS.md` (this entry), plus everything from the
+Tailwind-precompile + landing-page-polish entry below.
+
+**Branch context:** `codex/site-renderer-site-magic` was already 5 commits ahead of
+`origin/codex/site-renderer-site-magic` before this session started (the ADR-030
+image-verification-gate work from two sessions ago, also still unpushed -- see the
+2026-08-16 top-of-file entry from that session). Today's staged changes are on top of those 5.
+
+**Founder action needed:** from a real Mac Terminal (not the Cowork device bridge),
+`cd` into the repo and run `git commit` (message drafted in this session's transcript) then
+`git push origin codex/site-renderer-site-magic`. If a stale `index.lock` blocks even a local
+commit, `rm .git/index.lock` from real Terminal clears it (this has not been tested from real
+Terminal, only confirmed to fail from the bridge).
+
+### 2026-08-16 (cont'd yet again): netbuild.pro Landing Page — Trades-Pills Removed, Pipeline Chart Redesigned, Section-Rhythm Colors Fixed, Tailwind CDN Runtime Replaced With Precompiled CSS
+
+**Status:** Local edits complete and delivered to both files (`site/index.html`, the Vercel static deploy; `webstaffr/templates/netbuild_pro.html`, the FastAPI-served byte-identical copy per `tests/test_landing_page.py`). Not committed, not pushed, not deployed — founder review pending.
+
+**Founder-flagged issues, from an annotated screenshot of the live site:**
+
+1. **Redundant/incomplete trade-pill buttons removed.** The `Proof` section's "Built for appointment-driven trades" card (HVAC/Plumbing/Electrical/Roofing/Remodeling/Landscaping pills) was non-clickable decoration duplicating the real, working demo-site buttons already in the `Demos` section further down (real links to `/demo-sites/*.html`). Removed the whole card plus the now-unused `trades` array in `Proof()`.
+
+2. **Pipeline chart redesigned.** `AnimatedBars` was flat gray bars in a 36px-tall row, no labels, no visual distinction beyond the last bar. Now: 96px tall, gradient-filled bars (orange glow on the current period), W1–W8 labels underneath, and the "+22% vs prior period" badge got a pill background + trend icon instead of bare text. Card background got a subtle warm radial glow to match the section's palette.
+
+3. **Section rhythm fixed.** Two real bugs in the shared `.section-gradient` / `.section-light` CSS (used across every alternating section on the page, not just the ones flagged): `.section-gradient`'s linear-gradient went `#1A1A2E → #2B2B2B → #1A1A2E` — identical start and end color, so it read as a vignette, not a gradient. Changed to a genuine one-directional blend (`#1A1A2E → #302E3C → #3D3A42`). `.section-light` was `#F5F5F5`, functionally near-white against the dark sections; changed to `#D9D5CD`, a warm light-medium gray that actually reads as a third tone in the rhythm rather than a return to white.
+
+**Verification:** extracted the app's inline script and ran `node --check` after every edit — confirmed valid syntax throughout, and confirmed the final app script is byte-identical to a version with zero unintended changes (paren-matching on a hand-edited ~50KB minified React.createElement tree is error-prone; diffing was the actual check, not eyeballing).
+
+**Fourth issue, surfaced by the founder pasting a browser console warning (not in the original screenshot):** `cdn.tailwindcss.com should not be used in production`. Confirmed real and pre-existing (not introduced by the edits above) — the page was shipping Tailwind's ~400KB browser-side JIT compiler inline, recompiling the page's entire CSS from scratch in every visitor's browser on every load. No existing build pipeline for this file (`package.json` had no `tailwindcss` dependency at all; the site is a single static HTML file with the JIT engine's output bundled in).
+
+**Fix, after founder confirmed doing it now (accepting the tradeoff — future class edits need a rebuild step instead of "just works"):**
+- Added `tailwindcss@^3.4.0` as a devDependency, `tailwind.config.js` (`content: ['./site/index.html']`, `darkMode: 'class'` — matches the runtime config's only real setting; no theme customization was actually in use, every color in the page is an arbitrary-value class like `bg-[#1A1A2E]`).
+- Added `scripts/build_site_css.mjs` + `npm run build:site-css`: runs the Tailwind CLI against `site/index.html`, and splices the compiled, minified CSS into a `<style id="tailwind-precompiled">` block, writing the result to both `site/index.html` and `webstaffr/templates/netbuild_pro.html` so they stay in sync.
+- Removed the ~400KB runtime-compiler script and the `tailwind.config = {...}` script from the HTML; replaced with the ~29KB precompiled `<style>` block.
+- **Gotcha caught during verification, worth remembering:** first build attempt scanned the file *before* removing the runtime-compiler script and produced a bloated 48.6KB / 714-selector output — the compiler's own minified source code contains literal Tailwind class-name strings (it's the JIT engine's internal candidate data), which got picked up as false-positive "classes used on the page." The correct build (used file with the runtime script already stripped) produced 29KB / ~350 selectors — every class actually used by the page, confirmed by direct lookup of the newer/redesigned classes (`rounded-t-md`, `bg-gradient-to-t`, `shadow-[0_0_16px_rgba(200,90,40,.5)]`, etc.) in the output.
+- Verified via headless Chromium (Playwright, local `/opt/pw-browsers/chromium`): no `cdn.tailwindcss.com` warning, no new console errors, page renders correctly with all Tailwind styling intact (rounded corners, spacing, gradients, colors) — screenshot-compared against the pre-fix render.
+
+**Noted but not chased — likely a test-harness artifact, not a real bug:** a Playwright full-page screenshot (both before and after the Tailwind fix, so unrelated to it) showed the `Pricing` and `Proof` sections rendering blank — content wrapped in the page's `Reveal` (IntersectionObserver-based scroll-reveal) component never became visible even after a scripted scroll-through. Reproduced identically on the *original*, pre-any-edit file, so it predates all of today's changes and is not a regression. Most likely headless/automated-scroll doesn't reliably fire the real IntersectionObserver the way genuine user scrolling does — real-browser behavior wasn't checked here and should be, next time someone's actually looking at the live page.
+
+**Not done:** commit, push, deploy. Founder needs to `npm install` (picks up `tailwindcss`) before running `npm run build:site-css` again in the future — this run's output is already baked into the delivered files, so no immediate action is required to see today's fixes live once deployed.
+
 ### 2026-08-16 (cont'd again): 41-Tenant `zz_test_*` Backlog Cleared — 45 Deleted, Verified Zero
 
 **Status:** RESOLVED. Picked up the backlog flagged earlier today ("41 more `zz_test_*` tenants remain, dated 0812-0815, bulk wipe needs a separate founder go"). Queried Supabase directly rather than trusting the prior estimate: actual count was **45**, not 41 (drift is expected — the prior number was a mid-session snapshot, not a re-query).

@@ -30,3 +30,22 @@ jobs:
 
       - name: Run health check
         run: python scripts/health_check.py
+
+  site-css:
+    name: Site CSS
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check compiled Tailwind CSS is not stale
+        run: npm run check:site-css
