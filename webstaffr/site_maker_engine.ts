@@ -98,6 +98,7 @@ export interface CodexRuntime {
     workspace: string;
     instructions: string;
     imageDataUrls?: string[];
+    splitFiles?: boolean;
   }): Promise<Record<string, unknown>>;
 }
 
@@ -886,7 +887,7 @@ export class SiteMakerEngine {
 
       await this.move(job, "building", imagesMissing ? { imagesMissing: true } : undefined);
       await this.deps.codex.run({
-        role: "builder", model: DESIGN_MODEL, workspace: job.workspace,
+        role: "builder", model: DESIGN_MODEL, workspace: job.workspace, splitFiles: true,
         instructions: imagesMissing
           ? `Build the complete responsive production site in index.html using the selected direction. Start from the renderer baseline when present: preserve its verified content, navigation, forms, calls to action, and page coverage, then replace its presentation with the authored direction. ${DESIGN_DETECTOR_CONSTRAINTS} No image comps are available -- image generation failed after ${IMAGE_GENERATION_MAX_ATTEMPTS} attempts. Build using typography, color, layout, and iconography only. Never fabricate, reference, or leave placeholders for missing images. Never fabricate business facts. Directions: ${JSON.stringify(direction)}`
           : `Build the complete responsive production site in index.html using the selected direction. Start from the renderer baseline when present: preserve its verified content, navigation, forms, calls to action, and page coverage, then replace its presentation with the authored direction. ${DESIGN_DETECTOR_CONSTRAINTS} ${compPaths.length} pre-generated editorial image(s) exist and are mandatory compositional assets: ${compPaths.map((c) => `${c.role}=${c.relativePath} (alt: ${c.altText})`).join("; ")}. Place the hero image prominently above the fold with intentional copy space; place proof and service images in semantically relevant sections at meaningful size. Use <img> elements with the supplied alt text and data-image-role attributes. A hidden image, tiny thumbnail, CSS preload, or appended fallback gallery does not satisfy the image gate. Do not invent, rename, or reference any other image path. If fewer than three comps are present, build with the available ones and do not reference or fabricate the missing image. Never fabricate business facts. Directions: ${JSON.stringify(direction)}`,

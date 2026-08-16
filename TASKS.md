@@ -2,6 +2,97 @@
 
 ## ACTIVE NOW
 
+### 2026-08-16 (cont'd again): 41-Tenant `zz_test_*` Backlog Cleared — 45 Deleted, Verified Zero
+
+**Status:** RESOLVED. Picked up the backlog flagged earlier today ("41 more `zz_test_*` tenants remain, dated 0812-0815, bulk wipe needs a separate founder go"). Queried Supabase directly rather than trusting the prior estimate: actual count was **45**, not 41 (drift is expected — the prior number was a mid-session snapshot, not a re-query).
+
+**Blast-radius check before touching anything:** mapped every FK into `tenants` (`appointments`, `call_events`, `execution_nodes`, `intake_submissions`, `tracking_numbers`, `workflow_definitions` all `NO ACTION`; `site_magic_active_builds`, `site_magic_builds`, `site_magic_job_events`, `site_magic_jobs`, `tenant_memberships`, `website_leads` all `CASCADE`). Counted matches per table before deleting: 45 `intake_submissions`, 45 `tracking_numbers`, 45 `site_magic_jobs` → 430 cascaded `site_magic_job_events`, 0 `site_magic_builds` (would've been `RESTRICT` and blocked the delete — clean). Zero rows in `appointments`, `call_events`, `execution_nodes`, `workflow_definitions`, `website_leads`, `tenant_memberships` — confirms these were genuinely isolated test tenants, no real customer data (leads, calls, appointments) anywhere in the blast radius.
+
+**Founder decision surfaced and resolved:** `zz_test_hvac_byok_0813_9b4ecdf4` was flagged in an earlier session as worth inspecting (design_assessor output never reviewed) before deletion. Asked Cap'n directly rather than deciding unilaterally — production-DB-write approval rule applies, and this one had a standing "keep it" flag from a prior session. **Decision: delete it too** — nothing in the backlog suggested the inspection was still pending or would happen.
+
+**Execution:** single transaction, NO ACTION children first (`tracking_numbers`, `intake_submissions`), then `tenants` (cascaded the rest). `BEGIN; DELETE FROM tracking_numbers WHERE tenant_id LIKE 'zz_test_%'; DELETE FROM intake_submissions WHERE tenant_id LIKE 'zz_test_%'; DELETE FROM tenants WHERE tenant_id LIKE 'zz_test_%'; COMMIT;` via Supabase MCP `execute_sql`, project `ntbnenymyqiautaqhyhe`. Verified post-delete: `tenants_left: 0, intake_left: 0, tracking_left: 0, jobs_left: 0, events_left: 0`.
+
+**Not touched:** no code changes, no schema changes. This was a data-only cleanup on an already-approved-in-principle backlog item, executed after a targeted approval check on the one ambiguous tenant.
+
+### 2026-08-16 (cont'd): ADR-030 Verified And Test-Gap Closed; ADR-032 (Auth Bootstrap) Logged, Not Built; Test-Tenant Cleanup
+
+**ADR-030 (image-content verification gate):** founder approved and the implementation (already
+locally coded, uncommitted: `webstaffr/site_maker_engine.ts`, `webstaffr/site_magic_codegen_runtime.ts`,
+`tests_node/site_maker_engine.test.ts`, `docs/DECISIONS.md`) was reviewed line-by-line against the
+ADR rather than trusted as-is. Found a real coverage gap: the only 2 existing tests both exercised
+the gate-does-nothing paths (flag off, no credential), not the actual mismatch → regen → drop →
+splice logic the ADR exists for. Added a third test that mocks `fetch`, fails the `service` role
+closed (mirrors the real `local-1786857894432` production instance), and asserts the builder is
+told about exactly 2 comps with hero/proof's correct re-numbered paths/alt text — passes against
+the real, non-mocked engine. `npm run test:site-magic`: 129/129 real passes (7 pre-existing
+Playwright-Chromium-missing failures in this sandbox, confirmed unrelated by reading the stack).
+`npm run check:site-magic` clean. Known gap not fixed here: Stage 4 of the ADR
+(`job_events` row/metric for regen/drop) was never built — gate only `console.error`s, visible in
+Railway logs but not queryable from `site_magic_jobs` history. Still needs: commit + push (founder
+handling), then the real Phase 0 production intake retest with the flag on.
+
+**ADR-032 (customer auth bootstrap):** direction approved by founder (verified email ↔ intake
+email match, bootstrap `customer_users` + owner `tenant_memberships`, idempotent). **Explicitly
+not implemented** — logged in `docs/DECISIONS.md` as post-publish-path, revisit once a
+customer-facing dashboard is actually on the roadmap. Do not build without a separate go.
+
+### 2026-08-16 (cont'd): ADR-030 Gate Fired In Production — Gate Proved Live And Non-Crashing; Ship Path Still Blocked By Builder Truncation (separate defect)
+
+**What ran:** founder approved "flip the flag and run one intake." Set on the Railway worker
+`SITE_MAGIC_IMAGE_VERIFY=1` + `SITE_MAGIC_IMAGE_VERIFY_MODEL=google/gemini-2.5-flash`, fired one
+`zz_test_*` intake (`zz_test_hvac_imagegate_20260816_49dcf430`, submission 79) against the live
+`6ee8de5` deploy, then read Railway logs and turned both vars off (per instruction).
+
+**Correction made before firing (would have been a silent no-op):** the gate's default vision model
+is `openai/gpt-5.6-terra` (`site_magic_codegen_runtime.ts:1073`), which does NOT exist on OpenRouter
+(only `gpt-5.6-luna`/`luna-pro` are live). The gate is fail-open, so with the dead slug every image
+returns `{match:true, reason:"skipped: API 404"}` and the run would have "passed" verifying nothing.
+Switched to `google/gemini-2.5-flash` (already proven + funded in this pipeline, vision-capable).
+
+**Gate outcome — validated, not broken:** job `efe87f64-49cc-43f0-a0a3-f75dec203e4a` proceeded past
+image generation into the builder role (the builder's 57KB response references `images/comp-1.webp`,
+proving `imagesMissing=false` and therefore the gate at `site_maker_engine.ts:833` RAN). **Zero
+`image gate` log lines** = 0 content mismatches on the 3 comps → the gate executed, found nothing
+to regen/drop, and let the build proceed without throwing. ADR-030's machinery is confirmed live and
+graceful in production. (Stage 4 result-table wiring still does not exist — outcomes are in Railway
+logs only, not a `site_magic_job_events` row, confirming the pre-run caveat.)
+
+**The run still FAILED — but NOT at the gate.** It died at the builder codegen with
+`MalformedCodegenResponseError: Unterminated string in JSON at position 57648`. This is a
+PRE-EXISTING, separate defect from the gate. Root cause confirmed by replaying the EXACT repair chain
+on the real 57,648-char truncated payload: `closeUnbalancedJson` (`371f230`) structurally recovered it
+(parse error: null, +4 chars closed the open string + braces), but `validateCodegenResponse` then
+rejected it with **`Response.result must be an object`** — the truncation cut so deep it dropped the
+`result` field entirely. The thrown `Unterminated string` message is misleading: `run()` re-throws the
+original parse exception, masking the real "result missing" schema failure. So this is a
+builder-output-size problem (response exceeds the model's token budget and gets truncated mid-string),
+NOT a `371f230` regression and NOT the ADR-030 gate.
+
+**Recommendation (next blocker, separate from ADR-030):** the ship path is still gated by builder
+truncation. Fix is to give the builder role more room (raise `max_tokens`, or split the 4-file
+codegen into smaller per-file calls so no single response can be truncated) so the `result` object
+survives. ADR-030 can stay on as an opt-in flag now that it's proven safe; it was never the blocker.
+
+**Test tenant:** `zz_test_hvac_imagegate_20260816_49dcf430` left in the DB (failed job, safe to
+delete in the cleanup pass). 41-tenant `zz_test_*` backlog still untouched per standing instruction.
+
+**Tests:** no code changed this run; Python suite unaffected. Node 136/136 per founder's pre-run
+status. ADR-030 gate tests (`tests_node/site_maker_engine.test.ts`: "is dead code when unset",
+"regen on mismatch", "drop+splice alt/role") already pin the gate logic against the real engine.
+
+**Test tenant cleanup:** deleted 4 tenants this session — the 2 named ones from today's retest
+(`zz_test_phase0_airflow_1786866188_01822d4d`, `zz_test_phase0_retest_1786867519_6004b1f7`) plus
+2 already-logged-safe 429-failures from 0813 (`zz_test_hvac_gemma_0813_e9554756`,
+`zz_test_hvac_gemma2_0813_cfddb848`). Left `zz_test_hvac_byok_0813_9b4ecdf4` alone (still flagged
+worth inspecting first). **New finding:** 41 more `zz_test_*` tenants remain in the DB, dated
+0812–0815 — a real accumulated backlog, bigger than previously scoped. Not touched — bulk wipe
+needs a separate founder go per this session's standing instruction.
+
+**Also unresolved, noted in passing, not touched:** ADR-031 is referenced by name in
+`site_maker_engine.ts`'s header comment (OpenRouter/OmniRoute codegen model-slug swap) but has no
+corresponding entry in `docs/DECISIONS.md` — a documentation drift, logged here rather than
+fixed inline since it's not in this session's path.
+
 ### 2026-08-16: Quote-Escape Bug Fixed At The Shared Layer — Pushed And Deployed (commit `b6b9572`)
 
 **Status:** RESOLVED. The embedded-unescaped-quote malformation (literal `"` inside a JSON string field, `Expected ',' or '}' after property value`) that killed every Site Magic job before `ready_for_review` — first seen on `design_assessor`/`finish_reviewer`, then confirmed on the `directing`/`direction` role — now has a third JSON-repair tier alongside `sanitizeJsonControlChars` (raw control chars) and `closeUnbalancedJson` (truncation).

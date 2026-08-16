@@ -1295,3 +1295,139 @@ test("response validation: does not double-escape already-valid JSON containing 
     note: 'keep the "fast, reliable" promise and the "24/7 support" badge',
   });
 });
+
+// ============================================================================
+// Per-file builder split (truncation-safe codegen)
+// ============================================================================
+
+test("builder: splitFiles makes one call per file and writes all of them", async () => {
+  // Regression: a real production ~57 KB builder response truncated at
+  // 57,648 chars dropped the required `result` field and failed the job.
+  // Splitting into one small call per file keeps each response under the
+  // completion budget so `result` survives.
+  const emitted: string[] = [];
+  const mockFetch = async (_url: string, opts: any) => {
+    const body = JSON.parse(opts.body);
+    const content = body.messages[0].content as string;
+    const file = ["index.html", "styles.css", "main.js"].find((f) =>
+      content.includes(`emit ONLY the file "${f}"`)
+    );
+    assert.ok(file, `expected a per-file instruction, got: ${content.slice(-120)}`);
+    emitted.push(file!);
+    return {
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                files: [{ path: file, contents: `<${file}>ok</${file}>` }],
+                result: { status: "ok", file },
+              }),
+            },
+          },
+        ],
+      }),
+    };
+  };
+
+  const fs = createFakeFs();
+  const runtime = new OpenRouterCodegenRuntime({
+    apiKey: "***",
+    fetchImpl: mockFetch,
+    fs,
+  });
+
+  const result = await runtime.run({
+    role: "builder",
+    workspace: "/tmp",
+    instructions: "build the site",
+    splitFiles: true,
+  });
+
+  // Three distinct per-file calls, in order.
+  assert.deepEqual(emitted, ["index.html", "styles.css", "main.js"]);
+  // All three files actually written.
+  assert.equal(await fs.readFile("/tmp/index.html"), "<index.html>ok</index.html>");
+  assert.equal(await fs.readFile("/tmp/styles.css"), "<styles.css>ok</styles.css>");
+  assert.equal(await fs.readFile("/tmp/main.js"), "<main.js>ok</main.js>");
+  // Last call's result returned.
+  assert.deepEqual(result, { status: "ok", file: "main.js" });
+});
+
+test("builder: splitFiles does NOT apply to read-only roles", async () => {
+  let callCount = 0;
+  const mockFetch = async () => {
+    callCount += 1;
+    return {
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ files: [], result: { verdict: "PASS" } }),
+            },
+          },
+        ],
+      }),
+    };
+  };
+
+  const runtime = new OpenRouterCodegenRuntime({
+    apiKey: "***",
+    fetchImpl: mockFetch,
+    fs: createFakeFs(),
+  });
+
+  const result = await runtime.run({
+    role: "finish_reviewer",
+    workspace: "/tmp",
+    instructions: "review",
+    splitFiles: true,
+  });
+
+  assert.equal(callCount, 1);
+  assert.deepEqual(result, { verdict: "PASS" });
+});
+
+// ============================================================================
+// Misleading error when `result` is missing after truncation
+// ============================================================================
+
+test("response validation: truncated response missing 'result' reports the real cause, not the original parse error", async () => {
+  // Regression: closeUnbalancedJson structurally closes a truncated
+  // response, but validateCodegenResponse then rejects it with
+  // "Response.result must be an object" because the truncation dropped the
+  // `result` field entirely. The thrown error must surface THAT cause
+  // (truncation severed `result`), not the now-mitigated "Unterminated
+  // string" parse error.
+  const truncated = `{"files":[]`; // `result` never starts -- closes nothing useful
+  const mockFetch = async () => ({
+    ok: true,
+    json: async () => ({ choices: [{ message: { content: truncated } }] }),
+  });
+
+  const runtime = new OpenRouterCodegenRuntime({
+    apiKey: "***",
+    fetchImpl: mockFetch,
+    fs: createFakeFs(),
+  });
+
+  try {
+    await runtime.run({ role: "builder", workspace: "/tmp", instructions: "test" });
+    assert.fail("expected MalformedCodegenResponseError");
+  } catch (e) {
+    assert.ok(e instanceof MalformedCodegenResponseError);
+    const msg = (e as Error).message;
+    assert.ok(
+      msg.includes('missing required "result" envelope') ||
+        msg.includes("Response.result must be an object"),
+      `expected the real truncation/result cause in: ${msg}`
+    );
+    assert.ok(
+      !msg.startsWith("Failed to parse or validate response: Unterminated string"),
+      `error should not mask the cause as a generic parse failure: ${msg}`
+    );
+  }
+});
+

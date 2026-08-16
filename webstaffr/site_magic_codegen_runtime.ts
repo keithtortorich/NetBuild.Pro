@@ -13,6 +13,12 @@ import { redactSecrets } from "./site_maker_engine.ts";
  * full multi-file response fit. */
 const MAX_COMPLETION_TOKENS = 16000;
 
+// Builder sites are emitted as separate files so no single LLM response has
+// to carry the whole page at once (see run()'s per-file split path). Order
+// matters: index.html is produced first so the styles.css / main.js calls
+// see it in their workspace context and stay coherent with the markup.
+const BUILDER_SPLIT_FILES = ["index.html", "styles.css", "main.js"];
+
 // ============================================================================
 // Types & Interfaces
 // ============================================================================
@@ -619,6 +625,7 @@ export class OpenRouterCodegenRuntime {
     instructions: string;
     model?: string;
     imageDataUrls?: string[];
+    splitFiles?: boolean;
   }): Promise<Record<string, unknown>> {
     const { role, workspace, instructions } = args;
     const model = args.model ?? this.model;
@@ -629,6 +636,21 @@ export class OpenRouterCodegenRuntime {
     }
 
     const roleConfig = ROLE_CONFIG[role];
+
+    // Per-file codegen: builder payloads can grow past the provider's
+    // completion budget and truncate mid-response, severing the required
+    // `result` field (real production failure 2026-08-16: a ~57 KB builder
+    // response cut at 57,648 chars, `result` gone, job failed). Splitting
+    // into one small call per file keeps each response well under budget
+    // and keeps `result` intact -- preferred over blindly raising max_tokens.
+    if (args.splitFiles && roleConfig.mutatesFiles) {
+      let lastResult: Record<string, unknown> = {};
+      for (const file of BUILDER_SPLIT_FILES) {
+        const override = `${instructions}\n\nYou are emitting this site ONE FILE AT A TIME. For THIS call, emit ONLY the file "${file}" as the single entry in the "files" array. Do not emit any other file. If "${file}" is not needed for this site, respond with {"files":[],"result":{"status":"skipped"}}. Keep "result" minimal (e.g. {"status":"ok"}). The other site files are produced in separate calls and will already be present in your workspace context.`;
+        lastResult = await this.run({ ...args, splitFiles: false, instructions: override });
+      }
+      return lastResult;
+    }
 
     // 1. Assemble workspace context
     const workspaceContext = await this.assembleWorkspaceContext(workspace);
@@ -642,66 +664,90 @@ export class OpenRouterCodegenRuntime {
     // 4. Validate response shape
     const stripped = stripJsonFence(response);
     let parsed: CodegenResponse;
+
+    // One attempt = parse + validate. Any failure throws immediately with
+    // the genuine cause (parse error OR schema error like "Response.result
+    // must be an object"), so a truncated payload that drops `result` is
+    // reported as exactly that, never silently returned.
+    const attempt = (text: string): CodegenResponse => {
+      const value = JSON.parse(text);
+      this.validateCodegenResponse(value);
+      return value;
+    };
+
     try {
-      parsed = JSON.parse(stripped);
-      this.validateCodegenResponse(parsed);
-    } catch (firstError) {
-      try {
-        const candidates = extractTopLevelJsonObjects(response);
-        let recovered: CodegenResponse | undefined;
-        for (const candidate of candidates) {
-          try {
-            const value = JSON.parse(sanitizeJsonControlChars(candidate));
-            this.validateCodegenResponse(value);
-            recovered = value;
-          } catch {
-            // Keep scanning: the final schema-valid envelope is authoritative.
+      parsed = attempt(stripped);
+      } catch (firstError) {
+        let lastError: unknown = firstError;
+        try {
+          const candidates = extractTopLevelJsonObjects(response);
+          let recovered: CodegenResponse | undefined;
+          for (const candidate of candidates) {
+            try {
+              recovered = attempt(sanitizeJsonControlChars(candidate));
+              // keep scanning: the FINAL schema-valid envelope is authoritative
+              // (a model may emit a planning placeholder before its real answer).
+            } catch (candErr) {
+              lastError = candErr;
+            }
           }
-        }
-        if (recovered === undefined) {
-          try {
-            // Third repair tier: literal unescaped quotes embedded inside a
-            // JSON string value (e.g. a findings summary that quotes UI copy
-            // like "Our Services"). Distinct from raw-control-char and
-            // truncation repairs; a no-op on already-valid JSON.
-            recovered = JSON.parse(escapeEmbeddedQuotes(stripped));
-            this.validateCodegenResponse(recovered);
-          } catch {
-            recovered = JSON.parse(closeUnbalancedJson(stripped));
-            this.validateCodegenResponse(recovered);
+          if (recovered === undefined) {
+            try {
+              // Third repair tier: literal unescaped quotes embedded inside a
+              // JSON string value (e.g. a findings summary that quotes UI copy
+              // like "Our Services"). Distinct from raw-control-char and
+              // truncation repairs; a no-op on already-valid JSON.
+              recovered = attempt(escapeEmbeddedQuotes(stripped));
+            } catch (escErr) {
+              lastError = escErr;
+              try {
+                recovered = attempt(closeUnbalancedJson(stripped));
+              } catch (closeErr) {
+                lastError = closeErr;
+              }
+            }
           }
+          if (recovered === undefined) throw lastError;
+          parsed = recovered;
+        } catch (e) {
+          // Repair didn't help -- report the most informative error, which
+          // carries the real diagnostic snippet.
+          const snippet = redactSecrets(buildParseErrorSnippet(stripped, e));
+          // The 200-char-radius snippet above is what reaches the thrown
+          // error (and from there the ledger/founder-facing path) -- deliberately
+          // bounded. It wasn't enough to tell a truncated response apart from
+          // an embedded-quote one on 2026-08-15/16's production failures: the
+          // snippet only shows what's near the parse-error position, not
+          // whether the response actually continues past it. Full response is
+          // never persisted anywhere else once this function returns, so once
+          // it's gone it's gone -- the next occurrence should not repeat that.
+          // Same split SiteMakerEngine.run()'s own catch already draws between
+          // the bounded ledger code and the unbounded container log: log the
+          // complete raw response here, redacted, with no length cap.
+          console.error(
+            `[site-magic-codegen-runtime] unrecoverable parse failure, full response (${stripped.length} chars):`,
+            redactSecrets(stripped)
+          );
+          // Classify the failure so the container log is actionable instead
+          // of masking the real cause. A truncated response that drops `result`
+          // (closeUnbalancedJson structurally closed it) surfaces as
+          // "Response.result must be an object" -- report THAT, not the
+          // original "Unterminated string" parse error, which the repair
+          // already mitigated. Otherwise surface the real parse error.
+          const firstMsg = e instanceof Error ? e.message : String(e);
+          const resultMissing =
+            /Response\.result must be an object|Response must be an object|Cannot read|undefined/.test(
+              firstMsg
+            );
+          const diag = resultMissing
+            ? `response truncated and missing required "result" envelope (recovered ${stripped.length} chars but schema validation failed -- the model likely hit its completion budget mid-response). Underlying: ${firstMsg}`
+            : `failed to parse or validate response: ${firstMsg}`;
+          throw new MalformedCodegenResponseError(
+            `${diag} | response snippet: ${snippet}`,
+            e instanceof Error ? e : undefined
+          );
         }
-        parsed = recovered;
-      } catch {
-        // Repair didn't help -- report the original error, which carries
-        // the real diagnostic snippet the repair attempt doesn't need.
-        const e = firstError;
-        // Bound and redact -- this reaches the Railway container log via
-        // SiteMakerEngine's raw-error console.error, not the 64-char
-        // failure_code, so a future parse failure is diagnosable from a
-        // real response snippet instead of guessing blind again.
-        const snippet = redactSecrets(buildParseErrorSnippet(stripped, e));
-        // The 200-char-radius snippet above is what reaches the thrown
-        // error (and from there the ledger/founder-facing path) -- deliberately
-        // bounded. It wasn't enough to tell a truncated response apart from
-        // an embedded-quote one on 2026-08-15/16's production failures: the
-        // snippet only shows what's near the parse-error position, not
-        // whether the response actually continues past it. Full response is
-        // never persisted anywhere else once this function returns, so once
-        // it's gone it's gone -- the next occurrence should not repeat that.
-        // Same split SiteMakerEngine.run()'s own catch already draws between
-        // the bounded ledger code and the unbounded container log: log the
-        // complete raw response here, redacted, with no length cap.
-        console.error(
-          `[site-magic-codegen-runtime] unrecoverable parse failure, full response (${stripped.length} chars):`,
-          redactSecrets(stripped)
-        );
-        throw new MalformedCodegenResponseError(
-          `Failed to parse or validate response: ${e instanceof Error ? e.message : String(e)} | response snippet: ${snippet}`,
-          e instanceof Error ? e : undefined
-        );
       }
-    }
 
     // 5. Check read-only role constraint
     if (!roleConfig.mutatesFiles && parsed.files.length > 0) {
