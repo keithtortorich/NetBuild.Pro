@@ -647,7 +647,12 @@ export async function ensureMetaDescriptionPresent(
  * builds used delayed reveal/transition patterns that left Lighthouse waiting
  * 16.7s for LCP and produced CLS 0.89, while also allowing intrinsic-width
  * images to overflow mobile. The authored visual system remains intact; this
- * only removes load-time motion and establishes responsive geometry. */
+ * only removes load-time motion and establishes responsive geometry. Also
+ * forces overflow-wrap on mailto links and contact-value elements -- a real
+ * job (local-1786857894432, 2026-08-16) spent all 4 remediation rounds
+ * unable to converge on a tablet-width email wrap finding the model kept
+ * re-flagging; enforcing it deterministically removes it from the model's
+ * remediation surface entirely. */
 export async function ensureStableResponsiveLayout(
   writer: WorkspaceWriter, workspace: string
 ): Promise<void> {
@@ -659,6 +664,7 @@ html,body{max-width:100%;overflow-x:hidden}
 body{width:100%}
 body>*{min-width:0;max-width:100%}
 img,video,svg,canvas{max-width:100%;height:auto}
+a[href^="mailto:"],[class*="contact"][class*="value"]{overflow-wrap:anywhere!important;word-break:break-word!important}
 [class*="contour"],[class*="artwork"],[class*="ambient"]{max-width:100%!important;overflow:hidden!important}
 .ws-comp-gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,18rem),1fr));gap:1rem;width:100%;overflow:hidden}
 .ws-comp-gallery img{display:block;width:100%;height:auto;object-fit:cover}
