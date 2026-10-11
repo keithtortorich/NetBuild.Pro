@@ -26,7 +26,7 @@ Depth is not line count. Auth, secrets, tenant isolation, database schema, depen
 
 - Use **assessment -> decision -> action -> report**. Never ask the founder to choose tools, file layout, test structure, sync versus async, error-handling shape, naming, or whether routine edge cases need tests.
 - Approval gates govern whether an action happens, not who performs the mechanics. After approval, perform the push, deploy, or other authorized action yourself.
-- Verify the production checkout before building: `/Users/doc/Desktop/WebStaffr4`, GitHub `keithtortorich/WebStaffr4.0`, and `webstaffr/app.py`. Treat old repos, summaries, and skill metadata as hypotheses until verified.
+- Verify the production checkout before building: the local working checkout (e.g., `/Users/doc/Desktop/WebStaffr4` if present — legacy path) and GitHub `keithtortorich/NetBuild.Pro` (this repo, formerly `WebStaffr4.0`/WS3.3), plus `webstaffr/app.py`. Treat old repos, summaries, and skill metadata as hypotheses until verified.
 - When scope grows from routine work into D3 or D4, surface the consequence immediately and stop at the approval boundary.
 - Delegate only when work is broad, parallel, grinding, or benefits from independent review; keep conversation-dependent, single-file, and approval-gated work with the primary agent.
 
