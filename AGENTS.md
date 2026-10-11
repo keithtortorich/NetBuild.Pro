@@ -46,6 +46,17 @@ While working, watch for and fix trivial instances of: misplaced worker routers;
 
 When the founder signals completion (`end`, `done`, `close`, `wrap`, `finished`, or equivalent), write a delta-only handoff under 600 words to `outputs/SESSION_SUMMARY.md` and, when repo-writable, `docs/SESSION_SUMMARY.md`. Include completed work, key changes, blockers, next three priorities, decisions, assumptions, and files updated.
 
+## Website building — use Site Magic
+
+Any agent building or regenerating customer/demo websites MUST go through the existing **Site Magic** pipeline — never hand-roll bespoke HTML/CSS for a tenant site.
+
+- **Pipeline spec:** `docs/SITE_MAGIC_ARCHITECTURE.md` (7 stages: intake → shape → direction engine → generate → evaluate (score ≥88, P0=0) → self-heal → ship)
+- **Related decisions:** `docs/ADR-030_DEMO_SITES_VIA_SITEMAGIC.md`, `docs/ADR-031_OMNIROUTE_SITE_MAGIC_ROUTING.md`, `docs/ADR-032_IMAGE_FIRST_VISUAL_RELEASE_LOOP.md`
+- **Content quality bar:** `docs/SITE_MAGIC_CONTENT_CHECKLIST.md`
+- **Core code:** `webstaffr/site_magic.py` (control plane), `webstaffr/site_magic_worker.ts` (Railway worker), `webstaffr/site_magic_engine.py`, `webstaffr/site_magic_codegen_runtime.ts`, `webstaffr/site_renderer.py` (rendering), `webstaffr/migrations/0016_site_magic.sql`
+- **Env wiring:** `scripts/setup_site_magic_env.sh`; worker is connected to the control plane only when `SITE_MAGIC_WORKER_WEBHOOK_URL` + `SITE_MAGIC_WORKER_WEBHOOK_SECRET` are both set (see `CREDENTIALS.md`).
+- Rendering-only changes go through `webstaffr/site_renderer.py` + `webstaffr/templates/` and must keep the public projection (site-data leak prevention) invariant.
+
 ## Source of truth
 - Read `CLAUDE.md` for project rules, governance, and invariants.
 - Read `TASKS.md` for live status.
