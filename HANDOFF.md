@@ -13,7 +13,7 @@ The historical sections below are context, not current truth.
 **Project:** NetBuild.Pro (formerly WebStaffr)  
 **Branch:** `hermes/operations` (rebased onto `main` at `a8bffe6`)  
 **Working tree:** clean, no active write guards  
-**Production:** verified live at `https://web-staffr3-3.vercel.app`  
+**Production:** verified live at `https://netbuild.pro`  
 **Broker handoff:** `16552b2110914c19a6995c510e68fe2`  
 **Codex is now quarterback** — Hermes is ops only.
 
@@ -39,7 +39,7 @@ The historical sections below are context, not current truth.
 - `0a531c3` — chore: remove duplicate customer auth migrations 0015 and 0016
 
 ## 4. Production Status (Verified Live)
-- Vercel deployment: `https://web-staffr3-3.vercel.app`
+- Vercel deployment: `https://netbuild.pro`
 - Health endpoint: HTTP 200
 - CORS scoping: exact origin allowlist with credentials; unapproved origins get 403 without CORS headers
 - Unauthenticated requests fail closed with 401
