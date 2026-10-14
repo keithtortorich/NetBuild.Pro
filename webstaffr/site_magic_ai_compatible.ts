@@ -97,7 +97,7 @@ export class OpenAICompatibleCodegenRuntime extends OpenRouterCodegenRuntime {
 export class OpenAICompatibleImageGenerator implements ImageGenerator {
   private readonly apiKey: string;
   private readonly baseUrl: string;
-  private readonly model?: string;
+  private readonly model: string;
   private readonly fetchImpl: typeof fetch;
 
   constructor(opts?: {
@@ -113,7 +113,6 @@ export class OpenAICompatibleImageGenerator implements ImageGenerator {
     ).replace(/\/+$/, "");
     const configuredKey = opts?.apiKey ?? process.env.OPENAI_COMPATIBLE_API_KEY;
     this.apiKey = configuredKey ?? (isLoopbackEndpoint(this.baseUrl) ? "dummy" : "");
-    this.model = opts?.model ?? process.env.OPENAI_COMPATIBLE_IMAGE_MODEL;
     this.fetchImpl = opts?.fetchImpl ?? fetch;
 
     if (!this.apiKey) {
@@ -121,6 +120,13 @@ export class OpenAICompatibleImageGenerator implements ImageGenerator {
         "OpenAICompatibleImageGenerator requires OPENAI_COMPATIBLE_API_KEY for non-local endpoints."
       );
     }
+    const configuredModel = opts?.model ?? process.env.OPENAI_COMPATIBLE_IMAGE_MODEL;
+    if (!configuredModel?.trim()) {
+      throw new ImageGeneratorNotConfiguredError(
+        "OpenAICompatibleImageGenerator requires OPENAI_COMPATIBLE_IMAGE_MODEL."
+      );
+    }
+    this.model = configuredModel.trim();
   }
 
   async generate(args: {
@@ -130,7 +136,6 @@ export class OpenAICompatibleImageGenerator implements ImageGenerator {
     briefs?: readonly ImageBrief[];
   }): Promise<string[]> {
     const endpoint = `${this.baseUrl}/images/generations`;
-    const model = this.model ?? args.model;
     const images: string[] = [];
 
     for (let i = 0; i < args.count; i += 1) {
@@ -147,7 +152,7 @@ export class OpenAICompatibleImageGenerator implements ImageGenerator {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model,
+          model: this.model,
           prompt: brief.prompt,
           n: 1,
           size: brief.aspectRatio === "16:9" ? "1536x1024" : "1024x1024",

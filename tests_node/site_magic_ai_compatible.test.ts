@@ -111,6 +111,17 @@ test("image adapter rejects a non-local endpoint without a credential", () => {
   });
 });
 
+test("image adapter requires an explicit compatible image model", () => {
+  withCleanCompatibleEnv(() => {
+    assert.throws(
+      () => new OpenAICompatibleImageGenerator({ baseUrl: "http://localhost:11434/v1" }),
+      (error: unknown) =>
+        error instanceof ImageGeneratorNotConfiguredError &&
+        error.message.includes("OPENAI_COMPATIBLE_IMAGE_MODEL"),
+    );
+  });
+});
+
 test("image adapter requests one inline image per editorial brief", async () => {
   const calls: Array<{ url: string; authorization: string; body: Record<string, unknown> }> = [];
   const fetchImpl = (async (url: string | URL, init?: RequestInit) => {
