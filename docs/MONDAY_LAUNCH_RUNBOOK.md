@@ -4,7 +4,7 @@
 **Target launch:** Monday 2026-08-10.
 
 **Verified 2026-08-10 before this update:**
-- Production: `GET /health` on `https://web-staffr3-3.vercel.app` (aliased to
+- Production: `GET /health` on `https://netbuild.pro` (aliased to
   `https://netbuild.pro`) returns `{"status":"ok","release":"92ee022..."}`.
 - Landing page renders with current NetBuild.Pro copy.
 - **`OPENROUTER_API_KEY` is now live in Vercel Production** (added + redeployed
@@ -69,11 +69,11 @@ optional tenant site.
 ```bash
 cd /Users/doc/Desktop/NetBuild.Pro
 .venv/bin/python scripts/production_smoke.py \
-  --base-url https://web-staffr3-3.vercel.app \
+  --base-url https://netbuild.pro \
   --expected-sha 92ee022        # omit --expected-sha to skip the SHA pin
 # Optional: also check a generated tenant site renders:
 .venv/bin/python scripts/production_smoke.py \
-  --base-url https://web-staffr3-3.vercel.app --tenant-id <tenant_id>
+  --base-url https://netbuild.pro --tenant-id <tenant_id>
 ```
 Run this at 7:15 AM Monday and any time you redeploy.
 
@@ -90,14 +90,14 @@ configure them.
 ### 3. One-shot test intake (prove the pipeline before you promise it)
 Submit a fake business end-to-end and confirm the tenant + site render:
 ```bash
-curl -s -X POST https://web-staffr3-3.vercel.app/intake \
+curl -s -X POST https://netbuild.pro/intake \
   -H "Content-Type: application/json" \
   -d '{"biz_name":"Smoke Test HVAC","phone":"(901) 555-0100",
        "email":"smoke@example.com","industry":"hvac",
        "service_area":"Memphis, TN","plan":"office_staff"}' \
   | python3 -m json.tool
 ```
-The response returns `tenant_id`. Open `https://web-staffr3-3.vercel.app/sites/<tenant_id>/web`
+The response returns `tenant_id`. Open `https://netbuild.pro/sites/<tenant_id>/web`
 to confirm the site renders. Do this Monday morning before dialing.
 
 ### 4. Customer provisioning (after a client signs + pays)
@@ -133,7 +133,7 @@ nothing regressed.
 credit is live. Do not build the agent yet — just confirm the account exists.
 
 **7:15 AM** — Confirm production is still healthy:
-`.venv/bin/python scripts/production_smoke.py --base-url https://web-staffr3-3.vercel.app`
+`.venv/bin/python scripts/production_smoke.py --base-url https://netbuild.pro`
 Confirm the landing page and one demo site load in a browser.
 
 **7:30 AM** — Run the one-shot test intake (toolkit #3) to personally see a
@@ -282,7 +282,7 @@ between jobs.)*
 
 **If yes right now:** walk the intake form live, read back their site URL before
 hanging up.
-**If "send me info":** text them `https://web-staffr3-3.vercel.app/` immediately,
+**If "send me info":** text them `https://netbuild.pro/` immediately,
 follow up in 2 hours.
 **If price comes up:** "$497 a month, no setup fee, no contract — cancel
 anytime. Most guys make that back on the first missed call it catches."

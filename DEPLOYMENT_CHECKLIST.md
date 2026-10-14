@@ -32,7 +32,7 @@ Still unset, deferred by founder decision (no new vendor spend/trials yet): `GHL
 
 ---
 
-## Cutover Steps (this repo is a rebuild of WS3.3, already live at web-staffr3-3.vercel.app)
+## Cutover Steps (this repo is a rebuild of WS3.3, already live at netbuild.pro)
 
 **This was a re-point, not a first launch.** Correction to the original assumption: env vars
 did *not* carry over as expected -- only `DATABASE_URL` existed on the Vercel project. The
