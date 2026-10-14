@@ -39,9 +39,11 @@ import {
   SupabaseArtifactStore,
   HTTPJobStateSink,
 } from "./site_magic_adapters.ts";
+import { OpenRouterCodegenRuntime } from "./site_magic_codegen_runtime.ts";
 import {
-  OpenRouterCodegenRuntime,
-} from "./site_magic_codegen_runtime.ts";
+  OpenAICompatibleCodegenRuntime,
+  OpenAICompatibleImageGenerator,
+} from "./site_magic_ai_compatible.ts";
 import { PlaywrightEvidenceRunner } from "./site_magic_evidence_runner.ts";
 
 /** Rendered pages reference /static/site.css and /static/angel-widget.js,
@@ -67,50 +69,61 @@ export type DependencyFactory = (tenantId: string) => WorkerDependencies;
 /** Real adapters wired from env, built fresh per job -- see module
  * docstring for why `evidence` can't be a single shared instance.
  *
- * images: OpenRouterImageGenerator, not OpenAIImageGenerator -- OpenAI's
- * GPT Image org-access gate is unapproved (see site_magic_adapters.ts's
- * module docstring), while OpenRouter uses the OPENROUTER_API_KEY this
- * repo already has configured for design_critique/client.py. Same
- * ImageGenerator contract (string[] of data: URIs), so SiteMakerEngine is
- * unaffected by the swap. If OpenAI org access is later approved and a
- * switch back is wanted, this is the one line to change. */
+ * Vendor priority:
+ * 1. SITE_MAGIC_USE_AI_COMPATIBLE=true → OpenAI-compatible endpoint (Ollama, NVIDIA, vLLM)
+ *    configured via OPENAI_COMPATIBLE_BASE_URL, OPENAI_COMPATIBLE_API_KEY, OPENAI_COMPATIBLE_MODEL
+ * 2. SITE_MAGIC_USE_OMNIROUTE=true (default) → OpenRouter via OmniRoute (ADR-031)
+ * 3. SITE_MAGIC_USE_OMNIROUTE=false → OpenAI Codex runtime
+ *
+ * Images use the matching OpenAI-compatible endpoint when explicitly
+ * selected; otherwise they remain on the established OpenRouter adapter.
+ */
 export function buildProductionDependencies(tenantId: string): WorkerDependencies {
-  // Vendor-independent CodexRuntime via OmniRoute (ADR-031): 290 providers,
-  // auto-fallback, free tiers. SITE_MAGIC_USE_OMNIROUTE=false falls back to
-  // OpenAI's Codex runtime.
-  //
-  // The endpoint comes from SITE_MAGIC_CODEGEN_BASE_URL, NOT
-  // SITE_MAGIC_API_BASE_URL -- the latter is this repo's own control plane
-  // (HTTPJobStateSink/fetchJobRecord post to it), and in production it is
-  // https://netbuild.pro, which is not an OpenAI-compatible LLM endpoint.
-  // Unset means openrouter.ai directly, authenticated with
-  // OPENROUTER_API_KEY. Point it at a local OmniRoute gateway
-  // (http://localhost:20128/v1) to route through that instead.
+  // Vendor priority: OpenAI-compatible (Ollama/NVIDIA/vLLM) → OpenRouter/OmniRoute → OpenAI
+  const useAICompatible = process.env.SITE_MAGIC_USE_AI_COMPATIBLE === "true";
   const useOmniRoute = process.env.SITE_MAGIC_USE_OMNIROUTE !== "false";
   const codegenBaseUrl = process.env.SITE_MAGIC_CODEGEN_BASE_URL;
   const viaLocalGateway = Boolean(codegenBaseUrl?.includes("localhost"));
 
-  const codexRuntime: CodexRuntime = useOmniRoute
-    ? new OpenRouterCodegenRuntime(
-        // A local gateway holds the real provider credentials itself, so the
-        // client-side key is a placeholder there and "auto/best-free" is a
-        // model id only that gateway understands. Against a real provider,
-        // neither applies: the runtime resolves OPENROUTER_API_KEY and its
-        // own model default, and throws if the key is missing (fail-closed).
-        viaLocalGateway
-          ? {
-              apiKey: "dummy",
-              model: process.env.SITE_MAGIC_DESIGN_MODEL ?? "openai/gpt-5.6-terra",
-              baseUrl: codegenBaseUrl,
-            }
-          : { baseUrl: codegenBaseUrl }
-      )
-    : new OpenAICodexRuntime();
+  let codexRuntime: CodexRuntime;
+  let imageGenerator: ImageGenerator;
+
+  if (useAICompatible) {
+    // Use generic OpenAI-compatible implementations (Ollama, NVIDIA, vLLM, etc.)
+    codexRuntime = new OpenAICompatibleCodegenRuntime();
+    imageGenerator = new OpenAICompatibleImageGenerator();
+  } else if (useOmniRoute) {
+    // Vendor-independent CodexRuntime via OmniRoute (ADR-031): 290 providers,
+    // auto-fallback, free tiers.
+    //
+    // The endpoint comes from SITE_MAGIC_CODEGEN_BASE_URL, NOT
+    // SITE_MAGIC_API_BASE_URL -- the latter is this repo's own control plane
+    // (HTTPJobStateSink/fetchJobRecord post to it), and in production it is
+    // https://netbuild.pro, which is not an OpenAI-compatible LLM endpoint.
+    // Unset means openrouter.ai directly, authenticated with
+    // OPENROUTER_API_KEY. Point it at a local OmniRoute gateway
+    // (http://localhost:20128/v1) to route through that instead.
+    codexRuntime = new OpenRouterCodegenRuntime(
+      viaLocalGateway
+        ? {
+            apiKey: "dummy",
+            model: process.env.SITE_MAGIC_DESIGN_MODEL ?? "openai/gpt-5.6-terra",
+            baseUrl: codegenBaseUrl,
+          }
+        : { baseUrl: codegenBaseUrl }
+    );
+    imageGenerator = new OpenRouterImageGenerator();
+  } else {
+    // Fallback to OpenAI's Codex runtime while retaining the approved
+    // OpenRouter image path (GPT Image org access remains unapproved).
+    codexRuntime = new OpenAICodexRuntime();
+    imageGenerator = new OpenRouterImageGenerator();
+  }
 
   return {
     states: new HTTPJobStateSink(),
     codex: codexRuntime,
-    images: new OpenRouterImageGenerator(),
+    images: imageGenerator,
     evidence: new PlaywrightEvidenceRunner({ tenantId, staticRoot: APP_STATIC_ROOT }),
     artifacts: new SupabaseArtifactStore(),
   };

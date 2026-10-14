@@ -15,6 +15,10 @@ import {
 } from "../webstaffr/site_magic_worker.ts";
 import { PlaywrightEvidenceRunner } from "../webstaffr/site_magic_evidence_runner.ts";
 import { OpenRouterImageGenerator } from "../webstaffr/site_magic_adapters.ts";
+import {
+  OpenAICompatibleCodegenRuntime,
+  OpenAICompatibleImageGenerator,
+} from "../webstaffr/site_magic_ai_compatible.ts";
 
 /** Dry-run stand-in for a real EvidenceRunner -- keeps these worker-wiring
  * tests fast and independent of a real Chromium/axe-core/Lighthouse pass
@@ -165,6 +169,38 @@ test("buildProductionDependencies throws ImageGeneratorNotConfiguredError when O
   } finally {
     for (const [key, value] of Object.entries(originals)) {
       if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
+});
+
+test("buildProductionDependencies selects the opt-in OpenAI-compatible adapters", () => {
+  const keys = [
+    "OPENAI_API_KEY", "OPENROUTER_API_KEY", "SUPABASE_URL",
+    "SITE_MAGIC_STORAGE_SERVICE_KEY", "SITE_MAGIC_API_BASE_URL",
+    "SITE_MAGIC_INTERNAL_API_KEY", "SITE_MAGIC_USE_AI_COMPATIBLE",
+    "OPENAI_COMPATIBLE_API_KEY", "OPENAI_COMPATIBLE_BASE_URL",
+    "OPENAI_COMPATIBLE_MODEL", "OPENAI_COMPATIBLE_IMAGE_MODEL",
+  ];
+  const originals = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+  Object.assign(process.env, {
+    SITE_MAGIC_USE_AI_COMPATIBLE: "true",
+    OPENAI_COMPATIBLE_BASE_URL: "http://localhost:11434/v1",
+    OPENAI_COMPATIBLE_MODEL: "local-code-model",
+    OPENAI_COMPATIBLE_IMAGE_MODEL: "local-image-model",
+    SUPABASE_URL: "https://example.supabase.co",
+    SITE_MAGIC_STORAGE_SERVICE_KEY: "test-service-key",
+    SITE_MAGIC_API_BASE_URL: "https://control-plane.internal",
+    SITE_MAGIC_INTERNAL_API_KEY: "test-internal-key",
+  });
+  delete process.env.OPENAI_COMPATIBLE_API_KEY;
+  try {
+    const deps = buildProductionDependencies("tenant-1");
+    assert.ok(deps.codex instanceof OpenAICompatibleCodegenRuntime);
+    assert.ok(deps.images instanceof OpenAICompatibleImageGenerator);
+  } finally {
+    for (const [key, value] of Object.entries(originals)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
     }
   }
 });

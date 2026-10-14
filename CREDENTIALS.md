@@ -243,6 +243,16 @@
     Until 2026-08-11 both readers shared the single
     `SITE_MAGIC_API_BASE_URL` var, which sent production codegen calls to
     `https://netbuild.pro/chat/completions`.
+  - `SITE_MAGIC_USE_AI_COMPATIBLE=true` (worker-side, optional) -- opts the
+    worker into a generic OpenAI-compatible endpoint instead of the default
+    OpenRouter/OmniRoute route. Configure it with
+    `OPENAI_COMPATIBLE_BASE_URL`, `OPENAI_COMPATIBLE_MODEL`, and
+    `OPENAI_COMPATIBLE_IMAGE_MODEL`. `OPENAI_COMPATIBLE_API_KEY` is required
+    for non-local endpoints; localhost endpoints use a non-secret `dummy`
+    bearer value. The endpoint must implement `/chat/completions` and
+    `/images/generations` with inline `b64_json` image responses. This route
+    is opt-in and does not change production until its environment flag is
+    explicitly set.
 - **Behavior**: `create_app()`'s `site_magic_queue` / `site_magic_artifact_storage`
   params default to `NullSiteMagicQueue` / `NullArtifactStorage`, which
   fail closed with `SiteMagicNotConfiguredError` (503 at the API, silently
