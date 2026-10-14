@@ -58,6 +58,7 @@ function fakeDependencies(): { deps: WorkerDependencies; states: string[] } {
       "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
       "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
     ]; } },
+    imageVerifier: async () => ({ match: true }),
     evidence: new FakeEvidenceRunner(),
     artifacts: { async sealPrivateImmutable() { return { buildId: "dry-run-build-1" }; } },
   };
@@ -173,13 +174,14 @@ test("buildProductionDependencies throws ImageGeneratorNotConfiguredError when O
   }
 });
 
-test("buildProductionDependencies selects the opt-in OpenAI-compatible adapters", () => {
+test("buildProductionDependencies routes generation and verification through the opt-in compatible provider", async () => {
   const keys = [
     "OPENAI_API_KEY", "OPENROUTER_API_KEY", "SUPABASE_URL",
     "SITE_MAGIC_STORAGE_SERVICE_KEY", "SITE_MAGIC_API_BASE_URL",
     "SITE_MAGIC_INTERNAL_API_KEY", "SITE_MAGIC_USE_AI_COMPATIBLE",
     "OPENAI_COMPATIBLE_API_KEY", "OPENAI_COMPATIBLE_BASE_URL",
     "OPENAI_COMPATIBLE_MODEL", "OPENAI_COMPATIBLE_IMAGE_MODEL",
+    "SITE_MAGIC_IMAGE_VERIFY_MODEL",
   ];
   const originals = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
   Object.assign(process.env, {
@@ -193,11 +195,36 @@ test("buildProductionDependencies selects the opt-in OpenAI-compatible adapters"
     SITE_MAGIC_INTERNAL_API_KEY: "test-internal-key",
   });
   delete process.env.OPENAI_COMPATIBLE_API_KEY;
+  delete process.env.SITE_MAGIC_IMAGE_VERIFY_MODEL;
+  const originalFetch = global.fetch;
+  const verificationCalls: Array<{ url: string; authorization: string; model: string }> = [];
+  global.fetch = (async (url: string | URL, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body));
+    verificationCalls.push({
+      url: url.toString(),
+      authorization: (init?.headers as Record<string, string>).Authorization,
+      model: body.model,
+    });
+    return new Response(JSON.stringify({
+      choices: [{ message: { content: '{"match":true,"reason":"ok"}' } }],
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  }) as typeof fetch;
   try {
     const deps = buildProductionDependencies("tenant-1");
     assert.ok(deps.codex instanceof OpenAICompatibleCodegenRuntime);
     assert.ok(deps.images instanceof OpenAICompatibleImageGenerator);
+    assert.deepEqual(await deps.imageVerifier({
+      imageDataUrl: "data:image/png;base64,aW1hZ2U=",
+      role: "hero",
+      altText: "A service truck",
+    }), { match: true, reason: "ok" });
+    assert.deepEqual(verificationCalls, [{
+      url: "http://localhost:11434/v1/chat/completions",
+      authorization: "Bearer dummy",
+      model: "local-code-model",
+    }]);
   } finally {
+    global.fetch = originalFetch;
     for (const [key, value] of Object.entries(originals)) {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;

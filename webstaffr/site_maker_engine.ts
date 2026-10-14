@@ -113,6 +113,8 @@ export interface ImageGenerator {
   generate(args: { model: string; brief: string; count: 3; briefs?: readonly ImageBrief[] }): Promise<string[]>;
 }
 
+export type ImageContentVerifier = typeof verifyImageContent;
+
 export interface EvidenceRunner {
   assess(args: { workspace: string; widths: readonly [390, 768, 1440] }): Promise<QualityReport>;
   getVisualEvidence?(): ReadonlyArray<{ width: number; dataUrl: string }>;
@@ -769,6 +771,7 @@ export class SiteMakerEngine {
     states: JobStateSink;
     codex: CodexRuntime;
     images: ImageGenerator;
+    imageVerifier: ImageContentVerifier;
     evidence: EvidenceRunner;
     artifacts: ArtifactStore;
     workspaceWriter: WorkspaceWriter;
@@ -778,11 +781,16 @@ export class SiteMakerEngine {
     states: JobStateSink;
     codex: CodexRuntime;
     images: ImageGenerator;
+    imageVerifier?: ImageContentVerifier;
     evidence: EvidenceRunner;
     artifacts: ArtifactStore;
     workspaceWriter?: WorkspaceWriter;
   }) {
-    this.deps = { workspaceWriter: new NodeWorkspaceWriter(), ...deps };
+    this.deps = {
+      workspaceWriter: new NodeWorkspaceWriter(),
+      imageVerifier: verifyImageContent,
+      ...deps,
+    };
   }
 
   async run(job: SiteMagicJobInput): Promise<{
@@ -835,7 +843,7 @@ export class SiteMakerEngine {
         const mismatches: number[] = [];
         for (let i = 0; i < comps.length; i += 1) {
           const brief = imageBriefs[i];
-          const verdict = await verifyImageContent({
+          const verdict = await this.deps.imageVerifier({
             imageDataUrl: comps[i],
             role: brief?.role ?? `comp-${i + 1}`,
             altText: brief?.altText ?? "",
@@ -860,7 +868,7 @@ export class SiteMakerEngine {
             // original set. A regenerated set could itself drift, so re-check those indices.
             for (const i of mismatches) {
               const brief = imageBriefs[i];
-              const reVerdict = await verifyImageContent({
+              const reVerdict = await this.deps.imageVerifier({
                 imageDataUrl: regen[i],
                 role: brief?.role ?? `comp-${i + 1}`,
                 altText: brief?.altText ?? "",

@@ -29,6 +29,7 @@ import {
   type SiteSource,
   type CodexRuntime,
   type ImageGenerator,
+  type ImageContentVerifier,
   type EvidenceRunner,
   type ArtifactStore,
   type JobStateSink,
@@ -39,10 +40,11 @@ import {
   SupabaseArtifactStore,
   HTTPJobStateSink,
 } from "./site_magic_adapters.ts";
-import { OpenRouterCodegenRuntime } from "./site_magic_codegen_runtime.ts";
+import { OpenRouterCodegenRuntime, verifyImageContent } from "./site_magic_codegen_runtime.ts";
 import {
   OpenAICompatibleCodegenRuntime,
   OpenAICompatibleImageGenerator,
+  resolveOpenAICompatibleChatConfig,
 } from "./site_magic_ai_compatible.ts";
 import { PlaywrightEvidenceRunner } from "./site_magic_evidence_runner.ts";
 
@@ -60,6 +62,7 @@ export interface WorkerDependencies {
   states: JobStateSink;
   codex: CodexRuntime;
   images: ImageGenerator;
+  imageVerifier: ImageContentVerifier;
   evidence: EvidenceRunner;
   artifacts: ArtifactStore;
 }
@@ -87,11 +90,22 @@ export function buildProductionDependencies(tenantId: string): WorkerDependencie
 
   let codexRuntime: CodexRuntime;
   let imageGenerator: ImageGenerator;
+  let imageVerifier: ImageContentVerifier = verifyImageContent;
 
   if (useAICompatible) {
     // Use generic OpenAI-compatible implementations (Ollama, NVIDIA, vLLM, etc.)
     codexRuntime = new OpenAICompatibleCodegenRuntime();
     imageGenerator = new OpenAICompatibleImageGenerator();
+    const compatibleChat = resolveOpenAICompatibleChatConfig();
+    const compatibleVerifyModel =
+      process.env.SITE_MAGIC_IMAGE_VERIFY_MODEL ??
+      compatibleChat.model;
+    imageVerifier = (args) => verifyImageContent({
+      ...args,
+      apiKey: compatibleChat.apiKey,
+      baseUrl: compatibleChat.baseUrl,
+      model: compatibleVerifyModel,
+    });
   } else if (useOmniRoute) {
     // Vendor-independent CodexRuntime via OmniRoute (ADR-031): 290 providers,
     // auto-fallback, free tiers.
@@ -124,6 +138,7 @@ export function buildProductionDependencies(tenantId: string): WorkerDependencie
     states: new HTTPJobStateSink(),
     codex: codexRuntime,
     images: imageGenerator,
+    imageVerifier,
     evidence: new PlaywrightEvidenceRunner({ tenantId, staticRoot: APP_STATIC_ROOT }),
     artifacts: new SupabaseArtifactStore(),
   };

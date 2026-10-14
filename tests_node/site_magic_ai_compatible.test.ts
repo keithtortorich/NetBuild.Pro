@@ -43,6 +43,7 @@ test("compatible adapters do not treat localhost text in a remote URL as loopbac
     for (const baseUrl of [
       "https://localhost.example.com/v1",
       "https://localhost@provider.example/v1",
+      "https://127.provider.example/v1",
     ]) {
       assert.throws(
         () => new OpenAICompatibleCodegenRuntime({ baseUrl }),

@@ -8,6 +8,7 @@
  */
 
 import type { ImageBrief, ImageGenerator } from "./site_maker_engine.ts";
+import { isIP } from "node:net";
 import {
   CodexRuntimeNotConfiguredError,
   OpenRouterCodegenRuntime,
@@ -20,17 +21,38 @@ export class ImageGeneratorNotConfiguredError extends Error {}
 function isLoopbackEndpoint(baseUrl: string): boolean {
   try {
     const hostname = new URL(baseUrl).hostname.toLowerCase();
+    const unwrappedHostname = hostname.replace(/^\[|\]$/g, "");
     return (
       hostname === "localhost" ||
       hostname.endsWith(".localhost") ||
-      hostname === "127.0.0.1" ||
-      hostname.startsWith("127.") ||
-      hostname === "::1" ||
-      hostname === "[::1]"
+      (isIP(unwrappedHostname) === 4 && unwrappedHostname.split(".")[0] === "127") ||
+      unwrappedHostname === "::1"
     );
   } catch {
     return false;
   }
+}
+
+export function resolveOpenAICompatibleChatConfig(opts?: {
+  apiKey?: string;
+  model?: string;
+  baseUrl?: string;
+}): { apiKey: string; model: string; baseUrl: string } {
+  const baseUrl = (
+    opts?.baseUrl ??
+    process.env.OPENAI_COMPATIBLE_BASE_URL ??
+    "http://localhost:11434/v1"
+  ).replace(/\/+$/, "");
+  const configuredKey = opts?.apiKey ?? process.env.OPENAI_COMPATIBLE_API_KEY;
+  const apiKey = configuredKey ?? (isLoopbackEndpoint(baseUrl) ? "dummy" : "");
+  const model = opts?.model ?? process.env.OPENAI_COMPATIBLE_MODEL ?? "llama3.1:8b";
+
+  if (!apiKey) {
+    throw new CodexRuntimeNotConfiguredError(
+      "OpenAICompatibleCodegenRuntime requires OPENAI_COMPATIBLE_API_KEY for non-local endpoints."
+    );
+  }
+  return { apiKey, model, baseUrl };
 }
 
 export class OpenAICompatibleCodegenRuntime extends OpenRouterCodegenRuntime {
@@ -43,20 +65,7 @@ export class OpenAICompatibleCodegenRuntime extends OpenRouterCodegenRuntime {
     fetchImpl?: typeof global.fetch;
     fs?: WorkspaceFs;
   }) {
-    const baseUrl = (
-      opts?.baseUrl ??
-      process.env.OPENAI_COMPATIBLE_BASE_URL ??
-      "http://localhost:11434/v1"
-    ).replace(/\/+$/, "");
-    const configuredKey = opts?.apiKey ?? process.env.OPENAI_COMPATIBLE_API_KEY;
-    const apiKey = configuredKey ?? (isLoopbackEndpoint(baseUrl) ? "dummy" : "");
-    const model = opts?.model ?? process.env.OPENAI_COMPATIBLE_MODEL ?? "llama3.1:8b";
-
-    if (!apiKey) {
-      throw new CodexRuntimeNotConfiguredError(
-        "OpenAICompatibleCodegenRuntime requires OPENAI_COMPATIBLE_API_KEY for non-local endpoints."
-      );
-    }
+    const { apiKey, model, baseUrl } = resolveOpenAICompatibleChatConfig(opts);
 
     super({
       apiKey,

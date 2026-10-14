@@ -61,13 +61,11 @@ class AgencySiteGovernanceTestCase(unittest.TestCase):
         """Pricing page renders."""
         response = self.client.get("/agency/pricing")
         self.assertEqual(response.status_code, 200)
-        # Verify correct pricing tiers
+        # ADR-026: initial launch exposes only Office Staff at $497/month.
         self.assertIn(b"$497", response.content)
-        self.assertIn(b"$2,497", response.content)
-        self.assertIn(b"$5,000", response.content)
-        self.assertIn(b"Essentials", response.content)
-        self.assertIn(b"Pro", response.content)
-        self.assertIn(b"Growth", response.content)
+        self.assertIn(b"Office Staff", response.content)
+        for retired in (b"$2,497", b"$5,000", b"Essentials", b">Pro<", b"Growth"):
+            self.assertNotIn(retired, response.content)
 
     def test_all_agency_pages_use_canonical_brand_and_tiers(self):
         pages = (
@@ -83,7 +81,7 @@ class AgencySiteGovernanceTestCase(unittest.TestCase):
             with self.subTest(page=page):
                 self.assertEqual(response.status_code, 200)
                 self.assertIn("NetBuild.Pro", response.text)
-                for stale in ("WebStaffr", "Office Staff", "Business Manager", "White-Glove"):
+                for stale in ("WebStaffr", "Business Manager", "White-Glove", "Essentials", "Growth"):
                     self.assertNotIn(stale, response.text)
 
     def test_agency_contact_routes_to_working_intake(self):
