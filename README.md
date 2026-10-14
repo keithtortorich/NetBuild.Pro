@@ -40,6 +40,10 @@ See `CREDENTIALS.md` for a complete list of required env vars:
   (worker side: control-plane callbacks, LLM endpoint, artifact storage --
   `SITE_MAGIC_CODEGEN_BASE_URL` is an LLM endpoint and is deliberately NOT
   `SITE_MAGIC_API_BASE_URL`, see CREDENTIALS.md)
+- `SITE_MAGIC_USE_AI_COMPATIBLE` + `OPENAI_COMPATIBLE_BASE_URL` /
+  `OPENAI_COMPATIBLE_API_KEY` / `OPENAI_COMPATIBLE_MODEL` /
+  `OPENAI_COMPATIBLE_IMAGE_MODEL` (optional worker-side alternative route;
+  disabled unless explicitly selected)
 - `NETBUILD_PUBLIC_BASE_URL` (optional, not a secret: public origin stamped
   into offline-generated pages' links, canonical, and og:url; unset means
   origin-relative `/sites/{tenant_id}/web/...`)
