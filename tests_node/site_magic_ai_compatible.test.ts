@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import os from "node:os";
+import path from "node:path";
+import { mkdtemp, rm } from "node:fs/promises";
 import {
   CodexRuntimeNotConfiguredError,
   ImageGeneratorNotConfiguredError,
@@ -35,6 +38,24 @@ test("codegen adapter rejects a non-local endpoint without a credential", () => 
   });
 });
 
+test("compatible adapters do not treat localhost text in a remote URL as loopback", () => {
+  withCleanCompatibleEnv(() => {
+    for (const baseUrl of [
+      "https://localhost.example.com/v1",
+      "https://localhost@provider.example/v1",
+    ]) {
+      assert.throws(
+        () => new OpenAICompatibleCodegenRuntime({ baseUrl }),
+        CodexRuntimeNotConfiguredError,
+      );
+      assert.throws(
+        () => new OpenAICompatibleImageGenerator({ baseUrl }),
+        ImageGeneratorNotConfiguredError,
+      );
+    }
+  });
+});
+
 test("codegen adapter maps compatible endpoint settings onto the hardened runtime", () => {
   withCleanCompatibleEnv(() => {
     const runtime = new OpenAICompatibleCodegenRuntime({
@@ -45,6 +66,39 @@ test("codegen adapter maps compatible endpoint settings onto the hardened runtim
     assert.equal(runtime.apiKey, "dummy");
     assert.equal(runtime.model, "local-model");
   });
+});
+
+test("codegen adapter uses the compatible model instead of the engine default", async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const fetchImpl = (async (_url: string | URL, init?: RequestInit) => {
+    calls.push(JSON.parse(String(init?.body)));
+    return new Response(JSON.stringify({
+      choices: [{ message: { content: '{"files":[],"result":{"status":"ok"}}' } }],
+    }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }) as typeof fetch;
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "site-magic-compatible-"));
+
+  try {
+    const runtime = new OpenAICompatibleCodegenRuntime({
+      baseUrl: "http://127.0.0.1:11434/v1",
+      model: "local-model",
+      fetchImpl,
+    });
+    await runtime.run({
+      role: "product",
+      workspace,
+      instructions: "Return a product brief.",
+      model: "openai/gpt-5.6-terra",
+    });
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].model, "local-model");
 });
 
 test("image adapter rejects a non-local endpoint without a credential", () => {

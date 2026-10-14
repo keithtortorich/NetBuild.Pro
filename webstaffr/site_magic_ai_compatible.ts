@@ -17,7 +17,25 @@ import {
 export { CodexRuntimeNotConfiguredError };
 export class ImageGeneratorNotConfiguredError extends Error {}
 
+function isLoopbackEndpoint(baseUrl: string): boolean {
+  try {
+    const hostname = new URL(baseUrl).hostname.toLowerCase();
+    return (
+      hostname === "localhost" ||
+      hostname.endsWith(".localhost") ||
+      hostname === "127.0.0.1" ||
+      hostname.startsWith("127.") ||
+      hostname === "::1" ||
+      hostname === "[::1]"
+    );
+  } catch {
+    return false;
+  }
+}
+
 export class OpenAICompatibleCodegenRuntime extends OpenRouterCodegenRuntime {
+  private readonly compatibleModel: string;
+
   constructor(opts?: {
     apiKey?: string;
     model?: string;
@@ -31,7 +49,8 @@ export class OpenAICompatibleCodegenRuntime extends OpenRouterCodegenRuntime {
       "http://localhost:11434/v1"
     ).replace(/\/+$/, "");
     const configuredKey = opts?.apiKey ?? process.env.OPENAI_COMPATIBLE_API_KEY;
-    const apiKey = configuredKey ?? (baseUrl.includes("localhost") ? "dummy" : "");
+    const apiKey = configuredKey ?? (isLoopbackEndpoint(baseUrl) ? "dummy" : "");
+    const model = opts?.model ?? process.env.OPENAI_COMPATIBLE_MODEL ?? "llama3.1:8b";
 
     if (!apiKey) {
       throw new CodexRuntimeNotConfiguredError(
@@ -41,11 +60,23 @@ export class OpenAICompatibleCodegenRuntime extends OpenRouterCodegenRuntime {
 
     super({
       apiKey,
-      model: opts?.model ?? process.env.OPENAI_COMPATIBLE_MODEL ?? "llama3.1:8b",
+      model,
       baseUrl,
       fetchImpl: opts?.fetchImpl,
       fs: opts?.fs,
     });
+    this.compatibleModel = model;
+  }
+
+  async run(args: {
+    role: string;
+    workspace: string;
+    instructions: string;
+    model?: string;
+    imageDataUrls?: string[];
+    splitFiles?: boolean;
+  }): Promise<Record<string, unknown>> {
+    return super.run({ ...args, model: this.compatibleModel });
   }
 }
 
@@ -72,7 +103,7 @@ export class OpenAICompatibleImageGenerator implements ImageGenerator {
       "http://localhost:11434/v1"
     ).replace(/\/+$/, "");
     const configuredKey = opts?.apiKey ?? process.env.OPENAI_COMPATIBLE_API_KEY;
-    this.apiKey = configuredKey ?? (this.baseUrl.includes("localhost") ? "dummy" : "");
+    this.apiKey = configuredKey ?? (isLoopbackEndpoint(this.baseUrl) ? "dummy" : "");
     this.model = opts?.model ?? process.env.OPENAI_COMPATIBLE_IMAGE_MODEL;
     this.fetchImpl = opts?.fetchImpl ?? fetch;
 
